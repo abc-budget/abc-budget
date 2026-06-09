@@ -7,8 +7,6 @@ export default tseslint.config(
       '**/dev-dist/**',
       '**/.tsbuild/**',
       '**/node_modules/**',
-      // The boundary guard intentionally deep-imports; it is governed by typecheck, not lint.
-      'apps/web/src/__boundary__/**',
     ],
   },
   ...tseslint.configs.recommended,
