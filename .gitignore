@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dev-dist/
+.tsbuild/
+.firebase/
+*.tsbuildinfo
+*service-account*.json
+*-firebase-adminsdk-*.json
+.DS_Store
