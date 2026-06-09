@@ -1,3 +1,5 @@
+// Regenerates the PWA icons in apps/web/public/. Run from the repo root: `pnpm make-icons`.
+// Dependency-free PNG encoder (truecolor). Re-run if the brand color changes.
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 

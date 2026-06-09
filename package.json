@@ -10,7 +10,8 @@
     "preview": "pnpm --filter @abc-budget/web preview",
     "test": "pnpm -r test",
     "typecheck": "tsc -b",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "make-icons": "node tools/make-icons.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
