@@ -46,3 +46,13 @@
   .stepper{ display:none; }
   .ob-step-m{ display:inline; }
 }
+
+/* Language toggle — source: Dashboard.html .langtog/.langbtn */
+.langtog{ display:flex; align-items:center; gap:6px; background:#0E2630; border-radius:var(--r-pill);
+  padding:5px 8px 5px 11px; box-shadow:inset 0 2px 5px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.18); }
+.langtog .globe{ width:15px; height:15px; color:var(--beige-deep); }
+.langbtn{ appearance:none; border:0; background:transparent; cursor:pointer; min-width:34px; min-height:32px;
+  font-family:var(--f-display); font-weight:700; font-size:12px; letter-spacing:.08em; color:var(--beige-deep);
+  border-radius:var(--r-pill); padding:5px 10px; }
+.langbtn.on{ background:linear-gradient(180deg,#F2C637,#C99A00); color:var(--ebony);
+  box-shadow:0 1px 0 rgba(255,255,255,.4),0 2px 4px rgba(0,0,0,.3); }

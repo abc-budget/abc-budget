@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { LangToggle } from './LangToggle';
 import { ZoneSwitcher } from './ZoneSwitcher';
 import { SectionTabs } from './SectionTabs';
 import { Stepper } from './Stepper';
@@ -78,5 +79,24 @@ describe('Stepper', () => {
     expect(dots[0].textContent).toBe('✓');
     expect(dots[1].textContent).toBe('02');
     expect(dots[3].textContent).toBe('04');
+  });
+});
+
+describe('LangToggle', () => {
+  it('renders the group with globe + UK/EN buttons, active via aria-pressed', () => {
+    const onChange = vi.fn();
+    const { container } = render(<LangToggle lang="uk" onChange={onChange} />);
+    const group = container.firstElementChild!;
+    expect(group.className).toBe('langtog');
+    expect(group.getAttribute('role')).toBe('group');
+    expect(group.querySelector('svg.globe')).not.toBeNull();
+    const uk = screen.getByRole('button', { name: 'UK' });
+    const en = screen.getByRole('button', { name: 'EN' });
+    expect(uk.className).toBe('langbtn on');
+    expect(uk.getAttribute('aria-pressed')).toBe('true');
+    expect(en.className).toBe('langbtn');
+    expect(en.getAttribute('aria-pressed')).toBe('false');
+    en.click();
+    expect(onChange).toHaveBeenCalledWith('en');
   });
 });
