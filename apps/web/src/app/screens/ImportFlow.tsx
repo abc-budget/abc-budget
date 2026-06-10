@@ -2,13 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Key, Panel, PanelBody, PanelHeader } from '../../ui/altus/components';
 import { FlowHeader } from '../headers';
-
-const STEPS = [
-  { id: 's3a', label: 'ФАЙЛ', logchip: 'S3A', title: 'Джерело', note: 'Завантаження файлу — EP-2.1 (the wedge).' },
-  { id: 's3b', label: 'КОЛОНКИ', logchip: 'S3B', title: 'Колонки', note: 'Мапінг колонок + UNKNOWN-gate — EP-2.' },
-  { id: 's3c', label: 'КАТЕГОРІЇ', logchip: 'S3C', title: 'Категоризація', note: 'Правила, RUL/, LOG/ — EP-4.' },
-  { id: 's3d', label: 'ОГЛЯД', logchip: 'S3D', title: 'Огляд і збереження', note: 'Збереження footprint — EP-3.' },
-];
+import { useT } from '../i18n/LangProvider';
 
 /**
  * Launched flow (FEAT-030): single route, internal step state — gates are state
@@ -17,6 +11,15 @@ const STEPS = [
  */
 export function ImportFlow() {
   const navigate = useNavigate();
+  const t = useT();
+
+  const STEPS = [
+    { id: 's3a', label: t('stepFile'), logchip: 'S3A', title: t('impSourceTitle'), note: t('impSourceNote') },
+    { id: 's3b', label: t('stepColumns'), logchip: 'S3B', title: t('impColumnsTitle'), note: t('impColumnsNote') },
+    { id: 's3c', label: t('stepCategories'), logchip: 'S3C', title: t('impCategoriesTitle'), note: t('impCategoriesNote') },
+    { id: 's3d', label: t('stepReview'), logchip: 'S3D', title: t('impReviewTitle'), note: t('impReviewNote') },
+  ];
+
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex];
   const isFirst = stepIndex === 0;
@@ -41,16 +44,16 @@ export function ImportFlow() {
             sm
             onClick={() => (isFirst ? navigate('/dashboard') : setStepIndex(stepIndex - 1))}
           >
-            Назад
+            {t('keyBack')}
           </Key>
           {!isLast ? (
             <Key variant="gold" onClick={() => canAdvance() && setStepIndex(stepIndex + 1)}>
-              Далі
+              {t('keyNext')}
             </Key>
           ) : (
             <div style={{ display: 'flex', gap: 'var(--sp-m)' }}>
-              <Key variant="beige" onClick={() => setStepIndex(0)}>Імпортувати ще</Key>
-              <Key variant="gold" onClick={() => navigate('/dashboard')}>До бюджету</Key>
+              <Key variant="beige" onClick={() => setStepIndex(0)}>{t('keyImportMore')}</Key>
+              <Key variant="gold" onClick={() => navigate('/dashboard')}>{t('keyToBudget')}</Key>
             </div>
           )}
         </div>

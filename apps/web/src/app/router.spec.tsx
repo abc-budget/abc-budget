@@ -3,14 +3,17 @@ import { render, screen, waitFor, cleanup, fireEvent, within } from '@testing-li
 import { MemoryRouter } from 'react-router';
 import { AppRoutes } from './router';
 import { useHasData } from './has-data';
+import { LangProvider } from './i18n/LangProvider';
 
 vi.mock('./has-data');
 
 function renderAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <AppRoutes />
-    </MemoryRouter>,
+    <LangProvider initialLang="uk">
+      <MemoryRouter initialEntries={[path]}>
+        <AppRoutes />
+      </MemoryRouter>
+    </LangProvider>,
   );
 }
 
