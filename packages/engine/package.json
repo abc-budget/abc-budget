@@ -8,6 +8,9 @@
   "scripts": {
     "test": "vitest run"
   },
+  "dependencies": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
   "devDependencies": {
     "vitest": "^3.0.0",
     "@vitest/web-worker": "^3.0.0",

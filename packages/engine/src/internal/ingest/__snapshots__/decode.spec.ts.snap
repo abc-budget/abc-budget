@@ -545,3 +545,283 @@ exports[`decode() — CSV path > utf8-bom.csv > full result matches snapshot 1`]
   ],
 }
 `;
+
+exports[`decode() — spreadsheet path > bank-like.xlsx > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "skipped-row",
+      "raw": "Виписка за рахунком UA21 3006 4900 0026 0071 3578 4|||||",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Виписка за рахунком UA21 3006 4900 0026 0071 3578 4|||||",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes header row 3; skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Період: 01.01.2024 – 31.01.2024|||||",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Період: 01.01.2024 – 31.01.2024|||||",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes header row 3; skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "|||||",
+      "row": 2,
+      "what": "preamble-row",
+      "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "|||||",
+      "row": 2,
+      "what": "preamble-row",
+      "why": "Row 2 precedes header row 3; skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Разом||+7220,00|||5,00",
+      "row": 14,
+      "what": "summary-row",
+      "why": "Row 14 matches the summary-row pattern (keyword 'Разом' in first cell, ≤40% fill); skipped.",
+    },
+  ],
+  "meta": {
+    "decodedRows": 10,
+    "format": "xlsx",
+    "headerRow": 3,
+    "otherSheets": undefined,
+    "sheet": "Виписка",
+    "totalRows": 11,
+  },
+  "rows": [
+    {
+      "Валюта": "UAH",
+      "Дата": "01.01.2024",
+      "Залишок": "98500,00",
+      "Комісія": "0,00",
+      "Опис": "Покупка в METRO 1",
+      "Сума": "-1500,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "02.01.2024",
+      "Залишок": "103500,00",
+      "Комісія": "0,00",
+      "Опис": "Переказ від ІВАНЕНКО",
+      "Сума": "+5000,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "03.01.2024",
+      "Залишок": "103050,00",
+      "Комісія": "0,00",
+      "Опис": "Комунальні послуги",
+      "Сума": "-450,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "04.01.2024",
+      "Залишок": "101050,00",
+      "Комісія": "5,00",
+      "Опис": "Зняття в банкоматі",
+      "Сума": "-2000,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "05.01.2024",
+      "Залишок": "100900,00",
+      "Комісія": "0,00",
+      "Опис": "Оплата за інтернет",
+      "Сума": "-150,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "06.01.2024",
+      "Залишок": "100580,00",
+      "Комісія": "0,00",
+      "Опис": "Покупка в АТБ",
+      "Сума": "-320,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "07.01.2024",
+      "Залишок": "110580,00",
+      "Комісія": "0,00",
+      "Опис": "Поповнення від клієнта",
+      "Сума": "+10000,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "08.01.2024",
+      "Залишок": "109780,00",
+      "Комісія": "0,00",
+      "Опис": "Оплата за газ",
+      "Сума": "-800,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "09.01.2024",
+      "Залишок": "109220,00",
+      "Комісія": "0,00",
+      "Опис": "Покупка в Сільпо",
+      "Сума": "-560,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "10.01.2024",
+      "Залишок": "106220,00",
+      "Комісія": "0,00",
+      "Опис": "Переказ Monobank",
+      "Сума": "-3000,00",
+    },
+  ],
+}
+`;
+
+exports[`decode() — spreadsheet path > legacy.xls > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "skipped-row",
+      "raw": "Виписка з рахунку (старий формат)||||",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Виписка з рахунку (старий формат)||||",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes header row 3; skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Клієнт: ТЕСТ ТЕСТОВИЧ||||",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Клієнт: ТЕСТ ТЕСТОВИЧ||||",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes header row 3; skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "||||",
+      "row": 2,
+      "what": "preamble-row",
+      "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "||||",
+      "row": 2,
+      "what": "preamble-row",
+      "why": "Row 2 precedes header row 3; skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Разом||+7720,00||",
+      "row": 9,
+      "what": "summary-row",
+      "why": "Row 9 matches the summary-row pattern (keyword 'Разом' in first cell, ≤40% fill); skipped.",
+    },
+  ],
+  "meta": {
+    "decodedRows": 5,
+    "format": "xls",
+    "headerRow": 3,
+    "otherSheets": undefined,
+    "sheet": "Sheet1",
+    "totalRows": 6,
+  },
+  "rows": [
+    {
+      "Банк": "ПАТ Ощадбанк",
+      "Дата": "15.03.2023",
+      "МФО": "322001",
+      "Призначення": "Оплата послуг ЖКГ",
+      "Сума": "-850,00",
+    },
+    {
+      "Банк": "АТ Приватбанк",
+      "Дата": "16.03.2023",
+      "МФО": "305299",
+      "Призначення": "Переказ фізособі",
+      "Сума": "-1200,00",
+    },
+    {
+      "Банк": "ПАТ Ощадбанк",
+      "Дата": "17.03.2023",
+      "МФО": "322001",
+      "Призначення": "Поповнення депозиту",
+      "Сума": "-5000,00",
+    },
+    {
+      "Банк": "ПАТ Ощадбанк",
+      "Дата": "18.03.2023",
+      "МФО": "322001",
+      "Призначення": "Зарахування зарплати",
+      "Сума": "+15000,00",
+    },
+    {
+      "Банк": "АТ Приватбанк",
+      "Дата": "19.03.2023",
+      "МФО": "305299",
+      "Призначення": "Оплата в Fozzy",
+      "Сума": "-230,00",
+    },
+  ],
+}
+`;
+
+exports[`decode() — spreadsheet path > multi-sheet.xlsx > full result matches snapshot 1`] = `
+{
+  "issues": [],
+  "meta": {
+    "decodedRows": 3,
+    "format": "xlsx",
+    "headerRow": 0,
+    "otherSheets": [
+      "Інфо",
+    ],
+    "sheet": "Виписка",
+    "totalRows": 3,
+  },
+  "rows": [
+    {
+      "Дата": "01.06.2024",
+      "Деталі": "Оплата за товар",
+      "Сума": "-1000,00",
+    },
+    {
+      "Дата": "02.06.2024",
+      "Деталі": "Надходження",
+      "Сума": "+5000,00",
+    },
+    {
+      "Дата": "03.06.2024",
+      "Деталі": "Комісія банку",
+      "Сума": "-25,00",
+    },
+  ],
+}
+`;

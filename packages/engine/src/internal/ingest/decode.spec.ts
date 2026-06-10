@@ -263,8 +263,8 @@ describe('decode() — CSV path', () => {
       expect(noDataIssue).toBeDefined();
     });
 
-    it('spreadsheet stub: .xlsx file → file-unreadable issue with spreadsheet note', async () => {
-      // Fake XLSX magic bytes (PK\x03\x04)
+    it('truncated .xlsx magic bytes → file-unreadable issue (SheetJS parse failure)', async () => {
+      // Only magic prefix — not a valid ZIP/XLSX workbook; SheetJS will fail to parse.
       const magic = new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]);
       const result = await decode({
         bytes: magic.buffer,
@@ -274,20 +274,189 @@ describe('decode() — CSV path', () => {
       expect(result.meta.format).toBe('xlsx');
       const issue = result.issues.find(i => i.action === 'file-unreadable');
       expect(issue).toBeDefined();
-      expect(issue?.what).toBe('spreadsheet-not-implemented');
     });
 
-    it('spreadsheet stub: .xls file → file-unreadable issue with spreadsheet note', async () => {
-      // Fake BIFF magic bytes (D0 CF 11 E0)
+    it('truncated .xls magic bytes → routes to sheet path, never throws', async () => {
+      // Only BIFF magic prefix — SheetJS may partially parse or return garbage,
+      // but decode() must never throw and must return a valid DecodeResult.
       const magic = new Uint8Array([0xD0, 0xCF, 0x11, 0xE0, 0x00, 0x00]);
       const result = await decode({
         bytes: magic.buffer,
         fileName: 'bank-statement.xls',
       });
-      expect(result.rows).toHaveLength(0);
+      // Must not throw; must be a valid DecodeResult
+      expect(result).toBeDefined();
       expect(result.meta.format).toBe('xls');
-      const issue = result.issues.find(i => i.action === 'file-unreadable');
-      expect(issue).toBeDefined();
+      expect(Array.isArray(result.rows)).toBe(true);
+      expect(Array.isArray(result.issues)).toBe(true);
+    });
+  });
+});
+
+// =============================================================================
+// Spreadsheet path (Task 5)
+// =============================================================================
+
+describe('decode() — spreadsheet path', () => {
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 1. bank-like.xlsx
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('bank-like.xlsx', () => {
+    it('full result matches snapshot', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      expect(result).toMatchSnapshot();
+    });
+
+    it('HEADLINE: format=xlsx, headerRow=3', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      expect(result.meta.format).toBe('xlsx');
+      expect(result.meta.headerRow).toBe(3);
+    });
+
+    it('HEADLINE: 10 data rows decoded (preamble + summary skipped)', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      expect(result.meta.decodedRows).toBe(10);
+    });
+
+    it('HEADLINE: «Разом» summary row produces skipped-row issue', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      const summaryIssue = result.issues.find(
+        i => i.action === 'skipped-row' && i.what === 'summary-row',
+      );
+      expect(summaryIssue).toBeDefined();
+    });
+
+    it('HEADLINE: header keys include Дата, Опис, Сума', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      expect(result.rows.length).toBeGreaterThan(0);
+      expect(Object.keys(result.rows[0])).toContain('Дата');
+      expect(Object.keys(result.rows[0])).toContain('Опис');
+      expect(Object.keys(result.rows[0])).toContain('Сума');
+    });
+
+    it('HEADLINE: sheet name populated', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      expect(result.meta.sheet).toBeDefined();
+    });
+
+    it('determinism: decode twice → deep-equal', async () => {
+      const r1 = await decode(readFixture('bank-like.xlsx'));
+      const r2 = await decode(readFixture('bank-like.xlsx'));
+      expect(deepEqual(r1, r2)).toBe(true);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2. legacy.xls
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('legacy.xls', () => {
+    it('full result matches snapshot', async () => {
+      const result = await decode(readFixture('legacy.xls'));
+      expect(result).toMatchSnapshot();
+    });
+
+    it('HEADLINE: format=xls (BIFF magic-byte path)', async () => {
+      const result = await decode(readFixture('legacy.xls'));
+      expect(result.meta.format).toBe('xls');
+    });
+
+    it('HEADLINE: has data rows with Ukrainian strings', async () => {
+      const result = await decode(readFixture('legacy.xls'));
+      expect(result.rows.length).toBeGreaterThan(0);
+    });
+
+    it('HEADLINE: «Разом» summary row skipped', async () => {
+      const result = await decode(readFixture('legacy.xls'));
+      const summaryIssue = result.issues.find(
+        i => i.action === 'skipped-row' && i.what === 'summary-row',
+      );
+      expect(summaryIssue).toBeDefined();
+    });
+
+    it('determinism: decode twice → deep-equal', async () => {
+      const r1 = await decode(readFixture('legacy.xls'));
+      const r2 = await decode(readFixture('legacy.xls'));
+      expect(deepEqual(r1, r2)).toBe(true);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 3. multi-sheet.xlsx
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('multi-sheet.xlsx', () => {
+    it('full result matches snapshot', async () => {
+      const result = await decode(readFixture('multi-sheet.xlsx'));
+      expect(result).toMatchSnapshot();
+    });
+
+    it('HEADLINE: otherSheets contains [«Інфо»]', async () => {
+      const result = await decode(readFixture('multi-sheet.xlsx'));
+      expect(result.meta.otherSheets).toEqual(['Інфо']);
+    });
+
+    it('HEADLINE: first sheet decoded (Виписка)', async () => {
+      const result = await decode(readFixture('multi-sheet.xlsx'));
+      expect(result.meta.sheet).toBe('Виписка');
+      expect(result.rows.length).toBeGreaterThan(0);
+    });
+
+    it('HEADLINE: format=xlsx', async () => {
+      const result = await decode(readFixture('multi-sheet.xlsx'));
+      expect(result.meta.format).toBe('xlsx');
+    });
+
+    it('determinism: decode twice → deep-equal', async () => {
+      const r1 = await decode(readFixture('multi-sheet.xlsx'));
+      const r2 = await decode(readFixture('multi-sheet.xlsx'));
+      expect(deepEqual(r1, r2)).toBe(true);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 4. CSV-named file with PK (XLSX) signature — mismatch case
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('sneaky.csv (PK-magic file with .csv extension)', () => {
+    it('routes to sheet path with extension-mismatch issue', async () => {
+      // Read bank-like.xlsx bytes, present as sneaky.csv
+      const { bytes } = readFixture('bank-like.xlsx');
+      const result = await decode({ bytes, fileName: 'sneaky.csv' });
+      // Should still decode successfully (sheet path)
+      expect(result.meta.format).toBe('xlsx');
+      expect(result.rows.length).toBeGreaterThan(0);
+      // Should flag the mismatch
+      const mismatch = result.issues.find(i => i.what === 'extension-mismatch');
+      expect(mismatch).toBeDefined();
+      expect(mismatch?.action).toBe('kept-raw');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 5. Lazy-import discipline — no static 'xlsx' import in source files
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('lazy-import discipline', () => {
+    it('sheet-decoder.ts has no static `from "xlsx"` import', async () => {
+      const { readFileSync } = await import('node:fs');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+      const dir = dirname(fileURLToPath(import.meta.url));
+      const src = readFileSync(join(dir, 'sheet-decoder.ts'), 'utf-8');
+      // Must NOT have a static ESM import of xlsx
+      expect(src).not.toMatch(/from ['"]xlsx['"]/);
+      // Must NOT have a static require of xlsx
+      expect(src).not.toMatch(/require\(['"]xlsx['"]\)/);
+      // MUST have the dynamic import
+      expect(src).toMatch(/import\(['"]xlsx['"]\)/);
+    });
+
+    it('decode.ts has no static `from "xlsx"` import', async () => {
+      const { readFileSync } = await import('node:fs');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+      const dir = dirname(fileURLToPath(import.meta.url));
+      const src = readFileSync(join(dir, 'decode.ts'), 'utf-8');
+      expect(src).not.toMatch(/from ['"]xlsx['"]/);
+      expect(src).not.toMatch(/require\(['"]xlsx['"]\)/);
     });
   });
 });

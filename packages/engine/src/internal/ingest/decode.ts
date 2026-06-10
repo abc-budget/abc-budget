@@ -3,7 +3,7 @@
  *
  * Routes by file extension + content magic:
  *   .csv / .txt / unknown extension  → CSV path
- *   .xlsx / .xls                     → spreadsheet stub (Task 5)
+ *   .xlsx / .xls / PK or BIFF magic  → sheet-decoder (SheetJS, lazy import)
  *
  * CSV path:
  *   decodeBytes → split physical lines → sniffDelimiter → parseCsv →
@@ -23,6 +23,7 @@ import type { DecodeInput, DecodeResult, DecodeIssue, DecodeMeta } from './types
 import { decodeBytes } from './encoding';
 import { sniffDelimiter, parseCsv } from './csv-parser';
 import { detectHeader, keyRows } from './header-detect';
+import { decodeSheet } from './sheet-decoder';
 
 // ---------------------------------------------------------------------------
 // Spreadsheet magic-byte signatures
@@ -83,9 +84,17 @@ export async function decode(input: DecodeInput): Promise<DecodeResult> {
   const { bytes, fileName } = input;
   const ext = getExtension(fileName);
 
-  // ── Spreadsheet path (Task 5 stub) ─────────────────────────────────────────
-  if (isSpreadsheetExt(ext)) {
-    return decodeSpreadsheetStub(bytes, fileName, ext);
+  // ── Signature detection: check magic bytes regardless of extension ──────────
+  const view = new Uint8Array(bytes);
+  const isXlsxSig = startsWithMagic(view, XLSX_MAGIC);
+  const isBiffSig = startsWithMagic(view, BIFF_MAGIC);
+  const hasSpreadsheetSig = isXlsxSig || isBiffSig;
+
+  // ── Spreadsheet path: extension OR signature routes here ───────────────────
+  // A .csv-named file with PK signature goes to the sheet path; the mismatch
+  // is flagged by decodeSheet with an 'extension-mismatch' issue.
+  if (isSpreadsheetExt(ext) || hasSpreadsheetSig) {
+    return decodeSheet(bytes, fileName);
   }
 
   // ── CSV / text / unknown extension ─────────────────────────────────────────
@@ -250,43 +259,4 @@ async function decodeCsv(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Spreadsheet stub (Task 5)
-// ---------------------------------------------------------------------------
-
-async function decodeSpreadsheetStub(
-  bytes: ArrayBuffer,
-  fileName: string,
-  ext: SpreadsheetExt,
-): Promise<DecodeResult> {
-  const view = new Uint8Array(bytes);
-
-  // Detect format by content signature (not just extension).
-  // Trust magic bytes; fall back to the file extension if neither matches
-  // (encrypted files have different magic and are reported as file-unreadable).
-  let format: 'xlsx' | 'xls' = ext;
-  if (startsWithMagic(view, XLSX_MAGIC)) {
-    format = 'xlsx';
-  } else if (startsWithMagic(view, BIFF_MAGIC)) {
-    format = 'xls';
-  }
-
-  return {
-    rows: [],
-    issues: [{
-      row: -1,
-      what: 'spreadsheet-not-implemented',
-      why: `File '${fileName}' appears to be a ${format.toUpperCase()} spreadsheet. ` +
-        `Spreadsheet decoding lands in Task 5 — this stub detects the ` +
-        `${startsWithMagic(view, XLSX_MAGIC) ? 'PK (ZIP/XLSX)' : startsWithMagic(view, BIFF_MAGIC) ? 'D0CF (BIFF/XLS)' : 'unknown'} ` +
-        `signature and returns a clean error. Replace this stub with sheet-decoder.ts at Task 5.`,
-      action: 'file-unreadable',
-    }],
-    meta: {
-      format,
-      headerRow: -1,
-      totalRows: 0,
-      decodedRows: 0,
-    },
-  };
-}
+// Spreadsheet path is handled by sheet-decoder.ts (imported above).

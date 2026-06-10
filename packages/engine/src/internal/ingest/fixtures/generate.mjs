@@ -8,17 +8,30 @@
  *   privat-like-cp1251.csv  — windows-1251 encoded CSV with PrivatBank-style
  *                             8 preamble rows, `;` delimiter, comma-decimal amounts,
  *                             a quote-in-field row, and a trailing «Разом» row.
+ *   bank-like.xlsx          — XLSX with 3 preamble rows (merged-cell title), styled
+ *                             header, 10 fake data rows, «Разом» summary row.
+ *   legacy.xls              — XLS (BIFF8 via bookType:'xls'), Ukrainian strings —
+ *                             exercises the D0CF BIFF magic-byte path.
+ *   multi-sheet.xlsx        — 2-sheet XLSX: «Виписка» (data) + «Інфо» (junk).
  *
  * Why an explicit byte map?
  *   Node.js has no cp1251 *encoder* (only a decoder via TextDecoder('windows-1251')).
  *   Rather than pulling a dep, we embed an explicit uk->cp1251 byte map covering the
  *   ~70 characters needed by the fixture.  The map is reviewable + deterministic.
  *   Byte values verified against TextDecoder('windows-1251') round-trip on Node 18+.
+ *
+ * Determinism notes for spreadsheet fixtures:
+ *   SheetJS writes XLSX zip archives with ZIP local file header "last modified"
+ *   timestamps. To ensure snapshot-safe determinism we snapshot DecodeResult
+ *   (rows/issues/meta), NOT the raw bytes.  Content is fully deterministic
+ *   (no Date.now(); all strings are literals).
  */
 
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// why: npm 'xlsx' is stale w/ CVEs; cdn.sheetjs.com is the official dist (pinned)
+import XLSX from 'xlsx';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = __dirname;
@@ -154,3 +167,116 @@ if (!lines[3].includes('Клієнт')) {
   throw new Error('Round-trip check FAILED -- client row: ' + JSON.stringify(lines[3]));
 }
 console.log('Round-trip decode verified (header at row 8, client name correct)');
+
+// ---------------------------------------------------------------------------
+// Fixture: bank-like.xlsx
+// ---------------------------------------------------------------------------
+// 3 preamble rows (row 0 has a merged-cell title),
+// header row at index 3, 10 data rows, trailing «Разом» summary row.
+// ---------------------------------------------------------------------------
+
+(function generateBankLikeXlsx() {
+  const wb = XLSX.utils.book_new();
+
+  // Build the data array (row-major, all strings for determinism)
+  const rows = [
+    // row 0: merged title
+    ['Виписка за рахунком UA21 3006 4900 0026 0071 3578 4', '', '', '', '', ''],
+    // row 1: period info
+    ['Період: 01.01.2024 – 31.01.2024', '', '', '', '', ''],
+    // row 2: empty preamble
+    ['', '', '', '', '', ''],
+    // row 3: header
+    ['Дата', 'Опис', 'Сума', 'Валюта', 'Залишок', 'Комісія'],
+    // rows 4-13: 10 data rows (deterministic, no runtime dates)
+    ['01.01.2024', 'Покупка в METRO 1', '-1500,00', 'UAH', '98500,00', '0,00'],
+    ['02.01.2024', 'Переказ від ІВАНЕНКО', '+5000,00', 'UAH', '103500,00', '0,00'],
+    ['03.01.2024', 'Комунальні послуги', '-450,00', 'UAH', '103050,00', '0,00'],
+    ['04.01.2024', 'Зняття в банкоматі', '-2000,00', 'UAH', '101050,00', '5,00'],
+    ['05.01.2024', 'Оплата за інтернет', '-150,00', 'UAH', '100900,00', '0,00'],
+    ['06.01.2024', 'Покупка в АТБ', '-320,00', 'UAH', '100580,00', '0,00'],
+    ['07.01.2024', 'Поповнення від клієнта', '+10000,00', 'UAH', '110580,00', '0,00'],
+    ['08.01.2024', 'Оплата за газ', '-800,00', 'UAH', '109780,00', '0,00'],
+    ['09.01.2024', 'Покупка в Сільпо', '-560,00', 'UAH', '109220,00', '0,00'],
+    ['10.01.2024', 'Переказ Monobank', '-3000,00', 'UAH', '106220,00', '0,00'],
+    // row 14: summary
+    ['Разом', '', '+7220,00', '', '', '5,00'],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Add merged cell for the title row (A1:F1 → row 0, cols 0-5)
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Виписка');
+  const xlsxBuf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  writeFileSync(join(OUT_DIR, 'bank-like.xlsx'), xlsxBuf);
+  console.log('bank-like.xlsx (' + xlsxBuf.length + ' bytes, XLSX, merged title, 10 rows + summary)');
+})();
+
+// ---------------------------------------------------------------------------
+// Fixture: legacy.xls
+// ---------------------------------------------------------------------------
+// BIFF8 (bookType:'xls') with Ukrainian strings — exercises D0CF magic path.
+// ---------------------------------------------------------------------------
+
+(function generateLegacyXls() {
+  const wb = XLSX.utils.book_new();
+
+  const rows = [
+    // preamble
+    ['Виписка з рахунку (старий формат)'],
+    ['Клієнт: ТЕСТ ТЕСТОВИЧ'],
+    [''],
+    // header
+    ['Дата', 'Призначення', 'Сума', 'МФО', 'Банк'],
+    // data rows
+    ['15.03.2023', 'Оплата послуг ЖКГ', '-850,00', '322001', 'ПАТ Ощадбанк'],
+    ['16.03.2023', 'Переказ фізособі', '-1200,00', '305299', 'АТ Приватбанк'],
+    ['17.03.2023', 'Поповнення депозиту', '-5000,00', '322001', 'ПАТ Ощадбанк'],
+    ['18.03.2023', 'Зарахування зарплати', '+15000,00', '322001', 'ПАТ Ощадбанк'],
+    ['19.03.2023', 'Оплата в Fozzy', '-230,00', '305299', 'АТ Приватбанк'],
+    // summary
+    ['Разом', '', '+7720,00', '', ''],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  const xlsBuf = XLSX.write(wb, { type: 'buffer', bookType: 'xls' });
+  writeFileSync(join(OUT_DIR, 'legacy.xls'), xlsBuf);
+  console.log('legacy.xls (' + xlsBuf.length + ' bytes, BIFF8/XLS, Ukrainian strings)');
+})();
+
+// ---------------------------------------------------------------------------
+// Fixture: multi-sheet.xlsx
+// ---------------------------------------------------------------------------
+// Sheet «Виписка» (data) + sheet «Інфо» (junk metadata).
+// Tests that otherSheets is populated correctly.
+// ---------------------------------------------------------------------------
+
+(function generateMultiSheetXlsx() {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: data (Виписка)
+  const dataRows = [
+    ['Дата', 'Деталі', 'Сума'],
+    ['01.06.2024', 'Оплата за товар', '-1000,00'],
+    ['02.06.2024', 'Надходження', '+5000,00'],
+    ['03.06.2024', 'Комісія банку', '-25,00'],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(dataRows);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Виписка');
+
+  // Sheet 2: info junk (Інфо)
+  const infoRows = [
+    ['Назва банку', 'ТЕСТ БАНК'],
+    ['Валюта', 'UAH'],
+    ['Тип рахунку', 'Поточний'],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(infoRows);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Інфо');
+
+  const xlsxBuf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  writeFileSync(join(OUT_DIR, 'multi-sheet.xlsx'), xlsxBuf);
+  console.log('multi-sheet.xlsx (' + xlsxBuf.length + ' bytes, 2 sheets: Виписка + Інфо)');
+})();
