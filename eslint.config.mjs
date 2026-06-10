@@ -55,6 +55,11 @@ export default tseslint.config(
               group: ['../../**'],
               message: 'altus/ is app-agnostic — no imports from app modules above src/ui/altus/.',
             },
+            {
+              group: ['react-router', 'react-router/*', 'react-router-dom', 'react-router-dom/*'],
+              message:
+                'altus/ is router-agnostic — navigation chrome takes renderItem/callback props; the app layer injects links (1.5 spec §4).',
+            },
           ],
         },
       ],

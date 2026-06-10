@@ -10,3 +10,5 @@ dev-dist/
 .playwright-mcp/
 /story-1.1-offline-proof.png
 /story-1.3-gallery-proof.png
+/story-1.5-shell-proof.png
+/story-1.5-mobile-stepper.png
