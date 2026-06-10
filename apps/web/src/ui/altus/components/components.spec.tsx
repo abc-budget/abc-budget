@@ -5,6 +5,10 @@ import { Lamp } from './Lamp';
 import { StateBadge, BADGE_STATES } from './StateBadge';
 import { Chip } from './Chip';
 import { CodeChip } from './CodeChip';
+import { Panel, PanelBody, PanelHeader } from './Panel';
+import { Cream, Crt, Paper } from './surfaces';
+import { Gauge } from './Gauge';
+import { BrandMark } from './BrandMark';
 
 describe('Key', () => {
   it('renders a button with the variant + base classes', () => {
@@ -59,5 +63,67 @@ describe('Chip / CodeChip', () => {
     const { container } = render(<CodeChip>UAH</CodeChip>);
     expect(container.firstElementChild!.className).toBe('codechip');
     expect(container.textContent).toBe('UAH');
+  });
+});
+
+describe('Panel family', () => {
+  it('renders panel > header(+logchip, title) + body, with 4 screws when requested', () => {
+    const { container } = render(
+      <Panel screws>
+        <PanelHeader logchip="DAT-01" title="Бюджет" />
+        <PanelBody>вміст</PanelBody>
+      </Panel>,
+    );
+    const panel = container.firstElementChild!;
+    expect(panel.classList.contains('panel')).toBe(true);
+    expect(panel.querySelectorAll('.screw')).toHaveLength(4);
+    expect(panel.querySelector('.logchip')!.textContent).toBe('DAT-01');
+    expect(panel.querySelector('h3')!.textContent).toBe('Бюджет');
+    expect(panel.querySelector('.panel-b')!.textContent).toBe('вміст');
+  });
+});
+
+describe('surfaces', () => {
+  it('Cream/Crt/Paper apply their classes', () => {
+    expect(render(<Cream>x</Cream>).container.firstElementChild!.classList.contains('cream')).toBe(true);
+    expect(render(<Crt>x</Crt>).container.firstElementChild!.classList.contains('crt')).toBe(true);
+    expect(render(<Paper>x</Paper>).container.firstElementChild!.classList.contains('paper')).toBe(true);
+  });
+});
+
+describe('Gauge — dot-matrix math (28 cells)', () => {
+  const lit = (c: HTMLElement) => c.querySelectorAll('.cell[style]').length;
+  it('lights round(ratio*28) cells, capped at 28', () => {
+    expect(lit(render(<Gauge spent={0} budget={100} state="within" />).container)).toBe(0);
+    expect(lit(render(<Gauge spent={50} budget={100} state="within" />).container)).toBe(14);
+    expect(lit(render(<Gauge spent={100} budget={100} state="within" />).container)).toBe(28);
+    expect(lit(render(<Gauge spent={150} budget={100} state="over" />).container)).toBe(28);
+  });
+  it('shows the percentage and an over-limit row past 100%', () => {
+    const { container } = render(
+      <Gauge spent={150} budget={100} state="over" overLimitLabel="понад ліміт" />,
+    );
+    expect(container.querySelector('.pctnum')!.textContent).toBe('150%');
+    expect(container.querySelector('.ovr-pct')!.textContent).toBe('+50% понад ліміт');
+  });
+  it('archived: no lit cells, em-dash percent', () => {
+    const { container } = render(<Gauge spent={50} budget={100} state="within" archived />);
+    expect(lit(container)).toBe(0);
+    expect(container.querySelector('.pctnum')!.textContent).toBe('—');
+  });
+});
+
+describe('BrandMark', () => {
+  it('links to href when given', () => {
+    const { container } = render(<BrandMark href="/" />);
+    const a = container.querySelector('a.brand')!;
+    expect(a.getAttribute('href')).toBe('/');
+    expect(container.querySelector('img')!.getAttribute('src')).toBe('/assets/abc-flap-mark.svg');
+    expect(container.textContent).toContain('ABC');
+  });
+  it('is inert (no anchor) without href — FEAT-030 Onboarding rule', () => {
+    const { container } = render(<BrandMark />);
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.querySelector('.brand')).not.toBeNull();
   });
 });
