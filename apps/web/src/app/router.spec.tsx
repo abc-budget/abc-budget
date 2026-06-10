@@ -23,6 +23,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
 });
 
 describe('/ routing (FEAT-030)', () => {
@@ -159,5 +160,34 @@ describe('shell invariants', () => {
       expect(within(r.container).getByRole('button', { name: affordance }), path).toBeTruthy();
       r.unmount();
     }
+  });
+});
+
+describe('i18n shell behavior (1.4)', () => {
+  it('toggle present in all three headers (Onboarding, dwell, flow)', () => {
+    for (const path of ['/', '/dashboard', '/import']) {
+      const r = renderAt(path);
+      expect(within(r.container).getByRole('group', { name: 'UI language' }), path).toBeTruthy();
+      r.unmount();
+    }
+  });
+  it('switching to EN re-renders chrome (zone labels) and back', () => {
+    renderAt('/dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }));
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'UK' }));
+    expect(screen.getByRole('link', { name: 'Дашборд' })).toBeTruthy();
+  });
+  it('switch persists to localStorage and updates <html lang>', () => {
+    renderAt('/dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }));
+    expect(localStorage.getItem('abc.lang.v1')).toBe('en');
+    expect(document.documentElement.lang).toBe('en');
+  });
+  it('first render is already in the provided language (no flash: text present synchronously)', () => {
+    const r = renderAt('/');
+    // No waitFor: the very first synchronous render must carry the uk copy.
+    expect(within(r.container).getByText('Ласкаво просимо')).toBeTruthy();
   });
 });
