@@ -231,13 +231,6 @@ exports[`decode() — CSV path > privat-like-cp1251.csv > full result matches sn
       "why": "Row 0 precedes the detected header (row 6); treated as preamble and skipped.",
     },
     {
-      "action": "skipped-row",
-      "raw": "Виписка з рахунку",
-      "row": 0,
-      "what": "preamble-row",
-      "why": "Row 0 precedes header row 6; skipped.",
-    },
-    {
       "action": "recovered-quote",
       "raw": "АТ КБ ",
       "row": 1,
@@ -260,13 +253,6 @@ exports[`decode() — CSV path > privat-like-cp1251.csv > full result matches sn
     },
     {
       "action": "skipped-row",
-      "raw": "АТ КБ "ПРИВАТБАНК"",
-      "row": 1,
-      "what": "preamble-row",
-      "why": "Row 1 precedes header row 6; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "row": 2,
       "what": "empty-line",
       "why": "Physical line is empty; row skipped.",
@@ -280,24 +266,10 @@ exports[`decode() — CSV path > privat-like-cp1251.csv > full result matches sn
     },
     {
       "action": "skipped-row",
-      "raw": "Клієнт: ТЕСТОВИЙ ТЕСТ ТЕСТОВИЧ",
-      "row": 3,
-      "what": "preamble-row",
-      "why": "Row 2 precedes header row 6; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "Рахунок: UA12 3456 7890 0000 0001 2345 6789",
       "row": 4,
       "what": "preamble-row",
       "why": "Row 3 precedes the detected header (row 6); treated as preamble and skipped.",
-    },
-    {
-      "action": "skipped-row",
-      "raw": "Рахунок: UA12 3456 7890 0000 0001 2345 6789",
-      "row": 4,
-      "what": "preamble-row",
-      "why": "Row 3 precedes header row 6; skipped.",
     },
     {
       "action": "skipped-row",
@@ -308,24 +280,10 @@ exports[`decode() — CSV path > privat-like-cp1251.csv > full result matches sn
     },
     {
       "action": "skipped-row",
-      "raw": "Період: 01.01.2024 — 31.01.2024",
-      "row": 5,
-      "what": "preamble-row",
-      "why": "Row 4 precedes header row 6; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "Валюта: UAH",
       "row": 6,
       "what": "preamble-row",
       "why": "Row 5 precedes the detected header (row 6); treated as preamble and skipped.",
-    },
-    {
-      "action": "skipped-row",
-      "raw": "Валюта: UAH",
-      "row": 6,
-      "what": "preamble-row",
-      "why": "Row 5 precedes header row 6; skipped.",
     },
     {
       "action": "skipped-row",
@@ -423,13 +381,6 @@ exports[`decode() — CSV path > tabs-ragged.csv > full result matches snapshot 
     },
     {
       "action": "skipped-row",
-      "raw": "Date|Description|Amount|Currency",
-      "row": 0,
-      "what": "preamble-row",
-      "why": "Row 0 precedes header row 3; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "15.01.2024|TEST PAYMENT 1|-100.00|UAH",
       "row": 1,
       "what": "preamble-row",
@@ -437,24 +388,10 @@ exports[`decode() — CSV path > tabs-ragged.csv > full result matches snapshot 
     },
     {
       "action": "skipped-row",
-      "raw": "15.01.2024|TEST PAYMENT 1|-100.00|UAH",
-      "row": 1,
-      "what": "preamble-row",
-      "why": "Row 1 precedes header row 3; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "16.01.2024|TEST PAYMENT 2|-250.50|UAH|EXTRA_COL",
       "row": 2,
       "what": "preamble-row",
       "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
-    },
-    {
-      "action": "skipped-row",
-      "raw": "16.01.2024|TEST PAYMENT 2|-250.50|UAH|EXTRA_COL",
-      "row": 2,
-      "what": "preamble-row",
-      "why": "Row 2 precedes header row 3; skipped.",
     },
     {
       "action": "truncated-row",
@@ -558,13 +495,6 @@ exports[`decode() — spreadsheet path > bank-like.xlsx > full result matches sn
     },
     {
       "action": "skipped-row",
-      "raw": "Виписка за рахунком UA21 3006 4900 0026 0071 3578 4|||||",
-      "row": 0,
-      "what": "preamble-row",
-      "why": "Row 0 precedes header row 3; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "Період: 01.01.2024 – 31.01.2024|||||",
       "row": 1,
       "what": "preamble-row",
@@ -572,24 +502,10 @@ exports[`decode() — spreadsheet path > bank-like.xlsx > full result matches sn
     },
     {
       "action": "skipped-row",
-      "raw": "Період: 01.01.2024 – 31.01.2024|||||",
-      "row": 1,
-      "what": "preamble-row",
-      "why": "Row 1 precedes header row 3; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "|||||",
       "row": 2,
       "what": "preamble-row",
       "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
-    },
-    {
-      "action": "skipped-row",
-      "raw": "|||||",
-      "row": 2,
-      "what": "preamble-row",
-      "why": "Row 2 precedes header row 3; skipped.",
     },
     {
       "action": "skipped-row",
@@ -704,13 +620,6 @@ exports[`decode() — spreadsheet path > legacy.xls > full result matches snapsh
     },
     {
       "action": "skipped-row",
-      "raw": "Виписка з рахунку (старий формат)||||",
-      "row": 0,
-      "what": "preamble-row",
-      "why": "Row 0 precedes header row 3; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "Клієнт: ТЕСТ ТЕСТОВИЧ||||",
       "row": 1,
       "what": "preamble-row",
@@ -718,24 +627,10 @@ exports[`decode() — spreadsheet path > legacy.xls > full result matches snapsh
     },
     {
       "action": "skipped-row",
-      "raw": "Клієнт: ТЕСТ ТЕСТОВИЧ||||",
-      "row": 1,
-      "what": "preamble-row",
-      "why": "Row 1 precedes header row 3; skipped.",
-    },
-    {
-      "action": "skipped-row",
       "raw": "||||",
       "row": 2,
       "what": "preamble-row",
       "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
-    },
-    {
-      "action": "skipped-row",
-      "raw": "||||",
-      "row": 2,
-      "what": "preamble-row",
-      "why": "Row 2 precedes header row 3; skipped.",
     },
     {
       "action": "skipped-row",

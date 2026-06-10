@@ -48,13 +48,22 @@ describe('detectHeader — PRIVAT_LIKE fixture', () => {
     expect(d.keys).toEqual(['Дата', 'Опис', 'Сума']);
   });
 
-  it('preamble rows 0..2 each produce a skipped-row issue', () => {
-    const skipped = d.issues.filter(i => i.action === 'skipped-row').map(i => i.row);
+  it('detectHeader does NOT emit preamble issues (keyRows is sole emitter)', () => {
+    // After the single-source fix, detectHeader no longer emits preamble-row issues.
+    // Callers must run keyRows to get those issues.
+    const preambleIssues = d.issues.filter(i => i.what === 'preamble-row');
+    expect(preambleIssues).toHaveLength(0);
+  });
+
+  it('keyRows emits preamble rows 0..2 each as a skipped-row issue (single-source)', () => {
+    const k = keyRows(PRIVAT_LIKE, d);
+    const skipped = k.issues.filter(i => i.action === 'skipped-row' && i.what === 'preamble-row').map(i => i.row);
     expect(skipped).toEqual([0, 1, 2]);
   });
 
   it('skipped-row issues have meaningful why text', () => {
-    const skipped = d.issues.filter(i => i.action === 'skipped-row');
+    const k = keyRows(PRIVAT_LIKE, d);
+    const skipped = k.issues.filter(i => i.action === 'skipped-row' && i.what === 'preamble-row');
     for (const issue of skipped) {
       expect(issue.why.length).toBeGreaterThan(0);
     }

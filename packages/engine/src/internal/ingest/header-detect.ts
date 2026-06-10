@@ -154,19 +154,8 @@ export function detectHeader(matrix: string[][]): DetectHeaderResult {
     return { headerRow: -1, keys, issues };
   }
 
-  // ── Emit preamble issues ──────────────────────────────────────────────────
-
-  for (let i = 0; i < bestRow; i++) {
-    issues.push({
-      row: i,
-      what: 'preamble-row',
-      why: `Row ${i} precedes the detected header (row ${bestRow}); treated as preamble and skipped.`,
-      raw: matrix[i].join('|').slice(0, 200),
-      action: 'skipped-row',
-    });
-  }
-
   // ── Build + dedup keys ────────────────────────────────────────────────────
+  // NOTE: preamble-row issues are emitted solely by keyRows (single-source emitter).
 
   const rawKeys = matrix[bestRow];
   const { keys, renameIssues } = deduplicateKeys(rawKeys, bestRow);
@@ -203,12 +192,12 @@ export function keyRows(
   for (let i = 0; i < matrix.length; i++) {
     const raw = matrix[i];
 
-    // 1. Pre-header preamble
+    // 1. Pre-header preamble (sole emitter of preamble-row issues)
     if (headerRow >= 0 && i < headerRow) {
       issues.push({
         row: i,
         what: 'preamble-row',
-        why: `Row ${i} precedes header row ${headerRow}; skipped.`,
+        why: `Row ${i} precedes the detected header (row ${headerRow}); treated as preamble and skipped.`,
         raw: raw.join('|').slice(0, 200),
         action: 'skipped-row',
       });

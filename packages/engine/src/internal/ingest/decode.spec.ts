@@ -81,6 +81,23 @@ describe('decode() — CSV path', () => {
       expect(summaryIssue).toBeDefined();
     });
 
+    it('EXACT-COUNT: preamble issues = 6 (one per preamble row, not doubled)', async () => {
+      const result = await decode(readFixture('privat-like-cp1251.csv'));
+      const preambleIssues = result.issues.filter(
+        i => i.action === 'skipped-row' && i.what === 'preamble-row',
+      );
+      // 6 preamble rows in source (rows 0,1,3,4,5,6 — rows 2 and 7 are empty lines)
+      expect(preambleIssues).toHaveLength(6);
+    });
+
+    it('EXACT-COUNT: summary issues = 1 (exactly one Разом row)', async () => {
+      const result = await decode(readFixture('privat-like-cp1251.csv'));
+      const summaryIssues = result.issues.filter(
+        i => i.action === 'skipped-row' && i.what === 'summary-row',
+      );
+      expect(summaryIssues).toHaveLength(1);
+    });
+
     it('HEADLINE: first data row has Дата key', async () => {
       const result = await decode(readFixture('privat-like-cp1251.csv'));
       expect(result.rows[0]).toHaveProperty('Дата');
@@ -114,6 +131,23 @@ describe('decode() — CSV path', () => {
         i => i.action === 'skipped-row' && i.what === 'placeholder-row',
       );
       expect(placeholderIssue).toBeDefined();
+    });
+
+    it('EXACT-COUNT: placeholder issues = 1 (exactly one placeholder row, not doubled)', async () => {
+      const result = await decode(readFixture('mono-like-utf8.csv'));
+      const placeholderIssues = result.issues.filter(
+        i => i.action === 'skipped-row' && i.what === 'placeholder-row',
+      );
+      // header at row 0 (no preamble), one placeholder row at source row 8
+      expect(placeholderIssues).toHaveLength(1);
+    });
+
+    it('EXACT-COUNT: preamble issues = 0 (no preamble in mono-like file)', async () => {
+      const result = await decode(readFixture('mono-like-utf8.csv'));
+      const preambleIssues = result.issues.filter(
+        i => i.action === 'skipped-row' && i.what === 'preamble-row',
+      );
+      expect(preambleIssues).toHaveLength(0);
     });
 
     it('HEADLINE: commission column present in keys (Комісія)', async () => {
@@ -376,6 +410,23 @@ describe('decode() — spreadsheet path', () => {
         i => i.action === 'skipped-row' && i.what === 'summary-row',
       );
       expect(summaryIssue).toBeDefined();
+    });
+
+    it('EXACT-COUNT: preamble issues = 3 (one per preamble row, not doubled)', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      const preambleIssues = result.issues.filter(
+        i => i.action === 'skipped-row' && i.what === 'preamble-row',
+      );
+      // 3 preamble rows before header at row 3
+      expect(preambleIssues).toHaveLength(3);
+    });
+
+    it('EXACT-COUNT: summary issues = 1 (exactly one Разом row)', async () => {
+      const result = await decode(readFixture('bank-like.xlsx'));
+      const summaryIssues = result.issues.filter(
+        i => i.action === 'skipped-row' && i.what === 'summary-row',
+      );
+      expect(summaryIssues).toHaveLength(1);
     });
 
     it('HEADLINE: header keys include Дата, Опис, Сума', async () => {
