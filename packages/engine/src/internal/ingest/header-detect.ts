@@ -295,6 +295,12 @@ export function keyRows(
 /**
  * Score row `i` of `matrix` as a candidate header.
  * Returns a value in [0, ∞); rows that score below SCORE_FLOOR are rejected.
+ *
+ * Tie-breaking: when two rows produce the same primary score, a wider row wins.
+ * A tiny width bonus `width * 0.001` is added to the primary score so that
+ * a header with 6 columns always beats a preamble title row with 1 column when
+ * both achieve the same F1×F2×F3.  The bonus is small enough not to lift a
+ * truly bad row past a clearly better one.
  */
 function scoreRow(matrix: string[][], i: number): number {
   const row = matrix[i];
@@ -325,7 +331,11 @@ function scoreRow(matrix: string[][], i: number): number {
   // F3: non-numeric majority bonus
   const f3 = f1 >= 0.5 ? 1.5 : 1.0;
 
-  return f1 * f2 * f3;
+  // Width tie-breaker: add a tiny per-column bonus so wider headers beat
+  // narrower preamble rows that happen to tie on the primary score.
+  const widthBonus = width * 0.001;
+
+  return f1 * f2 * f3 + widthBonus;
 }
 
 // ---------------------------------------------------------------------------

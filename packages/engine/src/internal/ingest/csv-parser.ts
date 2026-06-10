@@ -135,6 +135,12 @@ function median(arr: number[]): number {
 export interface ParseCsvResult {
   matrix: string[][];
   issues: DecodeIssue[];
+  /**
+   * Maps each matrix row index → the 0-based PHYSICAL (source) line number where
+   * that logical row starts.  Length equals matrix.length.  Useful for translating
+   * detectHeader's matrix-index `headerRow` back to a source row coordinate.
+   */
+  sourceRows: number[];
 }
 
 /**
@@ -146,7 +152,7 @@ export function parseCsv(text: string, delimiter: Delimiter): ParseCsvResult {
   const issues: DecodeIssue[] = [];
 
   if (text.length === 0) {
-    return { matrix: [], issues };
+    return { matrix: [], issues, sourceRows: [] };
   }
 
   // Normalise CRLF → LF, then bare CR → LF.
@@ -156,13 +162,14 @@ export function parseCsv(text: string, delimiter: Delimiter): ParseCsvResult {
   const stripped = normalised.endsWith('\n') ? normalised.slice(0, -1) : normalised;
 
   if (stripped.length === 0) {
-    return { matrix: [], issues };
+    return { matrix: [], issues, sourceRows: [] };
   }
 
   // Physical lines (0-based index = source row coordinate).
   const physLines = stripped.split('\n');
 
   const matrix: string[][] = [];
+  const sourceRows: number[] = [];
   let lineIdx = 0;
 
   while (lineIdx < physLines.length) {
@@ -184,11 +191,12 @@ export function parseCsv(text: string, delimiter: Delimiter): ParseCsvResult {
     const { row, linesConsumed, rowIssues } = parseRow(physLines, lineIdx, delimiter);
 
     for (const issue of rowIssues) issues.push(issue);
+    sourceRows.push(lineIdx);
     matrix.push(row);
     lineIdx += linesConsumed;
   }
 
-  return { matrix, issues };
+  return { matrix, issues, sourceRows };
 }
 
 // ---------------------------------------------------------------------------
