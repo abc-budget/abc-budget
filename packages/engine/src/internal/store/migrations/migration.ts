@@ -28,6 +28,12 @@ export interface StoreSpec {
  * await external promises — the version-change transaction auto-commits as soon as its
  * request queue drains. Enqueueing IDB requests via these helpers (or on `store(name)`)
  * is the one legal async pattern inside a migration.
+ *
+ * ⚠️ CURSOR-OVER-MUTATED-INDEX (real IDB semantics — will bite EP-3/4/6 step authors):
+ * never iterate an index whose keyPath your walk mutates — updating the indexed field
+ * re-inserts the record further ahead in that index's order, so the cursor re-visits it
+ * indefinitely. Iterate the STORE (`store(name).openCursor()`) when transforming rows;
+ * iterate an index only for fields the transform does not touch.
  */
 export interface MigrationContext {
   createStore(name: string, spec?: StoreSpec): IDBObjectStore;
