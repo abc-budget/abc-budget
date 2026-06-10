@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -24,4 +25,12 @@ export default defineConfig({
       workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'] },
     }),
   ],
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        gallery: fileURLToPath(new URL('./gallery.html', import.meta.url)),
+      },
+    },
+  },
 });
