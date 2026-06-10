@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, cleanup, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { AppRoutes } from './router';
 import { useHasData } from './has-data';
@@ -55,5 +55,106 @@ describe('screen mounts', () => {
     renderAt('/import');
     expect(screen.getByTestId('screen-import')).toBeTruthy();
     expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
+  });
+});
+
+describe('FEAT-030 link map', () => {
+  it('Onboarding CTAs reach /import', () => {
+    renderAt('/');
+    fireEvent.click(screen.getByRole('button', { name: 'Імпортувати виписку' }));
+    expect(screen.getByTestId('screen-import')).toBeTruthy();
+  });
+  it('Dashboard «Імпорт виписки» reaches /import', () => {
+    renderAt('/dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Імпорт виписки' }));
+    expect(screen.getByTestId('screen-import')).toBeTruthy();
+  });
+  it('Settings DAT CTA reaches /import', () => {
+    renderAt('/settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Імпорт виписки' }));
+    expect(screen.getByTestId('screen-import')).toBeTruthy();
+  });
+  it('zone-switcher navigates Dashboard ↔ Settings (both directions)', () => {
+    renderAt('/dashboard');
+    fireEvent.click(screen.getByRole('link', { name: 'Налаштування' }));
+    expect(screen.getByTestId('screen-settings')).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Дашборд' }));
+    expect(screen.getByTestId('screen-dashboard')).toBeTruthy();
+  });
+  it('Settings tabs switch in-page (no route change)', () => {
+    renderAt('/settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Категорії' }));
+    expect(screen.getByTestId('tab-categories')).toBeTruthy();
+    expect(screen.getByTestId('screen-settings')).toBeTruthy(); // still the same screen
+  });
+});
+
+describe('wizard flow (single route, internal steps)', () => {
+  it('Далі walks S3a→S3d; Назад steps back; S3a-Назад exits to Dashboard', () => {
+    renderAt('/import');
+    expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+    expect(screen.getByText('КРОК 2 / 4')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByTestId('screen-dashboard')).toBeTruthy(); // S3a Назад → Dashboard
+  });
+  it('S3d: «До бюджету» → Dashboard; «Імпортувати ще» → reset to S3a', () => {
+    renderAt('/import');
+    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+    expect(screen.getByText('КРОК 4 / 4')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Імпортувати ще' }));
+    expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
+    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+    fireEvent.click(screen.getByRole('button', { name: 'До бюджету' }));
+    expect(screen.getByTestId('screen-dashboard')).toBeTruthy();
+  });
+});
+
+describe('shell invariants', () => {
+  it('zone-switcher present on exactly the two dwell screens', () => {
+    const dash = renderAt('/dashboard');
+    expect(dash.container.querySelector('.zone-nav')).not.toBeNull();
+    dash.unmount();
+    const set = renderAt('/settings');
+    expect(set.container.querySelector('.zone-nav')).not.toBeNull();
+  });
+  it('zone-switcher ABSENT on Onboarding and Import', () => {
+    const ob = renderAt('/');
+    expect(ob.container.querySelector('.zone-nav')).toBeNull();
+    ob.unmount();
+    const imp = renderAt('/import');
+    expect(imp.container.querySelector('.zone-nav')).toBeNull();
+  });
+  it('logo links to /dashboard on product screens, inert on Onboarding', () => {
+    const dash = renderAt('/dashboard');
+    const dashBrand = dash.container.querySelector('.brand')!;
+    expect(dashBrand.closest('a')).not.toBeNull();
+    expect(dashBrand.closest('a')!.getAttribute('href')).toBe('/dashboard');
+    dash.unmount();
+    const ob = renderAt('/');
+    const obBrand = ob.container.querySelector('.brand')!;
+    expect(obBrand.closest('a')).toBeNull(); // inert
+  });
+  it('no review state-switcher anywhere', () => {
+    for (const path of ['/', '/dashboard', '/settings', '/import']) {
+      const r = renderAt(path);
+      expect(r.container.querySelector('[class*="state-switch"], [data-review]')).toBeNull();
+      r.unmount();
+    }
+  });
+  it('no dead-ends: every screen has ≥1 outgoing navigation affordance', () => {
+    const OUTGOING: Record<string, string> = {
+      '/': 'Імпортувати виписку',
+      '/dashboard': 'Імпорт виписки',
+      '/settings': 'Імпорт виписки',
+      '/import': 'Назад',
+    };
+    for (const [path, affordance] of Object.entries(OUTGOING)) {
+      const r = renderAt(path);
+      expect(within(r.container).getByRole('button', { name: affordance }), path).toBeTruthy();
+      r.unmount();
+    }
   });
 });
