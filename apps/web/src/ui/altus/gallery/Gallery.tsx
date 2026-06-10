@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  BADGE_STATES, BrandMark, Chip, CodeChip, Cream, Crt, Gauge, Key, Lamp,
+  BADGE_STATES, BrandMark, Chip, CodeChip, Cream, Crt, Gauge, Key, Lamp, LangToggle,
   Panel, PanelBody, PanelHeader, Paper, SectionTabs, StateBadge, Stepper, ZoneSwitcher,
 } from '../components';
 import { CatIcon, ICON_GROUPS, iconName } from '../icons';
@@ -24,6 +24,11 @@ function GallerySectionTabs() {
       onSelect={setTab}
     />
   );
+}
+
+function GalleryLangToggle() {
+  const [lang, setLang] = useState<'uk' | 'en'>('uk');
+  return <LangToggle lang={lang} onChange={setLang} />;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -138,6 +143,8 @@ export function Gallery() {
             activeIndex={2}
             mobileLabel="КРОК 3 / 4"
           />
+          <div className="eyebrow-ink">lang toggle (всі хедери)</div>
+          <div style={{ display: 'flex' }}><GalleryLangToggle /></div>
         </div>
       </Section>
 
