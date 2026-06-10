@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "vitest": "^3.0.0",
-    "@vitest/web-worker": "^3.0.0"
+    "@vitest/web-worker": "^3.0.0",
+    "fake-indexeddb": "6.2.5"
   }
 }
