@@ -44,9 +44,20 @@ function detectFormat(view: Uint8Array): 'xlsx' | 'xls' | 'unknown' {
 
 type XLSXModule = typeof import('xlsx');
 
+let xlsxPromise: Promise<XLSXModule> | null = null;
+
 async function loadXLSX(): Promise<XLSXModule> {
   // why: npm 'xlsx' is stale w/ CVEs; cdn.sheetjs.com is the official dist (pinned)
-  return import('xlsx') as Promise<XLSXModule>;
+  xlsxPromise ??= (async () => {
+    const XLSX = (await import('xlsx')) as XLSXModule;
+    // The module build does NOT auto-load codepage tables — without set_cptable,
+    // cp1251 strings in real legacy .xls files mojibake in the BROWSER (node masks it).
+    // Found via the harness console: "Codepage tables are not loaded." (2.1 Task 8).
+    const cptable = await import('xlsx/dist/cpexcel.full.mjs');
+    (XLSX as unknown as { set_cptable(t: unknown): void }).set_cptable(cptable);
+    return XLSX;
+  })();
+  return xlsxPromise;
 }
 
 // ---------------------------------------------------------------------------
