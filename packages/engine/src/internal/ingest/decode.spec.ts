@@ -290,6 +290,57 @@ describe('decode() — CSV path', () => {
       expect(Array.isArray(result.rows)).toBe(true);
       expect(Array.isArray(result.issues)).toBe(true);
     });
+
+    // ── Fuzz / corrupted-input hardening ────────────────────────────────────
+
+    it('corrupted.bin → rows: [], file-unreadable issue, never throws', async () => {
+      // 4 KB mulberry32 PRNG noise (seed 0xDEADBEEF). bytes 0-3 = PK\x03\x04
+      // (XLSX magic) so the file routes to the sheet path; SheetJS fails to
+      // parse the corrupt ZIP archive → file-unreadable issue. Never throws.
+      const result = await decode(readFixture('corrupted.bin'));
+      // Must NEVER throw — this is the fundamental contract.
+      expect(Array.isArray(result.rows)).toBe(true);
+      expect(result.rows).toHaveLength(0);
+      // SheetJS parse failure → file-unreadable
+      const issue = result.issues.find(i => i.action === 'file-unreadable');
+      expect(issue).toBeDefined();
+    });
+
+    it('corrupted bytes renamed .xlsx → SheetJS failure caught → file-unreadable, no throw', async () => {
+      // Same 4 KB noise presented with a .xlsx extension.
+      // decode() routes to the sheet path; SheetJS parse fails;
+      // the catch wraps it as a file-unreadable issue — never throws.
+      const { bytes } = readFixture('corrupted.bin');
+      const result = await decode({ bytes, fileName: 'statement.xlsx' });
+      expect(Array.isArray(result.rows)).toBe(true);
+      expect(result.rows).toHaveLength(0);
+      const issue = result.issues.find(i => i.action === 'file-unreadable');
+      expect(issue).toBeDefined();
+    });
+
+    it('~5 MB synthetic CSV (deterministic 50k rows) → decodes to expected row count', async () => {
+      // Generated in-test: deterministic, no timing assertions —
+      // completion is the only observable (proves no stack overflow / OOM crash).
+      const ROWS = 50_000;
+      const header = 'Date,Amount,Description\n';
+      // Each row is ~80 chars; ~50 k rows ≈ 4 MB.
+      const dataRows: string[] = [];
+      for (let i = 0; i < ROWS; i++) {
+        // Deterministic values: row index drives date, amount, description.
+        const day = String((i % 28) + 1).padStart(2, '0');
+        const month = String((i % 12) + 1).padStart(2, '0');
+        const year = 2020 + (i % 5);
+        const amount = (-(i % 10000) / 100).toFixed(2);
+        dataRows.push(`${day}.${month}.${year},${amount},Merchant ${i}`);
+      }
+      const csvText = header + dataRows.join('\n') + '\n';
+      const encoder = new TextEncoder();
+      const bytes = encoder.encode(csvText).buffer;
+      const result = await decode({ bytes, fileName: 'big-synthetic.csv' });
+      // All 50 000 data rows should decode (no skipped rows expected).
+      expect(result.meta.decodedRows).toBe(ROWS);
+      expect(result.rows).toHaveLength(ROWS);
+    }, 30_000); // 30 s hard timeout — should complete much faster
   });
 });
 
