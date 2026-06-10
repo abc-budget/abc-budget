@@ -26,6 +26,11 @@ export function setRemoteRatesApi(api: ExchangeRateApi | undefined): void {
  * Returns a lazily-constructed ExchangeRateService backed by IDB + the injected remote api.
  * Returns null if no remote api was injected (rates simply unavailable).
  * The lazy construction is async (awaits openEngineDb once) and memoized.
+ *
+ * ⚠️ EP-2 MUST-DO BEFORE FIRST INVOCATION: this memoization AND openEngineDb() both cache
+ * a REJECTED promise forever — one transient IDB-open failure bricks rates until reload.
+ * Dormant today (nothing calls this yet; only setRemoteRatesApi is wired), but EP-2's
+ * conversion wiring makes it live: add clear-on-reject (or retry) to BOTH layers first.
  */
 export async function getRatesService(): Promise<ExchangeRateService | null> {
   if (!_remoteApi) {
