@@ -113,3 +113,143 @@ describe('migration framework — open & upgrade', () => {
     expect(await getAll(db, 'items')).toEqual([{ id: 'seeded', amount: 1 }]);
   });
 });
+
+/** Schema dump for the fresh≡upgrade invariant. */
+function dumpSchema(db: IDBDatabase): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const names = Array.from(db.objectStoreNames);
+  if (names.length === 0) return out;
+  const tx = db.transaction(names, 'readonly');
+  for (const storeName of names) {
+    const s = tx.objectStore(storeName);
+    out[storeName] = {
+      keyPath: s.keyPath,
+      autoIncrement: s.autoIncrement,
+      indexes: Array.from(s.indexNames)
+        .map((n) => {
+          const idx = s.index(n);
+          return { name: n, keyPath: idx.keyPath, unique: idx.unique, multiEntry: idx.multiEntry };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
+  return out;
+}
+
+/** The shared 4-step lineage used by the transform/rebuild/invariant tests. */
+const V2_ADD_INDEX: MigrationStep = {
+  toVersion: 2,
+  migrate: (ctx) => ctx.createIndex('items', { name: 'by_amount', keyPath: 'amount' }),
+};
+const V3_DATA_TRANSFORM: MigrationStep = {
+  toVersion: 3,
+  migrate: (ctx) => {
+    // Double every amount via raw store access on the upgrade tx (cursor walk).
+    const store = ctx.store('items');
+    const cursorReq = store.openCursor();
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (!cursor) return;
+      const row = cursor.value as { id: string; amount: number };
+      cursor.update({ ...row, amount: row.amount * 2 });
+      cursor.continue();
+    };
+  },
+};
+const V4_REBUILD_KEYPATH: MigrationStep = {
+  toVersion: 4,
+  migrate: (ctx) =>
+    ctx.rebuildStore(
+      'items',
+      { keyPath: 'key', indexes: [{ name: 'by_amount', keyPath: 'amount' }] },
+      (row) => {
+        const r = row as { id: string; amount: number };
+        return { key: `k-${r.id}`, amount: r.amount }; // keyPath id → key
+      },
+    ),
+};
+const FULL_LINEAGE = [V1_CREATE_ITEMS, V2_ADD_INDEX, V3_DATA_TRANSFORM, V4_REBUILD_KEYPATH];
+
+describe('migration framework — data transforms & rebuildStore', () => {
+  it('v3 data transform via raw store access modifies existing rows', async () => {
+    const name = freshName();
+    const db1 = await open(name, [V1_CREATE_ITEMS]);
+    await put(db1, 'items', { id: 'a', amount: 5 });
+    await put(db1, 'items', { id: 'b', amount: 7 });
+    db1.close();
+
+    const db3 = await open(name, FULL_LINEAGE.slice(0, 3));
+    const rows = (await getAll<{ id: string; amount: number }>(db3, 'items')).sort((x, y) =>
+      x.id.localeCompare(y.id),
+    );
+    expect(rows).toEqual([
+      { id: 'a', amount: 10 },
+      { id: 'b', amount: 14 },
+    ]);
+  });
+
+  it('v4 rebuildStore changes the keyPath and transforms rows, atomically with the upgrade', async () => {
+    const name = freshName();
+    const db1 = await open(name, [V1_CREATE_ITEMS]);
+    await put(db1, 'items', { id: 'a', amount: 5 });
+    db1.close();
+
+    const db4 = await open(name, FULL_LINEAGE);
+    expect(db4.version).toBe(4);
+    const tx = db4.transaction('items', 'readonly');
+    expect(tx.objectStore('items').keyPath).toBe('key');
+    expect(Array.from(tx.objectStore('items').indexNames)).toEqual(['by_amount']);
+    expect(await getAll(db4, 'items')).toEqual([{ key: 'k-a', amount: 10 }]); // v3 doubled, v4 re-keyed
+  });
+
+  it('a step after rebuildStore sees the rebuilt store (sequencing)', async () => {
+    const name = freshName();
+    const v5AfterRebuild: MigrationStep = {
+      toVersion: 5,
+      migrate: (ctx) => {
+        // Would throw DataError against the OLD keyPath ('id'); proves v4 completed first.
+        ctx.store('items').put({ key: 'added-in-v5', amount: 1 });
+      },
+    };
+    const db = await open(name, [...FULL_LINEAGE, v5AfterRebuild]);
+    const rows = await getAll<{ key: string }>(db, 'items');
+    expect(rows.some((r) => r.key === 'added-in-v5')).toBe(true);
+  });
+});
+
+describe('migration framework — fresh≡upgrade invariant', () => {
+  it('a fresh DB at v4 has the identical schema to a v1→v4 stepwise upgrade', async () => {
+    const freshDb = await open(freshName(), FULL_LINEAGE);
+
+    const upgradedName = freshName();
+    for (let v = 1; v <= FULL_LINEAGE.length; v++) {
+      const db = await open(upgradedName, FULL_LINEAGE.slice(0, v));
+      if (v < FULL_LINEAGE.length) db.close();
+      else expect(dumpSchema(db)).toEqual(dumpSchema(freshDb));
+    }
+  });
+});
+
+describe('migration framework — abort atomicity', () => {
+  it('a throwing step rejects the open with the original error and rolls back ALL steps', async () => {
+    const name = freshName();
+    const db1 = await open(name, [V1_CREATE_ITEMS]);
+    await put(db1, 'items', { id: 'a', amount: 5 });
+    db1.close();
+
+    const v2CreatesThenThrows: MigrationStep = {
+      toVersion: 2,
+      migrate: (ctx) => {
+        ctx.createStore('half-done', { keyPath: 'id' });
+        throw new Error('boom in v2');
+      },
+    };
+    await expect(open(name, [V1_CREATE_ITEMS, v2CreatesThenThrows])).rejects.toThrow('boom in v2');
+
+    // DB must still be at v1 with v2's partial work rolled back and data intact.
+    const reopened = await open(name, [V1_CREATE_ITEMS]);
+    expect(reopened.version).toBe(1);
+    expect(Array.from(reopened.objectStoreNames)).toEqual(['items']);
+    expect(await getAll(reopened, 'items')).toEqual([{ id: 'a', amount: 5 }]);
+  });
+});

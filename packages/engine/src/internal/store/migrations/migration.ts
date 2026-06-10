@@ -100,6 +100,126 @@ export function createMigrationContext(
     return store;
   };
 
+  /**
+   * Returns a wrapped IDBObjectStore whose request-returning methods are automatically
+   * tracked by the migration context. This is necessary so that async operations initiated
+   * by user code inside `migrate()` (e.g. cursor walks via `openCursor`) are sequenced
+   * correctly before the next step runs.
+   *
+   * `openCursor` / `openKeyCursor` are cursor requests: `onsuccess` fires once per row
+   * plus a final time with `result === null`. We track them as a single pending unit,
+   * settling only when the cursor exhausts.
+   */
+  const wrapStore = (raw: IDBObjectStore): IDBObjectStore => {
+    const wrapRequest = <T extends IDBRequest>(req: T): T => {
+      trackRequest(req);
+      return req;
+    };
+
+    /**
+     * Wraps a cursor request so the migration context knows to wait for full cursor
+     * exhaustion before advancing to the next step.
+     *
+     * Returns a proxy around the real request. The proxy stores `onsuccess` as a plain
+     * property so user code can assign it after `openCursor()` returns. The real request
+     * gets a single interceptor that reads the proxy's `onsuccess` at fire-time, checks
+     * for cursor exhaustion, and patches `cursor.continue` to keep the interceptor in place
+     * across iterations. The pending unit is settled only when `cursor.result === null`.
+     */
+    const wrapCursor = <T extends IDBRequest<IDBCursor | IDBCursorWithValue | null>>(req: T): T => {
+      pendingCount++;
+
+      // Proxy properties: user writes to these, we read them at fire-time.
+      let userOnsuccess: ((this: T, ev: Event) => void) | null = null;
+      let userOnerror: ((this: T, ev: Event) => void) | null = null;
+
+      const interceptOnsuccess = (): void => {
+        const cursor = req.result as IDBCursor | null;
+        if (cursor === null) {
+          // Cursor exhausted.
+          userOnsuccess?.call(proxy, new Event('success'));
+          settleOne();
+          return;
+        }
+        // Patch cursor.continue so the NEXT iteration also goes through our interceptor.
+        const origContinue = cursor.continue.bind(cursor);
+        cursor.continue = (...args: Parameters<IDBCursor['continue']>): void => {
+          req.onsuccess = interceptOnsuccess;
+          origContinue(...args);
+        };
+        const origContinuePK = cursor.continuePrimaryKey?.bind(cursor);
+        if (origContinuePK) {
+          cursor.continuePrimaryKey = (...args: Parameters<IDBCursor['continuePrimaryKey']>): void => {
+            req.onsuccess = interceptOnsuccess;
+            origContinuePK(...args);
+          };
+        }
+        // Invoke user handler with the proxy as `this`.
+        userOnsuccess?.call(proxy, new Event('success'));
+      };
+
+      // Arm the real request's onsuccess with our interceptor immediately.
+      req.onsuccess = interceptOnsuccess;
+      req.onerror = (): void => {
+        userOnerror?.call(proxy, new Event('error'));
+        failed = req.error ?? new Error('cursor request failed');
+        settleOne();
+      };
+
+      // Build a proxy that:
+      //  - forwards `result` / `readyState` / `error` etc. to the real request
+      //  - stores `onsuccess` and `onerror` locally (so user assignments don't overwrite our interceptors)
+      //  - forwards all methods (like `addEventListener`) to the real request
+      const proxy = new Proxy(req, {
+        get(target, prop) {
+          if (prop === 'onsuccess') return userOnsuccess;
+          if (prop === 'onerror') return userOnerror;
+          const val = target[prop as keyof T];
+          return typeof val === 'function' ? (val as (...a: unknown[]) => unknown).bind(target) : val;
+        },
+        set(target, prop, value) {
+          if (prop === 'onsuccess') { userOnsuccess = value as typeof userOnsuccess; return true; }
+          if (prop === 'onerror') { userOnerror = value as typeof userOnerror; return true; }
+          (target as Record<string | symbol, unknown>)[prop] = value;
+          return true;
+        },
+      }) as T;
+
+      return proxy;
+    };
+
+    return new Proxy(raw, {
+      get(target, prop) {
+        if (prop === 'openCursor' || prop === 'openKeyCursor') {
+          return (...args: unknown[]) => {
+            const fn = target[prop as 'openCursor'] as (...a: unknown[]) => IDBRequest<IDBCursor | IDBCursorWithValue | null>;
+            const req = fn.apply(target, args);
+            return wrapCursor(req);
+          };
+        }
+        if (
+          prop === 'get' ||
+          prop === 'getAll' ||
+          prop === 'getAllKeys' ||
+          prop === 'getKey' ||
+          prop === 'count' ||
+          prop === 'put' ||
+          prop === 'add' ||
+          prop === 'delete' ||
+          prop === 'clear'
+        ) {
+          return (...args: unknown[]) => {
+            const fn = target[prop as keyof IDBObjectStore] as (...a: unknown[]) => IDBRequest;
+            const req = fn.apply(target, args);
+            return wrapRequest(req);
+          };
+        }
+        const val = target[prop as keyof IDBObjectStore];
+        return typeof val === 'function' ? val.bind(target) : val;
+      },
+    });
+  };
+
   const api: MigrationContext = {
     createStore: buildStore,
     deleteStore: (name) => db.deleteObjectStore(name),
@@ -107,7 +227,7 @@ export function createMigrationContext(
       tx.objectStore(storeName).createIndex(idx.name, idx.keyPath, idx.options);
     },
     deleteIndex: (storeName, indexName) => tx.objectStore(storeName).deleteIndex(indexName),
-    store: (name) => tx.objectStore(name),
+    store: (name) => wrapStore(tx.objectStore(name)),
     rebuildStore: (name, spec, transform) => {
       const getAllReq = tx.objectStore(name).getAll();
       trackRequest(getAllReq, () => {
