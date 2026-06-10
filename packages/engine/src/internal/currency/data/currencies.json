@@ -1,0 +1,3819 @@
+[
+    {
+        "code": "ADP",
+        "defaultFractionDigits": 0,
+        "numericCode": 20,
+        "localizedData": {
+            "en": {
+                "symbol": "ADP",
+                "name": "Andorran Peseta"
+            },
+            "uk": {
+                "symbol": "ADP",
+                "name": "Андоррська песета"
+            }
+        }
+    },
+    {
+        "code": "AED",
+        "defaultFractionDigits": 2,
+        "numericCode": 784,
+        "localizedData": {
+            "en": {
+                "symbol": "AED",
+                "name": "United Arab Emirates Dirham"
+            },
+            "uk": {
+                "symbol": "AED",
+                "name": "Дирхам ОАЕ"
+            }
+        },
+        "specialSymbols": [
+            "د.إ"
+        ]
+    },
+    {
+        "code": "AFA",
+        "defaultFractionDigits": 2,
+        "numericCode": 4,
+        "localizedData": {
+            "en": {
+                "symbol": "AFA",
+                "name": "Afghan Afghani (1927–2002)"
+            },
+            "uk": {
+                "symbol": "AFA",
+                "name": "Афгані (1927–2002)"
+            }
+        }
+    },
+    {
+        "code": "AFN",
+        "defaultFractionDigits": 2,
+        "numericCode": 971,
+        "localizedData": {
+            "en": {
+                "symbol": "AFN",
+                "name": "Afghan Afghani"
+            },
+            "uk": {
+                "symbol": "AFN",
+                "name": "Афганський афгані"
+            }
+        },
+        "specialSymbols": [
+            "؋"
+        ]
+    },
+    {
+        "code": "ALL",
+        "defaultFractionDigits": 2,
+        "numericCode": 8,
+        "localizedData": {
+            "en": {
+                "symbol": "ALL",
+                "name": "Albanian Lek"
+            },
+            "uk": {
+                "symbol": "ALL",
+                "name": "Албанський лек"
+            }
+        }
+    },
+    {
+        "code": "AMD",
+        "defaultFractionDigits": 2,
+        "numericCode": 51,
+        "localizedData": {
+            "en": {
+                "symbol": "AMD",
+                "name": "Armenian Dram"
+            },
+            "uk": {
+                "symbol": "AMD",
+                "name": "Вірменський драм"
+            }
+        }
+    },
+    {
+        "code": "ANG",
+        "defaultFractionDigits": 2,
+        "numericCode": 532,
+        "localizedData": {
+            "en": {
+                "symbol": "ANG",
+                "name": "Netherlands Antillean Guilder"
+            },
+            "uk": {
+                "symbol": "ANG",
+                "name": "Нідерландський антильський гульден"
+            }
+        }
+    },
+    {
+        "code": "AOA",
+        "defaultFractionDigits": 2,
+        "numericCode": 973,
+        "localizedData": {
+            "en": {
+                "symbol": "AOA",
+                "name": "Angolan Kwanza"
+            },
+            "uk": {
+                "symbol": "AOA",
+                "name": "Ангольська кванза"
+            }
+        }
+    },
+    {
+        "code": "ARS",
+        "defaultFractionDigits": 2,
+        "numericCode": 32,
+        "localizedData": {
+            "en": {
+                "symbol": "ARS",
+                "name": "Argentine Peso"
+            },
+            "uk": {
+                "symbol": "ARS",
+                "name": "Аргентинський песо"
+            }
+        },
+        "specialSymbols": [
+            "AR$"
+        ]
+    },
+    {
+        "code": "ATS",
+        "defaultFractionDigits": 2,
+        "numericCode": 40,
+        "localizedData": {
+            "en": {
+                "symbol": "ATS",
+                "name": "Austrian Schilling"
+            },
+            "uk": {
+                "symbol": "ATS",
+                "name": "Австрійський шилінг"
+            }
+        }
+    },
+    {
+        "code": "AUD",
+        "defaultFractionDigits": 2,
+        "numericCode": 36,
+        "localizedData": {
+            "en": {
+                "symbol": "A$",
+                "name": "Australian Dollar"
+            },
+            "uk": {
+                "symbol": "AUD",
+                "name": "Австралійський долар"
+            }
+        },
+        "specialSymbols": [
+            "A$"
+        ]
+    },
+    {
+        "code": "AWG",
+        "defaultFractionDigits": 2,
+        "numericCode": 533,
+        "localizedData": {
+            "en": {
+                "symbol": "AWG",
+                "name": "Aruban Florin"
+            },
+            "uk": {
+                "symbol": "AWG",
+                "name": "Арубський флорин"
+            }
+        }
+    },
+    {
+        "code": "AYM",
+        "defaultFractionDigits": 2,
+        "numericCode": 945,
+        "localizedData": {
+            "en": {
+                "symbol": "AYM",
+                "name": "AYM"
+            },
+            "uk": {
+                "symbol": "AYM",
+                "name": "AYM"
+            }
+        }
+    },
+    {
+        "code": "AZM",
+        "defaultFractionDigits": 2,
+        "numericCode": 31,
+        "localizedData": {
+            "en": {
+                "symbol": "AZM",
+                "name": "Azerbaijani Manat (1993–2006)"
+            },
+            "uk": {
+                "symbol": "AZM",
+                "name": "Азербайджанський манат (1993–2006)"
+            }
+        }
+    },
+    {
+        "code": "AZN",
+        "defaultFractionDigits": 2,
+        "numericCode": 944,
+        "localizedData": {
+            "en": {
+                "symbol": "AZN",
+                "name": "Azerbaijani Manat"
+            },
+            "uk": {
+                "symbol": "AZN",
+                "name": "Азербайджанський манат"
+            }
+        },
+        "specialSymbols": [
+            "₼"
+        ]
+    },
+    {
+        "code": "BAM",
+        "defaultFractionDigits": 2,
+        "numericCode": 977,
+        "localizedData": {
+            "en": {
+                "symbol": "BAM",
+                "name": "Bosnia-Herzegovina Convertible Mark"
+            },
+            "uk": {
+                "symbol": "BAM",
+                "name": "Конвертована марка Боснії і Герцеговини"
+            }
+        },
+        "specialSymbols": [
+            "KM"
+        ]
+    },
+    {
+        "code": "BBD",
+        "defaultFractionDigits": 2,
+        "numericCode": 52,
+        "localizedData": {
+            "en": {
+                "symbol": "BBD",
+                "name": "Barbadian Dollar"
+            },
+            "uk": {
+                "symbol": "BBD",
+                "name": "Барбадоський долар"
+            }
+        }
+    },
+    {
+        "code": "BDT",
+        "defaultFractionDigits": 2,
+        "numericCode": 50,
+        "localizedData": {
+            "en": {
+                "symbol": "BDT",
+                "name": "Bangladeshi Taka"
+            },
+            "uk": {
+                "symbol": "BDT",
+                "name": "Бангладеська така"
+            }
+        },
+        "specialSymbols": [
+            "৳"
+        ]
+    },
+    {
+        "code": "BEF",
+        "defaultFractionDigits": 0,
+        "numericCode": 56,
+        "localizedData": {
+            "en": {
+                "symbol": "BEF",
+                "name": "Belgian Franc"
+            },
+            "uk": {
+                "symbol": "BEF",
+                "name": "Бельгійський франк"
+            }
+        }
+    },
+    {
+        "code": "BGL",
+        "defaultFractionDigits": 2,
+        "numericCode": 100,
+        "localizedData": {
+            "en": {
+                "symbol": "BGL",
+                "name": "Bulgarian Hard Lev"
+            },
+            "uk": {
+                "symbol": "BGL",
+                "name": "Болгарський твердий лев"
+            }
+        }
+    },
+    {
+        "code": "BGN",
+        "defaultFractionDigits": 2,
+        "numericCode": 975,
+        "localizedData": {
+            "en": {
+                "symbol": "BGN",
+                "name": "Bulgarian Lev"
+            },
+            "uk": {
+                "symbol": "BGN",
+                "name": "Болгарський лев"
+            }
+        },
+        "specialSymbols": [
+            "лв"
+        ]
+    },
+    {
+        "code": "BHD",
+        "defaultFractionDigits": 3,
+        "numericCode": 48,
+        "localizedData": {
+            "en": {
+                "symbol": "BHD",
+                "name": "Bahraini Dinar"
+            },
+            "uk": {
+                "symbol": "BHD",
+                "name": "Бахрейнський динар"
+            }
+        },
+        "specialSymbols": [
+            ".د.ب"
+        ]
+    },
+    {
+        "code": "BIF",
+        "defaultFractionDigits": 0,
+        "numericCode": 108,
+        "localizedData": {
+            "en": {
+                "symbol": "BIF",
+                "name": "Burundian Franc"
+            },
+            "uk": {
+                "symbol": "BIF",
+                "name": "Бурундійський франк"
+            }
+        }
+    },
+    {
+        "code": "BMD",
+        "defaultFractionDigits": 2,
+        "numericCode": 60,
+        "localizedData": {
+            "en": {
+                "symbol": "BMD",
+                "name": "Bermudan Dollar"
+            },
+            "uk": {
+                "symbol": "BMD",
+                "name": "Бермудський долар"
+            }
+        }
+    },
+    {
+        "code": "BND",
+        "defaultFractionDigits": 2,
+        "numericCode": 96,
+        "localizedData": {
+            "en": {
+                "symbol": "BND",
+                "name": "Brunei Dollar"
+            },
+            "uk": {
+                "symbol": "BND",
+                "name": "Брунейський долар"
+            }
+        }
+    },
+    {
+        "code": "BOB",
+        "defaultFractionDigits": 2,
+        "numericCode": 68,
+        "localizedData": {
+            "en": {
+                "symbol": "BOB",
+                "name": "Bolivian Boliviano"
+            },
+            "uk": {
+                "symbol": "BOB",
+                "name": "Болівійський болівіано"
+            }
+        },
+        "specialSymbols": [
+            "Bs"
+        ]
+    },
+    {
+        "code": "BOV",
+        "defaultFractionDigits": 2,
+        "numericCode": 984,
+        "localizedData": {
+            "en": {
+                "symbol": "BOV",
+                "name": "Bolivian Mvdol"
+            },
+            "uk": {
+                "symbol": "BOV",
+                "name": "Болівійський мвдол"
+            }
+        }
+    },
+    {
+        "code": "BRL",
+        "defaultFractionDigits": 2,
+        "numericCode": 986,
+        "localizedData": {
+            "en": {
+                "symbol": "R$",
+                "name": "Brazilian Real"
+            },
+            "uk": {
+                "symbol": "BRL",
+                "name": "Бразильський реал"
+            }
+        },
+        "specialSymbols": [
+            "R$"
+        ]
+    },
+    {
+        "code": "BSD",
+        "defaultFractionDigits": 2,
+        "numericCode": 44,
+        "localizedData": {
+            "en": {
+                "symbol": "BSD",
+                "name": "Bahamian Dollar"
+            },
+            "uk": {
+                "symbol": "BSD",
+                "name": "Багамський долар"
+            }
+        },
+        "specialSymbols": [
+            "B$"
+        ]
+    },
+    {
+        "code": "BTN",
+        "defaultFractionDigits": 2,
+        "numericCode": 64,
+        "localizedData": {
+            "en": {
+                "symbol": "BTN",
+                "name": "Bhutanese Ngultrum"
+            },
+            "uk": {
+                "symbol": "BTN",
+                "name": "Бутанський нгултрум"
+            }
+        }
+    },
+    {
+        "code": "BWP",
+        "defaultFractionDigits": 2,
+        "numericCode": 72,
+        "localizedData": {
+            "en": {
+                "symbol": "BWP",
+                "name": "Botswanan Pula"
+            },
+            "uk": {
+                "symbol": "BWP",
+                "name": "Ботсванська пула"
+            }
+        },
+        "specialSymbols": [
+            "P"
+        ]
+    },
+    {
+        "code": "BYB",
+        "defaultFractionDigits": 0,
+        "numericCode": 112,
+        "localizedData": {
+            "en": {
+                "symbol": "BYB",
+                "name": "Belarusian Ruble (1994–1999)"
+            },
+            "uk": {
+                "symbol": "BYB",
+                "name": "Білоруський новий рубль (1994–1999)"
+            }
+        }
+    },
+    {
+        "code": "BYN",
+        "defaultFractionDigits": 2,
+        "numericCode": 933,
+        "localizedData": {
+            "en": {
+                "symbol": "BYN",
+                "name": "Belarusian Ruble"
+            },
+            "uk": {
+                "symbol": "BYN",
+                "name": "Білоруський рубль"
+            }
+        }
+    },
+    {
+        "code": "BYR",
+        "defaultFractionDigits": 0,
+        "numericCode": 974,
+        "localizedData": {
+            "en": {
+                "symbol": "BYR",
+                "name": "Belarusian Ruble (2000–2016)"
+            },
+            "uk": {
+                "symbol": "BYR",
+                "name": "Білоруський рубль (2000–2016)"
+            }
+        }
+    },
+    {
+        "code": "BZD",
+        "defaultFractionDigits": 2,
+        "numericCode": 84,
+        "localizedData": {
+            "en": {
+                "symbol": "BZD",
+                "name": "Belize Dollar"
+            },
+            "uk": {
+                "symbol": "BZD",
+                "name": "Белізький долар"
+            }
+        }
+    },
+    {
+        "code": "CAD",
+        "defaultFractionDigits": 2,
+        "numericCode": 124,
+        "localizedData": {
+            "en": {
+                "symbol": "CA$",
+                "name": "Canadian Dollar"
+            },
+            "uk": {
+                "symbol": "CAD",
+                "name": "Канадський долар"
+            }
+        },
+        "specialSymbols": [
+            "C$",
+            "CA$"
+        ]
+    },
+    {
+        "code": "CDF",
+        "defaultFractionDigits": 2,
+        "numericCode": 976,
+        "localizedData": {
+            "en": {
+                "symbol": "CDF",
+                "name": "Congolese Franc"
+            },
+            "uk": {
+                "symbol": "CDF",
+                "name": "Конголезький франк"
+            }
+        }
+    },
+    {
+        "code": "CHE",
+        "defaultFractionDigits": 2,
+        "numericCode": 947,
+        "localizedData": {
+            "en": {
+                "symbol": "CHE",
+                "name": "WIR Euro"
+            },
+            "uk": {
+                "symbol": "CHE",
+                "name": "Євро WIR"
+            }
+        }
+    },
+    {
+        "code": "CHF",
+        "defaultFractionDigits": 2,
+        "numericCode": 756,
+        "localizedData": {
+            "en": {
+                "symbol": "CHF",
+                "name": "Swiss Franc"
+            },
+            "uk": {
+                "symbol": "CHF",
+                "name": "Швейцарський франк"
+            }
+        },
+        "specialSymbols": [
+            "CHF",
+            "Fr."
+        ]
+    },
+    {
+        "code": "CHW",
+        "defaultFractionDigits": 2,
+        "numericCode": 948,
+        "localizedData": {
+            "en": {
+                "symbol": "CHW",
+                "name": "WIR Franc"
+            },
+            "uk": {
+                "symbol": "CHW",
+                "name": "Франк WIR"
+            }
+        }
+    },
+    {
+        "code": "CLF",
+        "defaultFractionDigits": 4,
+        "numericCode": 990,
+        "localizedData": {
+            "en": {
+                "symbol": "CLF",
+                "name": "Chilean Unit of Account (UF)"
+            },
+            "uk": {
+                "symbol": "CLF",
+                "name": "Чилійський юнідадес де фоменто"
+            }
+        }
+    },
+    {
+        "code": "CLP",
+        "defaultFractionDigits": 0,
+        "numericCode": 152,
+        "localizedData": {
+            "en": {
+                "symbol": "CLP",
+                "name": "Chilean Peso"
+            },
+            "uk": {
+                "symbol": "CLP",
+                "name": "Чилійський песо"
+            }
+        },
+        "specialSymbols": [
+            "CL$"
+        ]
+    },
+    {
+        "code": "CNY",
+        "defaultFractionDigits": 2,
+        "numericCode": 156,
+        "localizedData": {
+            "en": {
+                "symbol": "CN¥",
+                "name": "Chinese Yuan"
+            },
+            "uk": {
+                "symbol": "CNY",
+                "name": "Китайський юань"
+            }
+        },
+        "specialSymbols": [
+            "CN¥"
+        ]
+    },
+    {
+        "code": "COP",
+        "defaultFractionDigits": 2,
+        "numericCode": 170,
+        "localizedData": {
+            "en": {
+                "symbol": "COP",
+                "name": "Colombian Peso"
+            },
+            "uk": {
+                "symbol": "COP",
+                "name": "Колумбійський песо"
+            }
+        },
+        "specialSymbols": [
+            "COL$"
+        ]
+    },
+    {
+        "code": "COU",
+        "defaultFractionDigits": 2,
+        "numericCode": 970,
+        "localizedData": {
+            "en": {
+                "symbol": "COU",
+                "name": "Colombian Real Value Unit"
+            },
+            "uk": {
+                "symbol": "COU",
+                "name": "Одиниця реальної вартості"
+            }
+        }
+    },
+    {
+        "code": "CRC",
+        "defaultFractionDigits": 2,
+        "numericCode": 188,
+        "localizedData": {
+            "en": {
+                "symbol": "CRC",
+                "name": "Costa Rican Colón"
+            },
+            "uk": {
+                "symbol": "CRC",
+                "name": "Костариканський колон"
+            }
+        },
+        "specialSymbols": [
+            "₡"
+        ]
+    },
+    {
+        "code": "CSD",
+        "defaultFractionDigits": 2,
+        "numericCode": 891,
+        "localizedData": {
+            "en": {
+                "symbol": "CSD",
+                "name": "Serbian Dinar (2002–2006)"
+            },
+            "uk": {
+                "symbol": "CSD",
+                "name": "Старий сербський динар"
+            }
+        }
+    },
+    {
+        "code": "CUC",
+        "defaultFractionDigits": 2,
+        "numericCode": 931,
+        "localizedData": {
+            "en": {
+                "symbol": "CUC",
+                "name": "Cuban Convertible Peso"
+            },
+            "uk": {
+                "symbol": "CUC",
+                "name": "Кубинський конвертований песо"
+            }
+        }
+    },
+    {
+        "code": "CUP",
+        "defaultFractionDigits": 2,
+        "numericCode": 192,
+        "localizedData": {
+            "en": {
+                "symbol": "CUP",
+                "name": "Cuban Peso"
+            },
+            "uk": {
+                "symbol": "CUP",
+                "name": "Кубинський песо"
+            }
+        }
+    },
+    {
+        "code": "CVE",
+        "defaultFractionDigits": 2,
+        "numericCode": 132,
+        "localizedData": {
+            "en": {
+                "symbol": "CVE",
+                "name": "Cape Verdean Escudo"
+            },
+            "uk": {
+                "symbol": "CVE",
+                "name": "Ескудо Кабо-Верде"
+            }
+        }
+    },
+    {
+        "code": "CYP",
+        "defaultFractionDigits": 2,
+        "numericCode": 196,
+        "localizedData": {
+            "en": {
+                "symbol": "CYP",
+                "name": "Cypriot Pound"
+            },
+            "uk": {
+                "symbol": "CYP",
+                "name": "Кіпрський фунт"
+            }
+        }
+    },
+    {
+        "code": "CZK",
+        "defaultFractionDigits": 2,
+        "numericCode": 203,
+        "localizedData": {
+            "en": {
+                "symbol": "CZK",
+                "name": "Czech Koruna"
+            },
+            "uk": {
+                "symbol": "CZK",
+                "name": "Чеська крона"
+            }
+        },
+        "specialSymbols": [
+            "Kč"
+        ]
+    },
+    {
+        "code": "DEM",
+        "defaultFractionDigits": 2,
+        "numericCode": 276,
+        "localizedData": {
+            "en": {
+                "symbol": "DEM",
+                "name": "German Mark"
+            },
+            "uk": {
+                "symbol": "DEM",
+                "name": "Німецька марка"
+            }
+        }
+    },
+    {
+        "code": "DJF",
+        "defaultFractionDigits": 0,
+        "numericCode": 262,
+        "localizedData": {
+            "en": {
+                "symbol": "DJF",
+                "name": "Djiboutian Franc"
+            },
+            "uk": {
+                "symbol": "DJF",
+                "name": "Джибутійський франк"
+            }
+        }
+    },
+    {
+        "code": "DKK",
+        "defaultFractionDigits": 2,
+        "numericCode": 208,
+        "localizedData": {
+            "en": {
+                "symbol": "DKK",
+                "name": "Danish Krone"
+            },
+            "uk": {
+                "symbol": "DKK",
+                "name": "Данська крона"
+            }
+        }
+    },
+    {
+        "code": "DOP",
+        "defaultFractionDigits": 2,
+        "numericCode": 214,
+        "localizedData": {
+            "en": {
+                "symbol": "DOP",
+                "name": "Dominican Peso"
+            },
+            "uk": {
+                "symbol": "DOP",
+                "name": "Домініканський песо"
+            }
+        }
+    },
+    {
+        "code": "DZD",
+        "defaultFractionDigits": 2,
+        "numericCode": 12,
+        "localizedData": {
+            "en": {
+                "symbol": "DZD",
+                "name": "Algerian Dinar"
+            },
+            "uk": {
+                "symbol": "DZD",
+                "name": "Алжирський динар"
+            }
+        },
+        "specialSymbols": [
+            "د.ج"
+        ]
+    },
+    {
+        "code": "EEK",
+        "defaultFractionDigits": 2,
+        "numericCode": 233,
+        "localizedData": {
+            "en": {
+                "symbol": "EEK",
+                "name": "Estonian Kroon"
+            },
+            "uk": {
+                "symbol": "EEK",
+                "name": "Естонська крона"
+            }
+        }
+    },
+    {
+        "code": "EGP",
+        "defaultFractionDigits": 2,
+        "numericCode": 818,
+        "localizedData": {
+            "en": {
+                "symbol": "EGP",
+                "name": "Egyptian Pound"
+            },
+            "uk": {
+                "symbol": "EGP",
+                "name": "Єгипетський фунт"
+            }
+        },
+        "specialSymbols": [
+            "E£",
+            "ج.م"
+        ]
+    },
+    {
+        "code": "ERN",
+        "defaultFractionDigits": 2,
+        "numericCode": 232,
+        "localizedData": {
+            "en": {
+                "symbol": "ERN",
+                "name": "Eritrean Nakfa"
+            },
+            "uk": {
+                "symbol": "ERN",
+                "name": "Еритрейська накфа"
+            }
+        }
+    },
+    {
+        "code": "ESP",
+        "defaultFractionDigits": 0,
+        "numericCode": 724,
+        "localizedData": {
+            "en": {
+                "symbol": "ESP",
+                "name": "Spanish Peseta"
+            },
+            "uk": {
+                "symbol": "ESP",
+                "name": "Іспанська песета"
+            }
+        }
+    },
+    {
+        "code": "ETB",
+        "defaultFractionDigits": 2,
+        "numericCode": 230,
+        "localizedData": {
+            "en": {
+                "symbol": "ETB",
+                "name": "Ethiopian Birr"
+            },
+            "uk": {
+                "symbol": "ETB",
+                "name": "Ефіопський бир"
+            }
+        },
+        "specialSymbols": [
+            "Br"
+        ]
+    },
+    {
+        "code": "EUR",
+        "defaultFractionDigits": 2,
+        "numericCode": 978,
+        "localizedData": {
+            "en": {
+                "symbol": "€",
+                "name": "Euro"
+            },
+            "uk": {
+                "symbol": "EUR",
+                "name": "Євро"
+            }
+        },
+        "specialSymbols": [
+            "€"
+        ]
+    },
+    {
+        "code": "FIM",
+        "defaultFractionDigits": 2,
+        "numericCode": 246,
+        "localizedData": {
+            "en": {
+                "symbol": "FIM",
+                "name": "Finnish Markka"
+            },
+            "uk": {
+                "symbol": "FIM",
+                "name": "Фінляндська марка"
+            }
+        }
+    },
+    {
+        "code": "FJD",
+        "defaultFractionDigits": 2,
+        "numericCode": 242,
+        "localizedData": {
+            "en": {
+                "symbol": "FJD",
+                "name": "Fijian Dollar"
+            },
+            "uk": {
+                "symbol": "FJD",
+                "name": "Фіджійський долар"
+            }
+        },
+        "specialSymbols": [
+            "FJ$"
+        ]
+    },
+    {
+        "code": "FKP",
+        "defaultFractionDigits": 2,
+        "numericCode": 238,
+        "localizedData": {
+            "en": {
+                "symbol": "FKP",
+                "name": "Falkland Islands Pound"
+            },
+            "uk": {
+                "symbol": "FKP",
+                "name": "Фунт Фолклендських островів"
+            }
+        }
+    },
+    {
+        "code": "FRF",
+        "defaultFractionDigits": 2,
+        "numericCode": 250,
+        "localizedData": {
+            "en": {
+                "symbol": "FRF",
+                "name": "French Franc"
+            },
+            "uk": {
+                "symbol": "FRF",
+                "name": "Французький франк"
+            }
+        }
+    },
+    {
+        "code": "GBP",
+        "defaultFractionDigits": 2,
+        "numericCode": 826,
+        "localizedData": {
+            "en": {
+                "symbol": "£",
+                "name": "British Pound"
+            },
+            "uk": {
+                "symbol": "GBP",
+                "name": "Англійський фунт"
+            }
+        },
+        "specialSymbols": [
+            "£"
+        ]
+    },
+    {
+        "code": "GEL",
+        "defaultFractionDigits": 2,
+        "numericCode": 981,
+        "localizedData": {
+            "en": {
+                "symbol": "GEL",
+                "name": "Georgian Lari"
+            },
+            "uk": {
+                "symbol": "GEL",
+                "name": "Грузинський ларі"
+            }
+        },
+        "specialSymbols": [
+            "₾"
+        ]
+    },
+    {
+        "code": "GHC",
+        "defaultFractionDigits": 2,
+        "numericCode": 288,
+        "localizedData": {
+            "en": {
+                "symbol": "GHC",
+                "name": "Ghanaian Cedi (1979–2007)"
+            },
+            "uk": {
+                "symbol": "GHC",
+                "name": "Ганський седі (1979–2007)"
+            }
+        }
+    },
+    {
+        "code": "GHS",
+        "defaultFractionDigits": 2,
+        "numericCode": 936,
+        "localizedData": {
+            "en": {
+                "symbol": "GHS",
+                "name": "Ghanaian Cedi"
+            },
+            "uk": {
+                "symbol": "GHS",
+                "name": "Ганський седі"
+            }
+        },
+        "specialSymbols": [
+            "₵",
+            "GH₵"
+        ]
+    },
+    {
+        "code": "GIP",
+        "defaultFractionDigits": 2,
+        "numericCode": 292,
+        "localizedData": {
+            "en": {
+                "symbol": "GIP",
+                "name": "Gibraltar Pound"
+            },
+            "uk": {
+                "symbol": "GIP",
+                "name": "Гібралтарський фунт"
+            }
+        }
+    },
+    {
+        "code": "GMD",
+        "defaultFractionDigits": 2,
+        "numericCode": 270,
+        "localizedData": {
+            "en": {
+                "symbol": "GMD",
+                "name": "Gambian Dalasi"
+            },
+            "uk": {
+                "symbol": "GMD",
+                "name": "Гамбійський даласі"
+            }
+        },
+        "specialSymbols": [
+            "D"
+        ]
+    },
+    {
+        "code": "GNF",
+        "defaultFractionDigits": 0,
+        "numericCode": 324,
+        "localizedData": {
+            "en": {
+                "symbol": "GNF",
+                "name": "Guinean Franc"
+            },
+            "uk": {
+                "symbol": "GNF",
+                "name": "Гвінейський франк"
+            }
+        }
+    },
+    {
+        "code": "GRD",
+        "defaultFractionDigits": 0,
+        "numericCode": 300,
+        "localizedData": {
+            "en": {
+                "symbol": "GRD",
+                "name": "Greek Drachma"
+            },
+            "uk": {
+                "symbol": "GRD",
+                "name": "Грецька драхма"
+            }
+        }
+    },
+    {
+        "code": "GTQ",
+        "defaultFractionDigits": 2,
+        "numericCode": 320,
+        "localizedData": {
+            "en": {
+                "symbol": "GTQ",
+                "name": "Guatemalan Quetzal"
+            },
+            "uk": {
+                "symbol": "GTQ",
+                "name": "Гватемальський кетсаль"
+            }
+        },
+        "specialSymbols": [
+            "Q"
+        ]
+    },
+    {
+        "code": "GWP",
+        "defaultFractionDigits": 2,
+        "numericCode": 624,
+        "localizedData": {
+            "en": {
+                "symbol": "GWP",
+                "name": "Guinea-Bissau Peso"
+            },
+            "uk": {
+                "symbol": "GWP",
+                "name": "Песо Гвінеї-Бісау"
+            }
+        }
+    },
+    {
+        "code": "GYD",
+        "defaultFractionDigits": 2,
+        "numericCode": 328,
+        "localizedData": {
+            "en": {
+                "symbol": "GYD",
+                "name": "Guyanaese Dollar"
+            },
+            "uk": {
+                "symbol": "GYD",
+                "name": "Гаянський долар"
+            }
+        }
+    },
+    {
+        "code": "HKD",
+        "defaultFractionDigits": 2,
+        "numericCode": 344,
+        "localizedData": {
+            "en": {
+                "symbol": "HK$",
+                "name": "Hong Kong Dollar"
+            },
+            "uk": {
+                "symbol": "HKD",
+                "name": "Гонконгський долар"
+            }
+        },
+        "specialSymbols": [
+            "HK$"
+        ]
+    },
+    {
+        "code": "HNL",
+        "defaultFractionDigits": 2,
+        "numericCode": 340,
+        "localizedData": {
+            "en": {
+                "symbol": "HNL",
+                "name": "Honduran Lempira"
+            },
+            "uk": {
+                "symbol": "HNL",
+                "name": "Гондураська лемпіра"
+            }
+        },
+        "specialSymbols": [
+            "L"
+        ]
+    },
+    {
+        "code": "HRK",
+        "defaultFractionDigits": 2,
+        "numericCode": 191,
+        "localizedData": {
+            "en": {
+                "symbol": "HRK",
+                "name": "Croatian Kuna"
+            },
+            "uk": {
+                "symbol": "HRK",
+                "name": "Хорватська куна"
+            }
+        }
+    },
+    {
+        "code": "HTG",
+        "defaultFractionDigits": 2,
+        "numericCode": 332,
+        "localizedData": {
+            "en": {
+                "symbol": "HTG",
+                "name": "Haitian Gourde"
+            },
+            "uk": {
+                "symbol": "HTG",
+                "name": "Гаїтянський гурд"
+            }
+        },
+        "specialSymbols": [
+            "G"
+        ]
+    },
+    {
+        "code": "HUF",
+        "defaultFractionDigits": 2,
+        "numericCode": 348,
+        "localizedData": {
+            "en": {
+                "symbol": "HUF",
+                "name": "Hungarian Forint"
+            },
+            "uk": {
+                "symbol": "HUF",
+                "name": "Угорський форинт"
+            }
+        },
+        "specialSymbols": [
+            "Ft"
+        ]
+    },
+    {
+        "code": "IDR",
+        "defaultFractionDigits": 2,
+        "numericCode": 360,
+        "localizedData": {
+            "en": {
+                "symbol": "IDR",
+                "name": "Indonesian Rupiah"
+            },
+            "uk": {
+                "symbol": "IDR",
+                "name": "Індонезійська рупія"
+            }
+        },
+        "specialSymbols": [
+            "Rp"
+        ]
+    },
+    {
+        "code": "IEP",
+        "defaultFractionDigits": 2,
+        "numericCode": 372,
+        "localizedData": {
+            "en": {
+                "symbol": "IEP",
+                "name": "Irish Pound"
+            },
+            "uk": {
+                "symbol": "IEP",
+                "name": "Ірландський фунт"
+            }
+        }
+    },
+    {
+        "code": "ILS",
+        "defaultFractionDigits": 2,
+        "numericCode": 376,
+        "localizedData": {
+            "en": {
+                "symbol": "₪",
+                "name": "Israeli New Shekel"
+            },
+            "uk": {
+                "symbol": "ILS",
+                "name": "Ізраїльський новий шекель"
+            }
+        },
+        "specialSymbols": [
+            "₪"
+        ]
+    },
+    {
+        "code": "INR",
+        "defaultFractionDigits": 2,
+        "numericCode": 356,
+        "localizedData": {
+            "en": {
+                "symbol": "₹",
+                "name": "Indian Rupee"
+            },
+            "uk": {
+                "symbol": "INR",
+                "name": "Індійська рупія"
+            }
+        },
+        "specialSymbols": [
+            "₹"
+        ]
+    },
+    {
+        "code": "IQD",
+        "defaultFractionDigits": 3,
+        "numericCode": 368,
+        "localizedData": {
+            "en": {
+                "symbol": "IQD",
+                "name": "Iraqi Dinar"
+            },
+            "uk": {
+                "symbol": "IQD",
+                "name": "Іракський динар"
+            }
+        },
+        "specialSymbols": [
+            "ع.د"
+        ]
+    },
+    {
+        "code": "IRR",
+        "defaultFractionDigits": 2,
+        "numericCode": 364,
+        "localizedData": {
+            "en": {
+                "symbol": "IRR",
+                "name": "Iranian Rial"
+            },
+            "uk": {
+                "symbol": "IRR",
+                "name": "Іранський ріал"
+            }
+        },
+        "specialSymbols": [
+            "IR﷼"
+        ]
+    },
+    {
+        "code": "ISK",
+        "defaultFractionDigits": 0,
+        "numericCode": 352,
+        "localizedData": {
+            "en": {
+                "symbol": "ISK",
+                "name": "Icelandic Króna"
+            },
+            "uk": {
+                "symbol": "ISK",
+                "name": "Ісландська крона"
+            }
+        }
+    },
+    {
+        "code": "ITL",
+        "defaultFractionDigits": 0,
+        "numericCode": 380,
+        "localizedData": {
+            "en": {
+                "symbol": "ITL",
+                "name": "Italian Lira"
+            },
+            "uk": {
+                "symbol": "ITL",
+                "name": "Італійська ліра"
+            }
+        }
+    },
+    {
+        "code": "JMD",
+        "defaultFractionDigits": 2,
+        "numericCode": 388,
+        "localizedData": {
+            "en": {
+                "symbol": "JMD",
+                "name": "Jamaican Dollar"
+            },
+            "uk": {
+                "symbol": "JMD",
+                "name": "Ямайський долар"
+            }
+        }
+    },
+    {
+        "code": "JOD",
+        "defaultFractionDigits": 3,
+        "numericCode": 400,
+        "localizedData": {
+            "en": {
+                "symbol": "JOD",
+                "name": "Jordanian Dinar"
+            },
+            "uk": {
+                "symbol": "JOD",
+                "name": "Йорданський динар"
+            }
+        },
+        "specialSymbols": [
+            "د.ا"
+        ]
+    },
+    {
+        "code": "JPY",
+        "defaultFractionDigits": 0,
+        "numericCode": 392,
+        "localizedData": {
+            "en": {
+                "symbol": "¥",
+                "name": "Japanese Yen"
+            },
+            "uk": {
+                "symbol": "¥",
+                "name": "Японська єна"
+            }
+        },
+        "specialSymbols": [
+            "JP¥"
+        ]
+    },
+    {
+        "code": "KES",
+        "defaultFractionDigits": 2,
+        "numericCode": 404,
+        "localizedData": {
+            "en": {
+                "symbol": "KES",
+                "name": "Kenyan Shilling"
+            },
+            "uk": {
+                "symbol": "KES",
+                "name": "Кенійський шилінг"
+            }
+        },
+        "specialSymbols": [
+            "KSh"
+        ]
+    },
+    {
+        "code": "KGS",
+        "defaultFractionDigits": 2,
+        "numericCode": 417,
+        "localizedData": {
+            "en": {
+                "symbol": "KGS",
+                "name": "Kyrgystani Som"
+            },
+            "uk": {
+                "symbol": "KGS",
+                "name": "Киргизький сом"
+            }
+        },
+        "specialSymbols": [
+            "KGсом"
+        ]
+    },
+    {
+        "code": "KHR",
+        "defaultFractionDigits": 2,
+        "numericCode": 116,
+        "localizedData": {
+            "en": {
+                "symbol": "KHR",
+                "name": "Cambodian Riel"
+            },
+            "uk": {
+                "symbol": "KHR",
+                "name": "Камбоджійський рієль"
+            }
+        }
+    },
+    {
+        "code": "KMF",
+        "defaultFractionDigits": 0,
+        "numericCode": 174,
+        "localizedData": {
+            "en": {
+                "symbol": "KMF",
+                "name": "Comorian Franc"
+            },
+            "uk": {
+                "symbol": "KMF",
+                "name": "Коморський франк"
+            }
+        }
+    },
+    {
+        "code": "KPW",
+        "defaultFractionDigits": 2,
+        "numericCode": 408,
+        "localizedData": {
+            "en": {
+                "symbol": "KPW",
+                "name": "North Korean Won"
+            },
+            "uk": {
+                "symbol": "KPW",
+                "name": "Північнокорейський вон"
+            }
+        }
+    },
+    {
+        "code": "KRW",
+        "defaultFractionDigits": 0,
+        "numericCode": 410,
+        "localizedData": {
+            "en": {
+                "symbol": "₩",
+                "name": "South Korean Won"
+            },
+            "uk": {
+                "symbol": "KRW",
+                "name": "Південнокорейський вон"
+            }
+        },
+        "specialSymbols": [
+            "₩"
+        ]
+    },
+    {
+        "code": "KWD",
+        "defaultFractionDigits": 3,
+        "numericCode": 414,
+        "localizedData": {
+            "en": {
+                "symbol": "KWD",
+                "name": "Kuwaiti Dinar"
+            },
+            "uk": {
+                "symbol": "KWD",
+                "name": "Кувейтський динар"
+            }
+        },
+        "specialSymbols": [
+            "د.ك"
+        ]
+    },
+    {
+        "code": "KYD",
+        "defaultFractionDigits": 2,
+        "numericCode": 136,
+        "localizedData": {
+            "en": {
+                "symbol": "KYD",
+                "name": "Cayman Islands Dollar"
+            },
+            "uk": {
+                "symbol": "KYD",
+                "name": "Долар Кайманових островів"
+            }
+        }
+    },
+    {
+        "code": "KZT",
+        "defaultFractionDigits": 2,
+        "numericCode": 398,
+        "localizedData": {
+            "en": {
+                "symbol": "KZT",
+                "name": "Kazakhstani Tenge"
+            },
+            "uk": {
+                "symbol": "KZT",
+                "name": "Казахстанський тенге"
+            }
+        },
+        "specialSymbols": [
+            "₸"
+        ]
+    },
+    {
+        "code": "LAK",
+        "defaultFractionDigits": 2,
+        "numericCode": 418,
+        "localizedData": {
+            "en": {
+                "symbol": "LAK",
+                "name": "Laotian Kip"
+            },
+            "uk": {
+                "symbol": "LAK",
+                "name": "Лаоський кіп"
+            }
+        },
+        "specialSymbols": [
+            "₭"
+        ]
+    },
+    {
+        "code": "LBP",
+        "defaultFractionDigits": 2,
+        "numericCode": 422,
+        "localizedData": {
+            "en": {
+                "symbol": "LBP",
+                "name": "Lebanese Pound"
+            },
+            "uk": {
+                "symbol": "LBP",
+                "name": "Ліванський фунт"
+            }
+        },
+        "specialSymbols": [
+            "ل.ل"
+        ]
+    },
+    {
+        "code": "LKR",
+        "defaultFractionDigits": 2,
+        "numericCode": 144,
+        "localizedData": {
+            "en": {
+                "symbol": "LKR",
+                "name": "Sri Lankan Rupee"
+            },
+            "uk": {
+                "symbol": "LKR",
+                "name": "Шрі-ланкійська рупія"
+            }
+        },
+        "specialSymbols": [
+            "රු",
+            "Rs"
+        ]
+    },
+    {
+        "code": "LRD",
+        "defaultFractionDigits": 2,
+        "numericCode": 430,
+        "localizedData": {
+            "en": {
+                "symbol": "LRD",
+                "name": "Liberian Dollar"
+            },
+            "uk": {
+                "symbol": "LRD",
+                "name": "Ліберійський долар"
+            }
+        },
+        "specialSymbols": [
+            "L$"
+        ]
+    },
+    {
+        "code": "LSL",
+        "defaultFractionDigits": 2,
+        "numericCode": 426,
+        "localizedData": {
+            "en": {
+                "symbol": "LSL",
+                "name": "Lesotho Loti"
+            },
+            "uk": {
+                "symbol": "LSL",
+                "name": "Лесотський лоті"
+            }
+        },
+        "specialSymbols": [
+            "M"
+        ]
+    },
+    {
+        "code": "LTL",
+        "defaultFractionDigits": 2,
+        "numericCode": 440,
+        "localizedData": {
+            "en": {
+                "symbol": "LTL",
+                "name": "Lithuanian Litas"
+            },
+            "uk": {
+                "symbol": "LTL",
+                "name": "Литовський літ"
+            }
+        }
+    },
+    {
+        "code": "LUF",
+        "defaultFractionDigits": 0,
+        "numericCode": 442,
+        "localizedData": {
+            "en": {
+                "symbol": "LUF",
+                "name": "Luxembourgian Franc"
+            },
+            "uk": {
+                "symbol": "LUF",
+                "name": "Люксембурзький франк"
+            }
+        }
+    },
+    {
+        "code": "LVL",
+        "defaultFractionDigits": 2,
+        "numericCode": 428,
+        "localizedData": {
+            "en": {
+                "symbol": "LVL",
+                "name": "Latvian Lats"
+            },
+            "uk": {
+                "symbol": "LVL",
+                "name": "Латвійський лат"
+            }
+        }
+    },
+    {
+        "code": "LYD",
+        "defaultFractionDigits": 3,
+        "numericCode": 434,
+        "localizedData": {
+            "en": {
+                "symbol": "LYD",
+                "name": "Libyan Dinar"
+            },
+            "uk": {
+                "symbol": "LYD",
+                "name": "Лівійський динар"
+            }
+        }
+    },
+    {
+        "code": "MAD",
+        "defaultFractionDigits": 2,
+        "numericCode": 504,
+        "localizedData": {
+            "en": {
+                "symbol": "MAD",
+                "name": "Moroccan Dirham"
+            },
+            "uk": {
+                "symbol": "MAD",
+                "name": "Марокканський дирхам"
+            }
+        },
+        "specialSymbols": [
+            "د.م."
+        ]
+    },
+    {
+        "code": "MDL",
+        "defaultFractionDigits": 2,
+        "numericCode": 498,
+        "localizedData": {
+            "en": {
+                "symbol": "MDL",
+                "name": "Moldovan Leu"
+            },
+            "uk": {
+                "symbol": "MDL",
+                "name": "Молдовський лей"
+            }
+        }
+    },
+    {
+        "code": "MGA",
+        "defaultFractionDigits": 2,
+        "numericCode": 969,
+        "localizedData": {
+            "en": {
+                "symbol": "MGA",
+                "name": "Malagasy Ariary"
+            },
+            "uk": {
+                "symbol": "MGA",
+                "name": "Малагасійський аріарі"
+            }
+        },
+        "specialSymbols": [
+            "Ar"
+        ]
+    },
+    {
+        "code": "MGF",
+        "defaultFractionDigits": 0,
+        "numericCode": 450,
+        "localizedData": {
+            "en": {
+                "symbol": "MGF",
+                "name": "Malagasy Franc"
+            },
+            "uk": {
+                "symbol": "MGF",
+                "name": "Мадагаскарський франк"
+            }
+        }
+    },
+    {
+        "code": "MKD",
+        "defaultFractionDigits": 2,
+        "numericCode": 807,
+        "localizedData": {
+            "en": {
+                "symbol": "MKD",
+                "name": "Macedonian Denar"
+            },
+            "uk": {
+                "symbol": "MKD",
+                "name": "Македонський денар"
+            }
+        }
+    },
+    {
+        "code": "MMK",
+        "defaultFractionDigits": 2,
+        "numericCode": 104,
+        "localizedData": {
+            "en": {
+                "symbol": "MMK",
+                "name": "Myanmar Kyat"
+            },
+            "uk": {
+                "symbol": "MMK",
+                "name": "Кʼят Мʼянми"
+            }
+        },
+        "specialSymbols": [
+            "K"
+        ]
+    },
+    {
+        "code": "MNT",
+        "defaultFractionDigits": 2,
+        "numericCode": 496,
+        "localizedData": {
+            "en": {
+                "symbol": "MNT",
+                "name": "Mongolian Tugrik"
+            },
+            "uk": {
+                "symbol": "MNT",
+                "name": "Монгольський тугрик"
+            }
+        },
+        "specialSymbols": [
+            "₮"
+        ]
+    },
+    {
+        "code": "MOP",
+        "defaultFractionDigits": 2,
+        "numericCode": 446,
+        "localizedData": {
+            "en": {
+                "symbol": "MOP",
+                "name": "Macanese Pataca"
+            },
+            "uk": {
+                "symbol": "MOP",
+                "name": "Патака Макао"
+            }
+        },
+        "specialSymbols": [
+            "MOP$"
+        ]
+    },
+    {
+        "code": "MRO",
+        "defaultFractionDigits": 2,
+        "numericCode": 478,
+        "localizedData": {
+            "en": {
+                "symbol": "MRO",
+                "name": "Mauritanian Ouguiya (1973–2017)"
+            },
+            "uk": {
+                "symbol": "MRO",
+                "name": "Мавританська угія (1973–2017)"
+            }
+        }
+    },
+    {
+        "code": "MRU",
+        "defaultFractionDigits": 2,
+        "numericCode": 929,
+        "localizedData": {
+            "en": {
+                "symbol": "MRU",
+                "name": "Mauritanian Ouguiya"
+            },
+            "uk": {
+                "symbol": "MRU",
+                "name": "Мавританська угія"
+            }
+        }
+    },
+    {
+        "code": "MTL",
+        "defaultFractionDigits": 2,
+        "numericCode": 470,
+        "localizedData": {
+            "en": {
+                "symbol": "MTL",
+                "name": "Maltese Lira"
+            },
+            "uk": {
+                "symbol": "MTL",
+                "name": "Мальтійська ліра"
+            }
+        }
+    },
+    {
+        "code": "MUR",
+        "defaultFractionDigits": 2,
+        "numericCode": 480,
+        "localizedData": {
+            "en": {
+                "symbol": "MUR",
+                "name": "Mauritian Rupee"
+            },
+            "uk": {
+                "symbol": "MUR",
+                "name": "Маврикійська рупія"
+            }
+        },
+        "specialSymbols": [
+            "MU₨"
+        ]
+    },
+    {
+        "code": "MVR",
+        "defaultFractionDigits": 2,
+        "numericCode": 462,
+        "localizedData": {
+            "en": {
+                "symbol": "MVR",
+                "name": "Maldivian Rufiyaa"
+            },
+            "uk": {
+                "symbol": "MVR",
+                "name": "Мальдівська руфія"
+            }
+        },
+        "specialSymbols": [
+            "Rf"
+        ]
+    },
+    {
+        "code": "MWK",
+        "defaultFractionDigits": 2,
+        "numericCode": 454,
+        "localizedData": {
+            "en": {
+                "symbol": "MWK",
+                "name": "Malawian Kwacha"
+            },
+            "uk": {
+                "symbol": "MWK",
+                "name": "Малавійська квача"
+            }
+        },
+        "specialSymbols": [
+            "MK"
+        ]
+    },
+    {
+        "code": "MXN",
+        "defaultFractionDigits": 2,
+        "numericCode": 484,
+        "localizedData": {
+            "en": {
+                "symbol": "MX$",
+                "name": "Mexican Peso"
+            },
+            "uk": {
+                "symbol": "MXN",
+                "name": "Мексиканський песо"
+            }
+        },
+        "specialSymbols": [
+            "MX$"
+        ]
+    },
+    {
+        "code": "MXV",
+        "defaultFractionDigits": 2,
+        "numericCode": 979,
+        "localizedData": {
+            "en": {
+                "symbol": "MXV",
+                "name": "Mexican Investment Unit"
+            },
+            "uk": {
+                "symbol": "MXV",
+                "name": "Мексиканський юнідад де інверсіон"
+            }
+        }
+    },
+    {
+        "code": "MYR",
+        "defaultFractionDigits": 2,
+        "numericCode": 458,
+        "localizedData": {
+            "en": {
+                "symbol": "MYR",
+                "name": "Malaysian Ringgit"
+            },
+            "uk": {
+                "symbol": "MYR",
+                "name": "Малайзійський рингіт"
+            }
+        },
+        "specialSymbols": [
+            "RM"
+        ]
+    },
+    {
+        "code": "MZM",
+        "defaultFractionDigits": 2,
+        "numericCode": 508,
+        "localizedData": {
+            "en": {
+                "symbol": "MZM",
+                "name": "Mozambican Metical (1980–2006)"
+            },
+            "uk": {
+                "symbol": "MZM",
+                "name": "Старий мозамбіцький метикал"
+            }
+        }
+    },
+    {
+        "code": "MZN",
+        "defaultFractionDigits": 2,
+        "numericCode": 943,
+        "localizedData": {
+            "en": {
+                "symbol": "MZN",
+                "name": "Mozambican Metical"
+            },
+            "uk": {
+                "symbol": "MZN",
+                "name": "Мозамбіцький метикал"
+            }
+        },
+        "specialSymbols": [
+            "MT"
+        ]
+    },
+    {
+        "code": "NAD",
+        "defaultFractionDigits": 2,
+        "numericCode": 516,
+        "localizedData": {
+            "en": {
+                "symbol": "NAD",
+                "name": "Namibian Dollar"
+            },
+            "uk": {
+                "symbol": "NAD",
+                "name": "Намібійський долар"
+            }
+        },
+        "specialSymbols": [
+            "N$"
+        ]
+    },
+    {
+        "code": "NGN",
+        "defaultFractionDigits": 2,
+        "numericCode": 566,
+        "localizedData": {
+            "en": {
+                "symbol": "NGN",
+                "name": "Nigerian Naira"
+            },
+            "uk": {
+                "symbol": "NGN",
+                "name": "Нігерійська найра"
+            }
+        },
+        "specialSymbols": [
+            "₦"
+        ]
+    },
+    {
+        "code": "NIO",
+        "defaultFractionDigits": 2,
+        "numericCode": 558,
+        "localizedData": {
+            "en": {
+                "symbol": "NIO",
+                "name": "Nicaraguan Córdoba"
+            },
+            "uk": {
+                "symbol": "NIO",
+                "name": "Нікарагуанська кордоба"
+            }
+        },
+        "specialSymbols": [
+            "C$"
+        ]
+    },
+    {
+        "code": "NLG",
+        "defaultFractionDigits": 2,
+        "numericCode": 528,
+        "localizedData": {
+            "en": {
+                "symbol": "NLG",
+                "name": "Dutch Guilder"
+            },
+            "uk": {
+                "symbol": "NLG",
+                "name": "Нідерландський гульден"
+            }
+        }
+    },
+    {
+        "code": "NOK",
+        "defaultFractionDigits": 2,
+        "numericCode": 578,
+        "localizedData": {
+            "en": {
+                "symbol": "NOK",
+                "name": "Norwegian Krone"
+            },
+            "uk": {
+                "symbol": "NOK",
+                "name": "Норвезька крона"
+            }
+        }
+    },
+    {
+        "code": "NPR",
+        "defaultFractionDigits": 2,
+        "numericCode": 524,
+        "localizedData": {
+            "en": {
+                "symbol": "NPR",
+                "name": "Nepalese Rupee"
+            },
+            "uk": {
+                "symbol": "NPR",
+                "name": "Непальська рупія"
+            }
+        }
+    },
+    {
+        "code": "NZD",
+        "defaultFractionDigits": 2,
+        "numericCode": 554,
+        "localizedData": {
+            "en": {
+                "symbol": "NZ$",
+                "name": "New Zealand Dollar"
+            },
+            "uk": {
+                "symbol": "NZD",
+                "name": "Новозеландський долар"
+            }
+        },
+        "specialSymbols": [
+            "NZ$"
+        ]
+    },
+    {
+        "code": "OMR",
+        "defaultFractionDigits": 3,
+        "numericCode": 512,
+        "localizedData": {
+            "en": {
+                "symbol": "OMR",
+                "name": "Omani Rial"
+            },
+            "uk": {
+                "symbol": "OMR",
+                "name": "Оманський ріал"
+            }
+        },
+        "specialSymbols": [
+            "ر.ع."
+        ]
+    },
+    {
+        "code": "PAB",
+        "defaultFractionDigits": 2,
+        "numericCode": 590,
+        "localizedData": {
+            "en": {
+                "symbol": "PAB",
+                "name": "Panamanian Balboa"
+            },
+            "uk": {
+                "symbol": "PAB",
+                "name": "Панамське бальбоа"
+            }
+        }
+    },
+    {
+        "code": "PEN",
+        "defaultFractionDigits": 2,
+        "numericCode": 604,
+        "localizedData": {
+            "en": {
+                "symbol": "PEN",
+                "name": "Peruvian Sol"
+            },
+            "uk": {
+                "symbol": "PEN",
+                "name": "Перуанський новий сол"
+            }
+        },
+        "specialSymbols": [
+            "S/"
+        ]
+    },
+    {
+        "code": "PGK",
+        "defaultFractionDigits": 2,
+        "numericCode": 598,
+        "localizedData": {
+            "en": {
+                "symbol": "PGK",
+                "name": "Papua New Guinean Kina"
+            },
+            "uk": {
+                "symbol": "PGK",
+                "name": "Кіна Папуа-Нової Ґвінеї"
+            }
+        },
+        "specialSymbols": [
+            "K"
+        ]
+    },
+    {
+        "code": "PHP",
+        "defaultFractionDigits": 2,
+        "numericCode": 608,
+        "localizedData": {
+            "en": {
+                "symbol": "₱",
+                "name": "Philippine Piso"
+            },
+            "uk": {
+                "symbol": "PHP",
+                "name": "Філіппінський песо"
+            }
+        },
+        "specialSymbols": [
+            "₱"
+        ]
+    },
+    {
+        "code": "PKR",
+        "defaultFractionDigits": 2,
+        "numericCode": 586,
+        "localizedData": {
+            "en": {
+                "symbol": "PKR",
+                "name": "Pakistani Rupee"
+            },
+            "uk": {
+                "symbol": "PKR",
+                "name": "Пакистанська рупія"
+            }
+        },
+        "specialSymbols": [
+            "₨"
+        ]
+    },
+    {
+        "code": "PLN",
+        "defaultFractionDigits": 2,
+        "numericCode": 985,
+        "localizedData": {
+            "en": {
+                "symbol": "PLN",
+                "name": "Polish Zloty"
+            },
+            "uk": {
+                "symbol": "PLN",
+                "name": "Польський злотий"
+            }
+        },
+        "specialSymbols": [
+            "zł"
+        ]
+    },
+    {
+        "code": "PTE",
+        "defaultFractionDigits": 0,
+        "numericCode": 620,
+        "localizedData": {
+            "en": {
+                "symbol": "PTE",
+                "name": "Portuguese Escudo"
+            },
+            "uk": {
+                "symbol": "PTE",
+                "name": "Португальський ескудо"
+            }
+        }
+    },
+    {
+        "code": "PYG",
+        "defaultFractionDigits": 0,
+        "numericCode": 600,
+        "localizedData": {
+            "en": {
+                "symbol": "PYG",
+                "name": "Paraguayan Guarani"
+            },
+            "uk": {
+                "symbol": "PYG",
+                "name": "Парагвайський гуарані"
+            }
+        },
+        "specialSymbols": [
+            "₲"
+        ]
+    },
+    {
+        "code": "QAR",
+        "defaultFractionDigits": 2,
+        "numericCode": 634,
+        "localizedData": {
+            "en": {
+                "symbol": "QAR",
+                "name": "Qatari Rial"
+            },
+            "uk": {
+                "symbol": "QAR",
+                "name": "Катарський ріал"
+            }
+        },
+        "specialSymbols": [
+            "ر.ق"
+        ]
+    },
+    {
+        "code": "ROL",
+        "defaultFractionDigits": 0,
+        "numericCode": 642,
+        "localizedData": {
+            "en": {
+                "symbol": "ROL",
+                "name": "Romanian Leu (1952–2006)"
+            },
+            "uk": {
+                "symbol": "ROL",
+                "name": "Старий румунський лей"
+            }
+        }
+    },
+    {
+        "code": "RON",
+        "defaultFractionDigits": 2,
+        "numericCode": 946,
+        "localizedData": {
+            "en": {
+                "symbol": "RON",
+                "name": "Romanian Leu"
+            },
+            "uk": {
+                "symbol": "RON",
+                "name": "Румунський лей"
+            }
+        },
+        "specialSymbols": [
+            "lei"
+        ]
+    },
+    {
+        "code": "RSD",
+        "defaultFractionDigits": 2,
+        "numericCode": 941,
+        "localizedData": {
+            "en": {
+                "symbol": "RSD",
+                "name": "Serbian Dinar"
+            },
+            "uk": {
+                "symbol": "RSD",
+                "name": "Сербський динар"
+            }
+        },
+        "specialSymbols": [
+            "дин."
+        ]
+    },
+    {
+        "code": "RUB",
+        "defaultFractionDigits": 2,
+        "numericCode": 643,
+        "localizedData": {
+            "en": {
+                "symbol": "RUB",
+                "name": "Russian Ruble"
+            },
+            "uk": {
+                "symbol": "RUB",
+                "name": "Російський рубль"
+            }
+        }
+    },
+    {
+        "code": "RUR",
+        "defaultFractionDigits": 2,
+        "numericCode": 810,
+        "localizedData": {
+            "en": {
+                "symbol": "RUR",
+                "name": "Russian Ruble (1991–1998)"
+            },
+            "uk": {
+                "symbol": "RUR",
+                "name": "Російський рубль (1991–1998)"
+            }
+        }
+    },
+    {
+        "code": "RWF",
+        "defaultFractionDigits": 0,
+        "numericCode": 646,
+        "localizedData": {
+            "en": {
+                "symbol": "RWF",
+                "name": "Rwandan Franc"
+            },
+            "uk": {
+                "symbol": "RWF",
+                "name": "Руандійський франк"
+            }
+        }
+    },
+    {
+        "code": "SAR",
+        "defaultFractionDigits": 2,
+        "numericCode": 682,
+        "localizedData": {
+            "en": {
+                "symbol": "SAR",
+                "name": "Saudi Riyal"
+            },
+            "uk": {
+                "symbol": "SAR",
+                "name": "Саудівський ріал"
+            }
+        },
+        "specialSymbols": [
+            "ر.س",
+            "﷼"
+        ]
+    },
+    {
+        "code": "SBD",
+        "defaultFractionDigits": 2,
+        "numericCode": 90,
+        "localizedData": {
+            "en": {
+                "symbol": "SBD",
+                "name": "Solomon Islands Dollar"
+            },
+            "uk": {
+                "symbol": "SBD",
+                "name": "Долар Соломонових Островів"
+            }
+        }
+    },
+    {
+        "code": "SCR",
+        "defaultFractionDigits": 2,
+        "numericCode": 690,
+        "localizedData": {
+            "en": {
+                "symbol": "SCR",
+                "name": "Seychellois Rupee"
+            },
+            "uk": {
+                "symbol": "SCR",
+                "name": "Сейшельська рупія"
+            }
+        },
+        "specialSymbols": [
+            "SR"
+        ]
+    },
+    {
+        "code": "SDD",
+        "defaultFractionDigits": 2,
+        "numericCode": 736,
+        "localizedData": {
+            "en": {
+                "symbol": "SDD",
+                "name": "Sudanese Dinar (1992–2007)"
+            },
+            "uk": {
+                "symbol": "SDD",
+                "name": "Суданський динар"
+            }
+        }
+    },
+    {
+        "code": "SDG",
+        "defaultFractionDigits": 2,
+        "numericCode": 938,
+        "localizedData": {
+            "en": {
+                "symbol": "SDG",
+                "name": "Sudanese Pound"
+            },
+            "uk": {
+                "symbol": "SDG",
+                "name": "Суданський фунт"
+            }
+        }
+    },
+    {
+        "code": "SEK",
+        "defaultFractionDigits": 2,
+        "numericCode": 752,
+        "localizedData": {
+            "en": {
+                "symbol": "SEK",
+                "name": "Swedish Krona"
+            },
+            "uk": {
+                "symbol": "SEK",
+                "name": "Шведська крона"
+            }
+        }
+    },
+    {
+        "code": "SGD",
+        "defaultFractionDigits": 2,
+        "numericCode": 702,
+        "localizedData": {
+            "en": {
+                "symbol": "SGD",
+                "name": "Singapore Dollar"
+            },
+            "uk": {
+                "symbol": "SGD",
+                "name": "Сінгапурський долар"
+            }
+        },
+        "specialSymbols": [
+            "S$"
+        ]
+    },
+    {
+        "code": "SHP",
+        "defaultFractionDigits": 2,
+        "numericCode": 654,
+        "localizedData": {
+            "en": {
+                "symbol": "SHP",
+                "name": "St. Helena Pound"
+            },
+            "uk": {
+                "symbol": "SHP",
+                "name": "Фунт острова Святої Єлени"
+            }
+        }
+    },
+    {
+        "code": "SIT",
+        "defaultFractionDigits": 2,
+        "numericCode": 705,
+        "localizedData": {
+            "en": {
+                "symbol": "SIT",
+                "name": "Slovenian Tolar"
+            },
+            "uk": {
+                "symbol": "SIT",
+                "name": "Словенський толар"
+            }
+        }
+    },
+    {
+        "code": "SKK",
+        "defaultFractionDigits": 2,
+        "numericCode": 703,
+        "localizedData": {
+            "en": {
+                "symbol": "SKK",
+                "name": "Slovak Koruna"
+            },
+            "uk": {
+                "symbol": "SKK",
+                "name": "Словацька крона"
+            }
+        }
+    },
+    {
+        "code": "SLE",
+        "defaultFractionDigits": 2,
+        "numericCode": 925,
+        "localizedData": {
+            "en": {
+                "symbol": "SLE",
+                "name": "Sierra Leonean Leone"
+            },
+            "uk": {
+                "symbol": "SLE",
+                "name": "Sierra Leonean Leone"
+            }
+        }
+    },
+    {
+        "code": "SLL",
+        "defaultFractionDigits": 2,
+        "numericCode": 694,
+        "localizedData": {
+            "en": {
+                "symbol": "SLL",
+                "name": "Sierra Leonean Leone"
+            },
+            "uk": {
+                "symbol": "SLL",
+                "name": "Леоне Сьєрра-Леоне"
+            }
+        },
+        "specialSymbols": [
+            "Le"
+        ]
+    },
+    {
+        "code": "SOS",
+        "defaultFractionDigits": 2,
+        "numericCode": 706,
+        "localizedData": {
+            "en": {
+                "symbol": "SOS",
+                "name": "Somali Shilling"
+            },
+            "uk": {
+                "symbol": "SOS",
+                "name": "Сомалійський шилінг"
+            }
+        }
+    },
+    {
+        "code": "SRD",
+        "defaultFractionDigits": 2,
+        "numericCode": 968,
+        "localizedData": {
+            "en": {
+                "symbol": "SRD",
+                "name": "Surinamese Dollar"
+            },
+            "uk": {
+                "symbol": "SRD",
+                "name": "Суринамський долар"
+            }
+        },
+        "specialSymbols": [
+            "Sr$"
+        ]
+    },
+    {
+        "code": "SRG",
+        "defaultFractionDigits": 2,
+        "numericCode": 740,
+        "localizedData": {
+            "en": {
+                "symbol": "SRG",
+                "name": "Surinamese Guilder"
+            },
+            "uk": {
+                "symbol": "SRG",
+                "name": "Суринамський гульден"
+            }
+        }
+    },
+    {
+        "code": "SSP",
+        "defaultFractionDigits": 2,
+        "numericCode": 728,
+        "localizedData": {
+            "en": {
+                "symbol": "SSP",
+                "name": "South Sudanese Pound"
+            },
+            "uk": {
+                "symbol": "SSP",
+                "name": "Південносуданський фунт"
+            }
+        }
+    },
+    {
+        "code": "STD",
+        "defaultFractionDigits": 2,
+        "numericCode": 678,
+        "localizedData": {
+            "en": {
+                "symbol": "STD",
+                "name": "São Tomé & Príncipe Dobra (1977–2017)"
+            },
+            "uk": {
+                "symbol": "STD",
+                "name": "Добра Сан-Томе і Прінсіпі (1977–2017)"
+            }
+        }
+    },
+    {
+        "code": "STN",
+        "defaultFractionDigits": 2,
+        "numericCode": 930,
+        "localizedData": {
+            "en": {
+                "symbol": "STN",
+                "name": "São Tomé & Príncipe Dobra"
+            },
+            "uk": {
+                "symbol": "STN",
+                "name": "Добра Сан-Томе і Прінсіпі"
+            }
+        },
+        "specialSymbols": [
+            "Db"
+        ]
+    },
+    {
+        "code": "SVC",
+        "defaultFractionDigits": 2,
+        "numericCode": 222,
+        "localizedData": {
+            "en": {
+                "symbol": "SVC",
+                "name": "Salvadoran Colón"
+            },
+            "uk": {
+                "symbol": "SVC",
+                "name": "Сальвадорський колон"
+            }
+        }
+    },
+    {
+        "code": "SYP",
+        "defaultFractionDigits": 2,
+        "numericCode": 760,
+        "localizedData": {
+            "en": {
+                "symbol": "SYP",
+                "name": "Syrian Pound"
+            },
+            "uk": {
+                "symbol": "SYP",
+                "name": "Сирійський фунт"
+            }
+        },
+        "specialSymbols": [
+            "ل.س"
+        ]
+    },
+    {
+        "code": "SZL",
+        "defaultFractionDigits": 2,
+        "numericCode": 748,
+        "localizedData": {
+            "en": {
+                "symbol": "SZL",
+                "name": "Swazi Lilangeni"
+            },
+            "uk": {
+                "symbol": "SZL",
+                "name": "Свазілендський лілангені"
+            }
+        },
+        "specialSymbols": [
+            "E"
+        ]
+    },
+    {
+        "code": "THB",
+        "defaultFractionDigits": 2,
+        "numericCode": 764,
+        "localizedData": {
+            "en": {
+                "symbol": "THB",
+                "name": "Thai Baht"
+            },
+            "uk": {
+                "symbol": "THB",
+                "name": "Таїландський бат"
+            }
+        },
+        "specialSymbols": [
+            "฿"
+        ]
+    },
+    {
+        "code": "TJS",
+        "defaultFractionDigits": 2,
+        "numericCode": 972,
+        "localizedData": {
+            "en": {
+                "symbol": "TJS",
+                "name": "Tajikistani Somoni"
+            },
+            "uk": {
+                "symbol": "TJS",
+                "name": "Таджицький сомоні"
+            }
+        },
+        "specialSymbols": [
+            "TJсом"
+        ]
+    },
+    {
+        "code": "TMM",
+        "defaultFractionDigits": 2,
+        "numericCode": 795,
+        "localizedData": {
+            "en": {
+                "symbol": "TMM",
+                "name": "Turkmenistani Manat (1993–2009)"
+            },
+            "uk": {
+                "symbol": "TMM",
+                "name": "Туркменський манат (1993–2009)"
+            }
+        }
+    },
+    {
+        "code": "TMT",
+        "defaultFractionDigits": 2,
+        "numericCode": 934,
+        "localizedData": {
+            "en": {
+                "symbol": "TMT",
+                "name": "Turkmenistani Manat"
+            },
+            "uk": {
+                "symbol": "TMT",
+                "name": "Туркменський манат"
+            }
+        }
+    },
+    {
+        "code": "TND",
+        "defaultFractionDigits": 3,
+        "numericCode": 788,
+        "localizedData": {
+            "en": {
+                "symbol": "TND",
+                "name": "Tunisian Dinar"
+            },
+            "uk": {
+                "symbol": "TND",
+                "name": "Туніський динар"
+            }
+        },
+        "specialSymbols": [
+            "د.ت"
+        ]
+    },
+    {
+        "code": "TOP",
+        "defaultFractionDigits": 2,
+        "numericCode": 776,
+        "localizedData": {
+            "en": {
+                "symbol": "TOP",
+                "name": "Tongan Paʻanga"
+            },
+            "uk": {
+                "symbol": "TOP",
+                "name": "Тонганська паанга"
+            }
+        },
+        "specialSymbols": [
+            "T$"
+        ]
+    },
+    {
+        "code": "TPE",
+        "defaultFractionDigits": 0,
+        "numericCode": 626,
+        "localizedData": {
+            "en": {
+                "symbol": "TPE",
+                "name": "Timorese Escudo"
+            },
+            "uk": {
+                "symbol": "TPE",
+                "name": "Тіморський ескудо"
+            }
+        }
+    },
+    {
+        "code": "TRL",
+        "defaultFractionDigits": 0,
+        "numericCode": 792,
+        "localizedData": {
+            "en": {
+                "symbol": "TRL",
+                "name": "Turkish Lira (1922–2005)"
+            },
+            "uk": {
+                "symbol": "TRL",
+                "name": "Турецька ліра (1922–2005)"
+            }
+        }
+    },
+    {
+        "code": "TRY",
+        "defaultFractionDigits": 2,
+        "numericCode": 949,
+        "localizedData": {
+            "en": {
+                "symbol": "TRY",
+                "name": "Turkish Lira"
+            },
+            "uk": {
+                "symbol": "TRY",
+                "name": "Турецька ліра"
+            }
+        },
+        "specialSymbols": [
+            "₺"
+        ]
+    },
+    {
+        "code": "TTD",
+        "defaultFractionDigits": 2,
+        "numericCode": 780,
+        "localizedData": {
+            "en": {
+                "symbol": "TTD",
+                "name": "Trinidad & Tobago Dollar"
+            },
+            "uk": {
+                "symbol": "TTD",
+                "name": "Долар Тринідаду і Тобаго"
+            }
+        },
+        "specialSymbols": [
+            "TT$"
+        ]
+    },
+    {
+        "code": "TWD",
+        "defaultFractionDigits": 2,
+        "numericCode": 901,
+        "localizedData": {
+            "en": {
+                "symbol": "NT$",
+                "name": "New Taiwan Dollar"
+            },
+            "uk": {
+                "symbol": "TWD",
+                "name": "Новий тайванський долар"
+            }
+        },
+        "specialSymbols": [
+            "NT$"
+        ]
+    },
+    {
+        "code": "TZS",
+        "defaultFractionDigits": 2,
+        "numericCode": 834,
+        "localizedData": {
+            "en": {
+                "symbol": "TZS",
+                "name": "Tanzanian Shilling"
+            },
+            "uk": {
+                "symbol": "TZS",
+                "name": "Танзанійський шилінг"
+            }
+        },
+        "specialSymbols": [
+            "TSh"
+        ]
+    },
+    {
+        "code": "UAH",
+        "defaultFractionDigits": 2,
+        "numericCode": 980,
+        "localizedData": {
+            "en": {
+                "symbol": "UAH",
+                "name": "Ukrainian Hryvnia"
+            },
+            "uk": {
+                "symbol": "₴",
+                "name": "Українська гривня"
+            }
+        },
+        "specialSymbols": [
+            "₴",
+            "грн"
+        ]
+    },
+    {
+        "code": "UGX",
+        "defaultFractionDigits": 0,
+        "numericCode": 800,
+        "localizedData": {
+            "en": {
+                "symbol": "UGX",
+                "name": "Ugandan Shilling"
+            },
+            "uk": {
+                "symbol": "UGX",
+                "name": "Угандійський шилінг"
+            }
+        },
+        "specialSymbols": [
+            "USh"
+        ]
+    },
+    {
+        "code": "USD",
+        "defaultFractionDigits": 2,
+        "numericCode": 840,
+        "localizedData": {
+            "en": {
+                "symbol": "$",
+                "name": "US Dollar"
+            },
+            "uk": {
+                "symbol": "USD",
+                "name": "Долар США"
+            }
+        }
+    },
+    {
+        "code": "USN",
+        "defaultFractionDigits": 2,
+        "numericCode": 997,
+        "localizedData": {
+            "en": {
+                "symbol": "USN",
+                "name": "US Dollar (Next day)"
+            },
+            "uk": {
+                "symbol": "USN",
+                "name": "Долар США (наступного дня)"
+            }
+        }
+    },
+    {
+        "code": "USS",
+        "defaultFractionDigits": 2,
+        "numericCode": 998,
+        "localizedData": {
+            "en": {
+                "symbol": "USS",
+                "name": "US Dollar (Same day)"
+            },
+            "uk": {
+                "symbol": "USS",
+                "name": "Долар США (цього дня)"
+            }
+        }
+    },
+    {
+        "code": "UYI",
+        "defaultFractionDigits": 0,
+        "numericCode": 940,
+        "localizedData": {
+            "en": {
+                "symbol": "UYI",
+                "name": "Uruguayan Peso (Indexed Units)"
+            },
+            "uk": {
+                "symbol": "UYI",
+                "name": "Уругвайський песо в індексованих одиницях"
+            }
+        }
+    },
+    {
+        "code": "UYU",
+        "defaultFractionDigits": 2,
+        "numericCode": 858,
+        "localizedData": {
+            "en": {
+                "symbol": "UYU",
+                "name": "Uruguayan Peso"
+            },
+            "uk": {
+                "symbol": "UYU",
+                "name": "Уругвайський песо"
+            }
+        },
+        "specialSymbols": [
+            "$U"
+        ]
+    },
+    {
+        "code": "UZS",
+        "defaultFractionDigits": 2,
+        "numericCode": 860,
+        "localizedData": {
+            "en": {
+                "symbol": "UZS",
+                "name": "Uzbekistani Som"
+            },
+            "uk": {
+                "symbol": "UZS",
+                "name": "Узбецький сум"
+            }
+        },
+        "specialSymbols": [
+            "сўм"
+        ]
+    },
+    {
+        "code": "VEB",
+        "defaultFractionDigits": 2,
+        "numericCode": 862,
+        "localizedData": {
+            "en": {
+                "symbol": "VEB",
+                "name": "Venezuelan Bolívar (1871–2008)"
+            },
+            "uk": {
+                "symbol": "VEB",
+                "name": "Венесуельський болівар (1871–2008)"
+            }
+        }
+    },
+    {
+        "code": "VED",
+        "defaultFractionDigits": 2,
+        "numericCode": 926,
+        "localizedData": {
+            "en": {
+                "symbol": "VED",
+                "name": "Venezuelan Bolívar Soberano"
+            },
+            "uk": {
+                "symbol": "VED",
+                "name": "Venezuelan Bolívar Soberano"
+            }
+        }
+    },
+    {
+        "code": "VEF",
+        "defaultFractionDigits": 2,
+        "numericCode": 937,
+        "localizedData": {
+            "en": {
+                "symbol": "VEF",
+                "name": "Venezuelan Bolívar (2008–2018)"
+            },
+            "uk": {
+                "symbol": "VEF",
+                "name": "Венесуельський болівар (2008–2018)"
+            }
+        }
+    },
+    {
+        "code": "VES",
+        "defaultFractionDigits": 2,
+        "numericCode": 928,
+        "localizedData": {
+            "en": {
+                "symbol": "VES",
+                "name": "Venezuelan Bolívar"
+            },
+            "uk": {
+                "symbol": "VES",
+                "name": "Венесуельський болівар"
+            }
+        }
+    },
+    {
+        "code": "VND",
+        "defaultFractionDigits": 0,
+        "numericCode": 704,
+        "localizedData": {
+            "en": {
+                "symbol": "₫",
+                "name": "Vietnamese Dong"
+            },
+            "uk": {
+                "symbol": "VND",
+                "name": "Вʼєтнамський донг"
+            }
+        },
+        "specialSymbols": [
+            "₫"
+        ]
+    },
+    {
+        "code": "VUV",
+        "defaultFractionDigits": 0,
+        "numericCode": 548,
+        "localizedData": {
+            "en": {
+                "symbol": "VUV",
+                "name": "Vanuatu Vatu"
+            },
+            "uk": {
+                "symbol": "VUV",
+                "name": "Вануатський вату"
+            }
+        }
+    },
+    {
+        "code": "WST",
+        "defaultFractionDigits": 2,
+        "numericCode": 882,
+        "localizedData": {
+            "en": {
+                "symbol": "WST",
+                "name": "Samoan Tala"
+            },
+            "uk": {
+                "symbol": "WST",
+                "name": "Самоанська тала"
+            }
+        },
+        "specialSymbols": [
+            "WS$"
+        ]
+    },
+    {
+        "code": "XAD",
+        "defaultFractionDigits": 2,
+        "numericCode": 396,
+        "localizedData": {
+            "en": {
+                "symbol": "XAD",
+                "name": "Arab Accounting Dinar"
+            },
+            "uk": {
+                "symbol": "XAD",
+                "name": "Arab Accounting Dinar"
+            }
+        }
+    },
+    {
+        "code": "XAF",
+        "defaultFractionDigits": 0,
+        "numericCode": 950,
+        "localizedData": {
+            "en": {
+                "symbol": "FCFA",
+                "name": "Central African CFA Franc"
+            },
+            "uk": {
+                "symbol": "FCFA",
+                "name": "Центральноафриканський франк"
+            }
+        },
+        "specialSymbols": [
+            "FCFA"
+        ]
+    },
+    {
+        "code": "XAG",
+        "defaultFractionDigits": -1,
+        "numericCode": 961,
+        "localizedData": {
+            "en": {
+                "symbol": "XAG",
+                "name": "Silver"
+            },
+            "uk": {
+                "symbol": "XAG",
+                "name": "Срібло"
+            }
+        }
+    },
+    {
+        "code": "XAU",
+        "defaultFractionDigits": -1,
+        "numericCode": 959,
+        "localizedData": {
+            "en": {
+                "symbol": "XAU",
+                "name": "Gold"
+            },
+            "uk": {
+                "symbol": "XAU",
+                "name": "Золото"
+            }
+        }
+    },
+    {
+        "code": "XBA",
+        "defaultFractionDigits": -1,
+        "numericCode": 955,
+        "localizedData": {
+            "en": {
+                "symbol": "XBA",
+                "name": "European Composite Unit"
+            },
+            "uk": {
+                "symbol": "XBA",
+                "name": "Європейська складена валютна одиниця"
+            }
+        }
+    },
+    {
+        "code": "XBB",
+        "defaultFractionDigits": -1,
+        "numericCode": 956,
+        "localizedData": {
+            "en": {
+                "symbol": "XBB",
+                "name": "European Monetary Unit"
+            },
+            "uk": {
+                "symbol": "XBB",
+                "name": "Одиниця європейського валютного фонду"
+            }
+        }
+    },
+    {
+        "code": "XBC",
+        "defaultFractionDigits": -1,
+        "numericCode": 957,
+        "localizedData": {
+            "en": {
+                "symbol": "XBC",
+                "name": "European Unit of Account (XBC)"
+            },
+            "uk": {
+                "symbol": "XBC",
+                "name": "Європейська розрахункова одиниця XBC"
+            }
+        }
+    },
+    {
+        "code": "XBD",
+        "defaultFractionDigits": -1,
+        "numericCode": 958,
+        "localizedData": {
+            "en": {
+                "symbol": "XBD",
+                "name": "European Unit of Account (XBD)"
+            },
+            "uk": {
+                "symbol": "XBD",
+                "name": "Європейська розрахункова одиниця XBD"
+            }
+        }
+    },
+    {
+        "code": "XCD",
+        "defaultFractionDigits": 2,
+        "numericCode": 951,
+        "localizedData": {
+            "en": {
+                "symbol": "EC$",
+                "name": "East Caribbean Dollar"
+            },
+            "uk": {
+                "symbol": "XCD",
+                "name": "Східнокарибський долар"
+            }
+        },
+        "specialSymbols": [
+            "EC$"
+        ]
+    },
+    {
+        "code": "XCG",
+        "defaultFractionDigits": 2,
+        "numericCode": 532,
+        "localizedData": {
+            "en": {
+                "symbol": "XCG",
+                "name": "Caribbean Guilder"
+            },
+            "uk": {
+                "symbol": "XCG",
+                "name": "Caribbean Guilder"
+            }
+        }
+    },
+    {
+        "code": "XDR",
+        "defaultFractionDigits": -1,
+        "numericCode": 960,
+        "localizedData": {
+            "en": {
+                "symbol": "XDR",
+                "name": "Special Drawing Rights"
+            },
+            "uk": {
+                "symbol": "XDR",
+                "name": "Спеціальні права запозичення"
+            }
+        }
+    },
+    {
+        "code": "XFO",
+        "defaultFractionDigits": -1,
+        "numericCode": 0,
+        "localizedData": {
+            "en": {
+                "symbol": "XFO",
+                "name": "French Gold Franc"
+            },
+            "uk": {
+                "symbol": "XFO",
+                "name": "Французький золотий франк"
+            }
+        }
+    },
+    {
+        "code": "XFU",
+        "defaultFractionDigits": -1,
+        "numericCode": 0,
+        "localizedData": {
+            "en": {
+                "symbol": "XFU",
+                "name": "French UIC-Franc"
+            },
+            "uk": {
+                "symbol": "XFU",
+                "name": "Французький франк UIC"
+            }
+        }
+    },
+    {
+        "code": "XOF",
+        "defaultFractionDigits": 0,
+        "numericCode": 952,
+        "localizedData": {
+            "en": {
+                "symbol": "F CFA",
+                "name": "West African CFA Franc"
+            },
+            "uk": {
+                "symbol": "F CFA",
+                "name": "Західноафриканський франк"
+            }
+        },
+        "specialSymbols": [
+            "CFA"
+        ]
+    },
+    {
+        "code": "XPD",
+        "defaultFractionDigits": -1,
+        "numericCode": 964,
+        "localizedData": {
+            "en": {
+                "symbol": "XPD",
+                "name": "Palladium"
+            },
+            "uk": {
+                "symbol": "XPD",
+                "name": "Паладій"
+            }
+        }
+    },
+    {
+        "code": "XPF",
+        "defaultFractionDigits": 0,
+        "numericCode": 953,
+        "localizedData": {
+            "en": {
+                "symbol": "CFPF",
+                "name": "CFP Franc"
+            },
+            "uk": {
+                "symbol": "CFPF",
+                "name": "Французький тихоокеанський франк"
+            }
+        },
+        "specialSymbols": [
+            "CFPF"
+        ]
+    },
+    {
+        "code": "XPT",
+        "defaultFractionDigits": -1,
+        "numericCode": 962,
+        "localizedData": {
+            "en": {
+                "symbol": "XPT",
+                "name": "Platinum"
+            },
+            "uk": {
+                "symbol": "XPT",
+                "name": "Платина"
+            }
+        }
+    },
+    {
+        "code": "XSU",
+        "defaultFractionDigits": -1,
+        "numericCode": 994,
+        "localizedData": {
+            "en": {
+                "symbol": "XSU",
+                "name": "Sucre"
+            },
+            "uk": {
+                "symbol": "XSU",
+                "name": "Sucre"
+            }
+        }
+    },
+    {
+        "code": "XTS",
+        "defaultFractionDigits": -1,
+        "numericCode": 963,
+        "localizedData": {
+            "en": {
+                "symbol": "XTS",
+                "name": "Testing Currency Code"
+            },
+            "uk": {
+                "symbol": "XTS",
+                "name": "Код тестування валюти"
+            }
+        }
+    },
+    {
+        "code": "XUA",
+        "defaultFractionDigits": -1,
+        "numericCode": 965,
+        "localizedData": {
+            "en": {
+                "symbol": "XUA",
+                "name": "ADB Unit of Account"
+            },
+            "uk": {
+                "symbol": "XUA",
+                "name": "ADB Unit of Account"
+            }
+        }
+    },
+    {
+        "code": "XXX",
+        "defaultFractionDigits": -1,
+        "numericCode": 999,
+        "localizedData": {
+            "en": {
+                "symbol": "¤",
+                "name": "Unknown Currency"
+            },
+            "uk": {
+                "symbol": "¤",
+                "name": "Невідома грошова одиниця"
+            }
+        }
+    },
+    {
+        "code": "YER",
+        "defaultFractionDigits": 2,
+        "numericCode": 886,
+        "localizedData": {
+            "en": {
+                "symbol": "YER",
+                "name": "Yemeni Rial"
+            },
+            "uk": {
+                "symbol": "YER",
+                "name": "Єменський ріал"
+            }
+        },
+        "specialSymbols": [
+            "YE﷼"
+        ]
+    },
+    {
+        "code": "YUM",
+        "defaultFractionDigits": 2,
+        "numericCode": 891,
+        "localizedData": {
+            "en": {
+                "symbol": "YUM",
+                "name": "Yugoslavian New Dinar (1994–2002)"
+            },
+            "uk": {
+                "symbol": "YUM",
+                "name": "Югославський новий динар"
+            }
+        }
+    },
+    {
+        "code": "ZAR",
+        "defaultFractionDigits": 2,
+        "numericCode": 710,
+        "localizedData": {
+            "en": {
+                "symbol": "ZAR",
+                "name": "South African Rand"
+            },
+            "uk": {
+                "symbol": "ZAR",
+                "name": "Південноафриканський ранд"
+            }
+        },
+        "specialSymbols": [
+            "R"
+        ]
+    },
+    {
+        "code": "ZMK",
+        "defaultFractionDigits": 2,
+        "numericCode": 894,
+        "localizedData": {
+            "en": {
+                "symbol": "ZMK",
+                "name": "Zambian Kwacha (1968–2012)"
+            },
+            "uk": {
+                "symbol": "ZMK",
+                "name": "Замбійська квача (1968–2012)"
+            }
+        }
+    },
+    {
+        "code": "ZMW",
+        "defaultFractionDigits": 2,
+        "numericCode": 967,
+        "localizedData": {
+            "en": {
+                "symbol": "ZMW",
+                "name": "Zambian Kwacha"
+            },
+            "uk": {
+                "symbol": "ZMW",
+                "name": "Замбійська квача"
+            }
+        },
+        "specialSymbols": [
+            "ZK"
+        ]
+    },
+    {
+        "code": "ZWD",
+        "defaultFractionDigits": 2,
+        "numericCode": 716,
+        "localizedData": {
+            "en": {
+                "symbol": "ZWD",
+                "name": "Zimbabwean Dollar (1980–2008)"
+            },
+            "uk": {
+                "symbol": "ZWD",
+                "name": "Зімбабвійський долар"
+            }
+        }
+    },
+    {
+        "code": "ZWG",
+        "defaultFractionDigits": 2,
+        "numericCode": 924,
+        "localizedData": {
+            "en": {
+                "symbol": "ZWG",
+                "name": "Zimbabwe Gold"
+            },
+            "uk": {
+                "symbol": "ZWG",
+                "name": "Zimbabwe Gold"
+            }
+        }
+    },
+    {
+        "code": "ZWL",
+        "defaultFractionDigits": 2,
+        "numericCode": 932,
+        "localizedData": {
+            "en": {
+                "symbol": "ZWL",
+                "name": "Zimbabwean Dollar (2009)"
+            },
+            "uk": {
+                "symbol": "ZWL",
+                "name": "Зімбабвійський долар (2009)"
+            }
+        }
+    },
+    {
+        "code": "ZWN",
+        "defaultFractionDigits": 2,
+        "numericCode": 942,
+        "localizedData": {
+            "en": {
+                "symbol": "ZWN",
+                "name": "ZWN"
+            },
+            "uk": {
+                "symbol": "ZWN",
+                "name": "ZWN"
+            }
+        }
+    },
+    {
+        "code": "ZWR",
+        "defaultFractionDigits": 2,
+        "numericCode": 935,
+        "localizedData": {
+            "en": {
+                "symbol": "ZWR",
+                "name": "Zimbabwean Dollar (2008)"
+            },
+            "uk": {
+                "symbol": "ZWR",
+                "name": "Zimbabwean Dollar (2008)"
+            }
+        }
+    }
+]
