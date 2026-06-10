@@ -1,0 +1,154 @@
+/* Derived from design-reference/abc-altus.css (bundle re-export 2026-06-10). */
+/* Delta vs bundle: ONLY the @font-face url() paths ('fonts/…' → '/fonts/…') + this header. */
+/* ===========================================================================
+   ABC Budget × ALTUS — foundation stylesheet
+   ALTUS "Geometric Jet Age · The Digital Console" applied to ABC Budget.
+   Tokens are verbatim from the design system; component classes are the
+   CSS replicas of the ALTUS atoms (keys, lamps, panels, inputs, screws).
+   Product copy is plain Ukrainian — ALTUS is the look, not the words.
+   ========================================================================= */
+
+/* ── Self-hosted brand type (only the weights this page uses) ───────────── */
+@font-face{font-family:'Jost';font-weight:500;font-style:normal;font-display:swap;src:url('/fonts/Jost-Medium.ttf') format('truetype');}
+@font-face{font-family:'Jost';font-weight:600;font-style:normal;font-display:swap;src:url('/fonts/Jost-SemiBold.ttf') format('truetype');}
+@font-face{font-family:'Jost';font-weight:700;font-style:normal;font-display:swap;src:url('/fonts/Jost-Bold.ttf') format('truetype');}
+@font-face{font-family:'Jost';font-weight:800;font-style:normal;font-display:swap;src:url('/fonts/Jost-ExtraBold.ttf') format('truetype');}
+@font-face{font-family:'IBM Plex Sans';font-weight:400;font-style:normal;font-display:swap;src:url('/fonts/IBMPlexSans-Regular.ttf') format('truetype');}
+@font-face{font-family:'IBM Plex Sans';font-weight:500;font-style:normal;font-display:swap;src:url('/fonts/IBMPlexSans-Medium.ttf') format('truetype');}
+@font-face{font-family:'IBM Plex Sans';font-weight:600;font-style:normal;font-display:swap;src:url('/fonts/IBMPlexSans-SemiBold.ttf') format('truetype');}
+@font-face{font-family:'IBM Plex Mono';font-weight:400;font-style:normal;font-display:swap;src:url('/fonts/IBMPlexMono-Regular.ttf') format('truetype');}
+@font-face{font-family:'IBM Plex Mono';font-weight:500;font-style:normal;font-display:swap;src:url('/fonts/IBMPlexMono-Medium.ttf') format('truetype');}
+@font-face{font-family:'IBM Plex Mono';font-weight:600;font-style:normal;font-display:swap;src:url('/fonts/IBMPlexMono-SemiBold.ttf') format('truetype');}
+@font-face{font-family:'IBM Plex Mono';font-weight:700;font-style:normal;font-display:swap;src:url('/fonts/IBMPlexMono-Bold.ttf') format('truetype');}
+
+:root{
+  /* surfaces */
+  --teal:#2D6070; --teal-deep:#21505E; --teal-shadow:#173B47;
+  --beige:#E8E4C9; --beige-warm:#D9D4B6; --beige-deep:#B8B294; --cream:#FDFDD0;
+  /* accents — active controls / state only */
+  --gold:#E1AD01; --gold-deep:#B88B00; --orange:#CC5500; --orange-deep:#993F00;
+  --green:#568203; --green-deep:#3F6202;
+  /* ink */
+  --ebony:#050C16; --ebony-soft:#1A2330; --gray-warm:#8A8674; --gray:#6A7280;
+  /* type */
+  --f-display:'Jost','Futura',sans-serif;
+  --f-body:'IBM Plex Sans','Helvetica',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+  /* radius */
+  --r-xs:3px; --r-sm:6px; --r-md:8px; --r-lg:10px; --r-xl:14px; --r-pill:999px;
+  /* spacing */
+  --sp-2xs:4px; --sp-xs:6px; --sp-s:10px; --sp-m:14px; --sp-l:18px; --sp-xl:22px; --sp-section:32px;
+  /* elevation */
+  --shadow-panel:0 8px 24px rgba(0,0,0,.18),0 1px 0 rgba(255,255,255,.45) inset,0 -2px 6px rgba(0,0,0,.08) inset;
+  --shadow-inset:inset 0 3px 6px rgba(0,0,0,.22),inset 0 -1px 0 rgba(255,255,255,.7);
+  --shadow-soft:2px 2px 5px rgba(0,0,0,.2);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--f-body); color:var(--ebony);
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(255,255,255,.05), transparent 55%),
+    radial-gradient(ellipse at 90% 100%, rgba(0,0,0,.14), transparent 55%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,.022) 0 1px, transparent 1px 3px),
+    var(--teal);
+  background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Type helpers ──────────────────────────────────────────────────────── */
+.f-mono{font-family:var(--f-mono)}
+.f-disp{font-family:var(--f-display)}
+.eyebrow{font-family:var(--f-mono);font-weight:600;font-size:10px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--cream);opacity:.62}
+.eyebrow-ink{font-family:var(--f-mono);font-weight:600;font-size:9.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ebony);opacity:.55}
+.h-display{font-family:var(--f-display);font-weight:800;letter-spacing:.01em;line-height:1;color:var(--ebony)}
+.h-sec{font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ebony)}
+.body-p{font-family:var(--f-body);font-weight:400;font-size:14.5px;line-height:1.62;color:var(--ebony-soft);text-wrap:pretty}
+.mono-s{font-family:var(--f-mono);font-weight:600;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ebony)}
+.amount{font-family:var(--f-mono);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.01em;color:var(--ebony)}
+
+/* ── Panel (the console surface) ───────────────────────────────────────── */
+.panel{position:relative;background:var(--beige);border-radius:var(--r-xl);
+  border:1px solid rgba(0,0,0,.08);box-shadow:var(--shadow-panel)}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:13px 20px;border-bottom:1px dashed rgba(5,12,22,.18);
+  border-radius:var(--r-xl) var(--r-xl) 0 0;
+  background:linear-gradient(180deg,rgba(255,255,255,.32),rgba(0,0,0,.02))}
+.panel-h .lhs{display:flex;align-items:center;gap:11px}
+.logchip{font-family:var(--f-mono);font-size:10px;font-weight:600;background:var(--ebony);
+  color:var(--beige);padding:3px 7px;border-radius:var(--r-xs);letter-spacing:.08em}
+.panel-h h3{margin:0;font-family:var(--f-display);font-weight:700;font-size:13px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ebony)}
+.panel-b{padding:20px}
+a.ob-brand,a.brand{text-decoration:none;cursor:pointer}
+.screw{position:absolute;width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#b8b294,#6a6450 70%,#3a3625);
+  box-shadow:inset 0 -1px 1px rgba(0,0,0,.4)}
+.screw::after{content:"";position:absolute;top:50%;left:15%;right:15%;height:1.2px;
+  background:rgba(0,0,0,.55);transform:translateY(-50%) rotate(-35deg)}
+
+/* cream sub-panel */
+.cream{background:var(--cream);border-radius:var(--r-md);
+  box-shadow:var(--shadow-inset),0 1px 0 rgba(255,255,255,.4);border:1px solid rgba(0,0,0,.16)}
+
+/* ── Keys (buttons) ────────────────────────────────────────────────────── */
+.key{appearance:none;border:0;border-radius:var(--r-lg);height:52px;padding:0 20px;
+  font-family:var(--f-display);font-weight:700;font-size:14px;letter-spacing:.1em;
+  text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  transition:transform .09s ease, box-shadow .09s ease}
+.key svg{width:18px;height:18px}
+.key.sm{height:42px;font-size:12px;padding:0 15px;border-radius:var(--r-sm)}
+.key.gold{background:linear-gradient(180deg,#F2C637,#C99A00);color:var(--ebony);
+  box-shadow:0 5px 0 #8A6700,0 8px 14px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.4)}
+.key.orange{background:linear-gradient(180deg,#E07520,#A24200);color:#FDFDD0;
+  box-shadow:0 5px 0 #6E2C00,0 8px 14px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.4)}
+.key.green{background:linear-gradient(180deg,#73A815,#3F6202);color:#FDFDD0;
+  box-shadow:0 5px 0 #2A4200,0 8px 14px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.4)}
+.key.beige{background:linear-gradient(180deg,#F0ECD0,#C9C3A4);color:var(--ebony);
+  box-shadow:0 5px 0 #8A8674,0 8px 14px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.4)}
+.key.ebony{background:linear-gradient(180deg,#2A3340,#0A1018);color:#E8E4C9;
+  box-shadow:0 5px 0 #000,0 8px 14px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.4)}
+.key:active{transform:translateY(4px);
+  box-shadow:0 1px 0 rgba(0,0,0,.5),inset 0 2px 4px rgba(0,0,0,.35),0 2px 6px rgba(0,0,0,.2)}
+.key.pressed{transform:translateY(4px);
+  box-shadow:0 1px 0 rgba(0,0,0,.5),inset 0 2px 4px rgba(0,0,0,.35),0 2px 6px rgba(0,0,0,.2)}
+
+/* ── Lamp (jeweled indicator) ──────────────────────────────────────────── */
+.lamp{width:12px;height:12px;border-radius:50%;flex:none;
+  box-shadow:inset 0 -2px 3px rgba(0,0,0,.4),inset 0 2px 2px rgba(255,255,255,.5),0 0 0 2px rgba(0,0,0,.15)}
+.lamp.green{background:var(--green)} .lamp.gold{background:var(--gold)}
+.lamp.orange{background:var(--orange)} .lamp.gray{background:var(--gray-warm)}
+.lamp.off{background:rgba(0,0,0,.25);box-shadow:inset 0 -2px 3px rgba(0,0,0,.4),0 0 0 2px rgba(0,0,0,.15)}
+
+/* ── State badge (state never by colour alone — always icon + word) ─────── */
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-weight:600;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:var(--r-xs);
+  border:1px solid}
+.badge svg{width:13px;height:13px}
+.badge.within{color:var(--green-deep);background:rgba(86,130,3,.14);border-color:rgba(86,130,3,.40)}
+.badge.almost{color:#7a5c00;background:rgba(225,173,1,.20);border-color:rgba(225,173,1,.55)}
+.badge.over{color:var(--orange-deep);background:rgba(204,85,0,.13);border-color:rgba(204,85,0,.42)}
+.badge.muted{color:var(--gray-warm);background:rgba(138,134,116,.14);border-color:rgba(138,134,116,.40)}
+
+/* ── Chip / quick action ──────────────────────────────────────────────── */
+.chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid rgba(5,12,22,.22);background:transparent;color:var(--ebony);
+  padding:6px 10px;border-radius:var(--r-xs);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip svg{width:13px;height:13px}
+.codechip{font-family:var(--f-mono);font-size:10px;font-weight:600;letter-spacing:.14em;
+  background:var(--ebony);color:var(--beige);padding:3px 8px;border-radius:var(--r-xs)}
+
+/* ── Inset display (CRT plate) ─────────────────────────────────────────── */
+.crt{background:#0E2630;border-radius:var(--r-md);
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.65),0 1px 0 rgba(255,255,255,.35);
+  border:1px solid rgba(0,0,0,.4);padding:12px 16px;color:var(--cream);
+  font-family:var(--f-mono);font-size:12.5px;letter-spacing:.04em;line-height:1.6}
+
+/* ── Engineering-paper grid surface (for transcript / mission-log bodies) ─ */
+.paper{background-image:repeating-linear-gradient(0deg,rgba(5,12,22,.04) 0 1px,transparent 1px 28px)}
+
+hr.dash{border:0;border-top:1px dashed rgba(5,12,22,.2);margin:0}
