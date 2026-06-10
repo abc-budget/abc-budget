@@ -17,3 +17,4 @@ export { SectionTabs } from './SectionTabs';
 export type { SectionTab, SectionTabsProps } from './SectionTabs';
 export { Stepper } from './Stepper';
 export type { StepperProps, StepperStep } from './Stepper';
+export { LangToggle } from './LangToggle';

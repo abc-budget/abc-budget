@@ -1,15 +1,17 @@
 import { Link } from 'react-router';
-import { BrandMark, Stepper, ZoneSwitcher } from '../ui/altus/components';
+import { BrandMark, LangToggle, Stepper, ZoneSwitcher } from '../ui/altus/components';
 import type { StepperStep } from '../ui/altus/components';
+import { useLang, useT } from './i18n/LangProvider';
 
-export const ZONES = [
-  { id: 'dashboard', label: 'Дашборд' },
-  { id: 'settings', label: 'Налаштування' },
-] as const;
-
-/** 1.4 replaces this placeholder with the persistent UK/EN toggle (FEAT-028). */
+/** Wired UK/EN toggle — consumes LangProvider (App-level). */
 function LangSlot() {
-  return <div data-slot="lang" />;
+  const { lang, setLang } = useLang();
+  const t = useT();
+  return (
+    <div data-slot="lang">
+      <LangToggle lang={lang} onChange={setLang} label={t('langToggleLabel')} />
+    </div>
+  );
 }
 
 /** Linked brand: SPA navigation via router Link, keeping the .brand styling. */
@@ -23,12 +25,17 @@ function BrandLink() {
 
 /** Dashboard + Settings header — identical composition, active zone highlighted. */
 export function DwellHeader({ activeZone }: { activeZone: 'dashboard' | 'settings' }) {
+  const t = useT();
+  const items = [
+    { id: 'dashboard', label: t('zoneDashboard') },
+    { id: 'settings', label: t('zoneSettings') },
+  ];
   return (
     <header className="topbar">
       <BrandLink />
       <div className="topbar-right">
         <ZoneSwitcher
-          items={ZONES.map((z) => ({ ...z }))}
+          items={items}
           activeId={activeZone}
           renderItem={(item, active) => (
             <Link key={item.id} to={`/${item.id}`} className={active ? 'zone on' : 'zone'}>
@@ -44,10 +51,12 @@ export function DwellHeader({ activeZone }: { activeZone: 'dashboard' | 'setting
 
 /** Import wizard header — stepper instead of zone-switcher (focused flow). */
 export function FlowHeader({ steps, activeIndex }: { steps: StepperStep[]; activeIndex: number }) {
+  const t = useT();
+  const mobileLabel = t('stepOfTotal', { n: activeIndex + 1, total: steps.length });
   return (
     <header className="topbar">
       <BrandLink />
-      <Stepper steps={steps} activeIndex={activeIndex} mobileLabel={`КРОК ${activeIndex + 1} / ${steps.length}`} />
+      <Stepper steps={steps} activeIndex={activeIndex} mobileLabel={mobileLabel} />
       <LangSlot />
     </header>
   );
