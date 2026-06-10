@@ -6,9 +6,10 @@ import { useLang, useT } from './i18n/LangProvider';
 /** Wired UK/EN toggle — consumes LangProvider (App-level). */
 function LangSlot() {
   const { lang, setLang } = useLang();
+  const t = useT();
   return (
     <div data-slot="lang">
-      <LangToggle lang={lang} onChange={setLang} />
+      <LangToggle lang={lang} onChange={setLang} label={t('langToggleLabel')} />
     </div>
   );
 }

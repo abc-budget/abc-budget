@@ -1,6 +1,7 @@
 /** Chrome strings — uk (SOURCE OF TRUTH for the key set). User content NEVER enters catalogs. */
 export const CATALOG_UK = {
   // zones + brand
+  langToggleLabel: 'Мова інтерфейсу',
   zoneDashboard: 'Дашборд',
   zoneSettings: 'Налаштування',
   // stepper

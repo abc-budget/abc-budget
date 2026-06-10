@@ -2,6 +2,7 @@ import type { ChromeKey } from './catalog-uk';
 
 /** Chrome strings — en. `satisfies` makes key drift a compile error. */
 export const CATALOG_EN = {
+  langToggleLabel: 'UI language',
   zoneDashboard: 'Dashboard',
   zoneSettings: 'Settings',
   stepFile: 'FILE',

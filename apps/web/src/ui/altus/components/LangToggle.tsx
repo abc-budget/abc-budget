@@ -1,10 +1,19 @@
 /**
  * Persistent UK/EN toggle (FEAT-028) — markup verbatim from the prototype LangToggle.
- * Presentational: props only (the app layer owns persistence/context).
+ * Presentational: props only (the app layer owns persistence/context and passes the
+ * localized screen-reader `label` — chrome strings never live inside altus).
  */
-export function LangToggle({ lang, onChange }: { lang: 'uk' | 'en'; onChange: (lang: 'uk' | 'en') => void }) {
+export function LangToggle({
+  lang,
+  onChange,
+  label = 'UI language',
+}: {
+  lang: 'uk' | 'en';
+  onChange: (lang: 'uk' | 'en') => void;
+  label?: string;
+}) {
   return (
-    <div className="langtog" role="group" aria-label="UI language">
+    <div className="langtog" role="group" aria-label={label}>
       <svg className="globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="9" />
         <path d="M3 12 H21 M12 3 C15 6 15 18 12 21 C9 18 9 6 12 3" />

@@ -167,7 +167,8 @@ describe('i18n shell behavior (1.4)', () => {
   it('toggle present in all three headers (Onboarding, dwell, flow)', () => {
     for (const path of ['/', '/dashboard', '/import']) {
       const r = renderAt(path);
-      expect(within(r.container).getByRole('group', { name: 'UI language' }), path).toBeTruthy();
+      // uk-pinned renders → the localized SR label (chrome string, from the catalog)
+      expect(within(r.container).getByRole('group', { name: 'Мова інтерфейсу' }), path).toBeTruthy();
       r.unmount();
     }
   });
@@ -180,10 +181,15 @@ describe('i18n shell behavior (1.4)', () => {
     expect(screen.getByRole('link', { name: 'Дашборд' })).toBeTruthy();
   });
   it('switch persists to localStorage and updates <html lang>', () => {
+    // Pin the BEFORE state so the assertion proves the uk→en TRANSITION, not the
+    // module-init value (jsdom defaults to en-US, which would mask a dead setLang path).
+    document.documentElement.lang = 'uk';
     renderAt('/dashboard');
     fireEvent.click(screen.getByRole('button', { name: 'EN' }));
     expect(localStorage.getItem('abc.lang.v1')).toBe('en');
     expect(document.documentElement.lang).toBe('en');
+    fireEvent.click(screen.getByRole('button', { name: 'UK' }));
+    expect(document.documentElement.lang).toBe('uk');
   });
   it('first render is already in the provided language (no flash: text present synchronously)', () => {
     const r = renderAt('/');
