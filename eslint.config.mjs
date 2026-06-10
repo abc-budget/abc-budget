@@ -7,6 +7,7 @@ export default tseslint.config(
       '**/dev-dist/**',
       '**/.tsbuild/**',
       '**/node_modules/**',
+      'functions/lib/**',
     ],
   },
   ...tseslint.configs.recommended,
