@@ -1,8 +1,8 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   BADGE_STATES, BrandMark, Chip, CodeChip, Cream, Crt, Gauge, Key, Lamp,
-  Panel, PanelBody, PanelHeader, Paper, StateBadge,
+  Panel, PanelBody, PanelHeader, Paper, SectionTabs, StateBadge, Stepper, ZoneSwitcher,
 } from '../components';
 import { CatIcon, ICON_GROUPS, iconName } from '../icons';
 
@@ -14,6 +14,17 @@ const FIXTURE_BADGE_LABELS: Record<string, string> = {
 const KEY_VARIANTS = ['gold', 'green', 'orange', 'beige', 'ebony'] as const;
 const LAMP_TONES = ['green', 'gold', 'orange', 'gray', 'off'] as const;
 const LAMP_WORDS: Record<string, string> = { green: 'ОК', gold: 'УВАГА', orange: 'ПОМИЛКА', gray: 'АВТО', off: 'ВИМК' };
+
+function GallerySectionTabs() {
+  const [tab, setTab] = useState('overview');
+  return (
+    <SectionTabs
+      tabs={[{ id: 'overview', label: 'Огляд' }, { id: 'categories', label: 'Категорії' }]}
+      activeId={tab}
+      onSelect={setTab}
+    />
+  );
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -102,6 +113,31 @@ export function Gallery() {
         <div style={{ display: 'flex', gap: 'var(--sp-section)', alignItems: 'center' }}>
           <BrandMark />
           <BrandMark href="#" />
+        </div>
+      </Section>
+
+      <Section title="Навігаційний хром">
+        <div style={{ display: 'grid', gap: 'var(--sp-l)' }}>
+          <div className="eyebrow-ink">zone-switcher (dwell headers)</div>
+          <div style={{ display: 'flex' }}>
+            <ZoneSwitcher
+              items={[{ id: 'dashboard', label: 'Дашборд' }, { id: 'settings', label: 'Налаштування' }]}
+              activeId="dashboard"
+              renderItem={(item, active) => (
+                <a key={item.id} href="#" onClick={(e) => e.preventDefault()} className={active ? 'zone on' : 'zone'}>
+                  {item.label}
+                </a>
+              )}
+            />
+          </div>
+          <div className="eyebrow-ink">section-tabs (Settings, in-page)</div>
+          <GallerySectionTabs />
+          <div className="eyebrow-ink">stepper (Import flow) · resize під 760px → «КРОК N / 4»</div>
+          <Stepper
+            steps={[{ id: 'a', label: 'ФАЙЛ' }, { id: 'b', label: 'КОЛОНКИ' }, { id: 'c', label: 'КАТЕГОРІЇ' }, { id: 'd', label: 'ОГЛЯД' }]}
+            activeIndex={2}
+            mobileLabel="КРОК 3 / 4"
+          />
         </div>
       </Section>
 
