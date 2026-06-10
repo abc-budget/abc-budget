@@ -2,7 +2,12 @@ import type { BadgeState } from './StateBadge';
 
 const N = 28;
 
-/** Lit-cell + % colours per state (token-derived, mirrors prototype STATE_META). */
+/**
+ * Lit-cell + % colours per state (token-derived, mirrors prototype STATE_META).
+ * The two literals are VERBATIM from dashboard-data.jsx STATE_META — no ALTUS token
+ * exists for them (`--gold-deep` is a different shade than the almost-% `#7a5c00`;
+ * the history half-gold has no token). Not a "tokens only" violation: traceability wins.
+ */
 const GAUGE_COLOR: Record<BadgeState, { cell: string; deep: string }> = {
   within: { cell: 'var(--green)', deep: 'var(--green-deep)' },
   almost: { cell: 'var(--gold)', deep: '#7a5c00' },

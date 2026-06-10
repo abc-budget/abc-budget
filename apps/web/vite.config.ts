@@ -22,7 +22,9 @@ export default defineConfig({
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
-      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'] },
+      // ttf: vendored ALTUS brand fonts must work offline (~1MB precache accepted;
+      // woff2-subset pass is the EP-9.1 carry-forward).
+      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,ttf,woff2}'] },
     }),
   ],
   build: {
