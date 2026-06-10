@@ -17,3 +17,32 @@
 .gauge-foot{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .pctnum{ font-size:12px; font-weight:600; letter-spacing:.04em; }
 .ovr-pct{ font-size:10px; letter-spacing:.06em; color:var(--orange-deep); font-weight:600; }
+
+/* Zone-switcher — source: Dashboard.html:26-29 .zone-nav/.zone (identical in Settings.html:44-47) */
+.zone-nav{ display:flex; gap:3px; background:#0E2630; border-radius:var(--r-sm); padding:3px; box-shadow:inset 0 2px 4px rgba(0,0,0,.5); }
+.zone{ appearance:none; border:0; background:transparent; cursor:pointer; text-decoration:none; font-family:var(--f-display);
+  font-weight:700; font-size:11.5px; letter-spacing:.04em; color:var(--beige-deep); padding:7px 13px; border-radius:var(--r-xs); white-space:nowrap; }
+.zone.on{ background:var(--beige); color:var(--ebony); }
+
+/* Settings section tabs — source: Settings.html:39-43 .set-subnav/.subnav-tab */
+.set-subnav{ display:flex; gap:8px; margin:0 0 16px; border-bottom:1px dashed rgba(253,253,208,.18); padding-bottom:0; }
+.subnav-tab{ appearance:none; border:0; background:transparent; cursor:pointer; font-family:var(--f-display); font-weight:700;
+  font-size:13px; letter-spacing:.03em; color:rgba(253,253,208,.6); padding:8px 4px 11px; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.subnav-tab.on{ color:var(--cream); border-bottom-color:var(--gold); }
+.subnav-tab:hover{ color:var(--cream); }
+
+/* Wizard stepper — source: Import-Source.html:36-44,166-172 .stepper/.stp* + .ob-step-m + 760px collapse */
+.stepper{ display:flex; align-items:center; gap:8px; flex:1; justify-content:center; }
+.stp{ display:flex; align-items:center; gap:8px; opacity:.5; }
+.stp.on,.stp.done{ opacity:1; }
+.stp-dot{ width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:600; background:#0E2630; color:var(--beige-deep); box-shadow:inset 0 2px 4px rgba(0,0,0,.5); }
+.stp.on .stp-dot{ background:linear-gradient(180deg,#F2C637,#C99A00); color:var(--ebony); box-shadow:0 2px 4px rgba(0,0,0,.3); }
+.stp.done .stp-dot{ background:var(--green); color:var(--cream); }
+.stp-lab{ font-weight:700; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--cream); }
+.stp-rule{ width:22px; border-top:1px dashed rgba(253,253,208,.3); }
+.ob-step-m{ display:none; color:rgba(253,253,208,.55); font-size:10px; letter-spacing:.2em; text-transform:uppercase; }
+@media (max-width:760px){
+  .stepper{ display:none; }
+  .ob-step-m{ display:inline; }
+}
