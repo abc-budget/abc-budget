@@ -32,6 +32,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         gallery: fileURLToPath(new URL('./gallery.html', import.meta.url)),
+        qaHarness: fileURLToPath(new URL('./qa-harness.html', import.meta.url)),
       },
     },
   },
