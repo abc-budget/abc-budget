@@ -31,7 +31,14 @@ export interface PersistenceInitResult {
 let dbPromise: Promise<IDBDatabase> | null = null;
 let initPromise: Promise<PersistenceInitResult> | null = null;
 
-/** Lazy, memoized engine-DB open. Future DAO consumers (EP-2+) build on this. */
+/**
+ * Lazy, memoized engine-DB open. Future DAO consumers (EP-2+) build on this.
+ *
+ * ⚠️ EP-2 NOTE: a failed open memoizes a REJECTED promise for the process lifetime —
+ * fine in 1.2 (doInit masks it; nothing else calls this), but before real DAO consumers
+ * wire in, add clear-on-reject (or retry) so one transient failure doesn't brick the
+ * engine until reload.
+ */
 export function openEngineDb(): Promise<IDBDatabase> {
   dbPromise ??= openDatabase(ENGINE_DB_NAME, ENGINE_MIGRATIONS);
   return dbPromise;

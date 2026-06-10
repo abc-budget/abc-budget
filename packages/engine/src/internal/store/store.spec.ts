@@ -1,5 +1,5 @@
 /**
- * Jest tests for the Store module interfaces migrated from Karma/Jasmine
+ * Vitest tests for the Store module interfaces (ported from prior-art Jest suite).
  */
 import { describe, expect, it } from 'vitest';
 import type { BatchDao, Dao } from './dao';

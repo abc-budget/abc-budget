@@ -40,12 +40,27 @@ export interface MigrationContext {
   deleteStore(name: string): void;
   createIndex(storeName: string, index: StoreIndexSpec): void;
   deleteIndex(storeName: string, indexName: string): void;
-  /** Raw store access on the upgrade tx — for data transforms. */
+  /**
+   * Raw store access on the upgrade tx — for data transforms.
+   *
+   * ⚠️ SEQUENCING SHARP EDGE (non-cursor requests): the sequencer waits for tracked
+   * requests themselves, but work you start INSIDE a plain request's success handler
+   * (e.g. `get()` → conditional `put()` in its onsuccess) may land in the NEXT step's
+   * window — atomicity still holds (same tx), but "all settled before the next step"
+   * does not. Cursor walks ARE fully sequenced to exhaustion. If a step needs
+   * read-then-write chains, do them via a cursor walk, or keep the step self-contained.
+   */
   store(name: string): IDBObjectStore;
   /**
    * The keyPath-change escape hatch: reads all rows, deletes the store, recreates it
    * with `spec`, and re-inserts every row (optionally transformed). Runs entirely inside
    * the version-change transaction — atomic with the rest of the upgrade.
+   *
+   * ⚠️ IN-LINE-KEYED STORES ONLY: rows are read with getAll() (values, no keys) and
+   * re-inserted with put(value). A store with out-of-line keys (`keyPath` undefined)
+   * throws DataError on re-insert; an `autoIncrement` store silently RE-NUMBERS rows,
+   * breaking anything that referenced the old keys. If EP-3+ ever needs to rebuild such
+   * a store, extend this helper to pair getAllKeys() with put(value, key) first.
    */
   rebuildStore(name: string, spec?: StoreSpec, transform?: (row: unknown) => unknown): void;
 }
