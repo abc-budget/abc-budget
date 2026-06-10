@@ -1,0 +1,30 @@
+{
+  "name": "@abc-budget/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@abc-budget/engine": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.0",
+    "vite": "^6.0.0",
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^3.0.0",
+    "workbox-build": "^7.3.0",
+    "workbox-window": "^7.3.0"
+  }
+}

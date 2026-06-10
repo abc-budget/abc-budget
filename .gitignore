@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dev-dist/
+.tsbuild/
+.firebase/
+*.tsbuildinfo
+*service-account*.json
+*-firebase-adminsdk-*.json
+.DS_Store
+.playwright-mcp/
+/story-1.1-offline-proof.png
