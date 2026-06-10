@@ -253,3 +253,103 @@ describe('migration framework — abort atomicity', () => {
     expect(await getAll(reopened, 'items')).toEqual([{ id: 'a', amount: 5 }]);
   });
 });
+
+describe('migration framework — tracking hardening', () => {
+  it('index-based cursor walk is sequenced before the next step (H3)', async () => {
+    // NOTE: The original test used cursor.update({ amount: row.amount + 100 }) on an index
+    // cursor ordered by `amount`. Modifying the indexed field during iteration causes the
+    // record to re-appear later in the index order, creating an infinite loop — this is real
+    // IDB semantics (the spec does not protect you from re-visiting mutated index keys).
+    // Adjusted to update a non-indexed field (`tagged`) so the cursor exhausts normally.
+    const name = freshName();
+    const db1 = await open(name, [V1_CREATE_ITEMS]);
+    await put(db1, 'items', { id: 'a', amount: 5 });
+    await put(db1, 'items', { id: 'b', amount: 7 });
+    db1.close();
+
+    const v3IndexWalk: MigrationStep = {
+      toVersion: 3,
+      migrate: (ctx) => {
+        const cursorReq = ctx.store('items').index('by_amount').openCursor();
+        cursorReq.onsuccess = (ev) => {
+          // H2: the REAL event must arrive (target is the request)
+          expect((ev.target as IDBRequest).result).toBe(cursorReq.result);
+          const cursor = cursorReq.result as IDBCursorWithValue | null;
+          if (!cursor) return;
+          const row = cursor.value as { id: string; amount: number };
+          // Update a non-indexed field so we don't re-visit this record.
+          cursor.update({ ...row, tagged: true });
+          cursor.continue();
+        };
+      },
+    };
+    const v4ReadsTransformed: MigrationStep = {
+      toVersion: 4,
+      migrate: (ctx) => {
+        const req = ctx.store('items').getAll();
+        req.addEventListener('success', () => {
+          const rows = req.result as Array<{ tagged?: boolean }>;
+          // If the index walk wasn't awaited, `tagged` would be absent.
+          if (rows.some((r) => !r.tagged)) {
+            throw new Error('v4 ran before the v3 index-cursor walk finished');
+          }
+        });
+      },
+    };
+    const db = await open(name, [V1_CREATE_ITEMS, V2_ADD_INDEX, v3IndexWalk, v4ReadsTransformed]);
+    const rows = (await getAll<{ id: string; amount: number; tagged: boolean }>(db, 'items')).sort(
+      (x, y) => x.id.localeCompare(y.id),
+    );
+    expect(rows).toEqual([
+      { id: 'a', amount: 5, tagged: true },
+      { id: 'b', amount: 7, tagged: true },
+    ]);
+  });
+
+  it('user onsuccess assignment on a tracked write request does not break sequencing (H1)', async () => {
+    const name = freshName();
+    let userHandlerRan = false;
+    const v1Seeds: MigrationStep = {
+      toVersion: 1,
+      migrate: (ctx) => {
+        ctx.createStore('items', { keyPath: 'id' });
+        const req = ctx.store('items').put({ id: 'x', amount: 1 });
+        req.onsuccess = () => {
+          userHandlerRan = true; // clobbers nothing: tracking uses addEventListener
+        };
+      },
+    };
+    const v2ReadsSeed: MigrationStep = {
+      toVersion: 2,
+      migrate: (ctx) => {
+        const req = ctx.store('items').get('x');
+        req.addEventListener('success', () => {
+          if (!req.result) throw new Error('v2 ran before v1 write settled');
+        });
+      },
+    };
+    const db = await open(name, [v1Seeds, v2ReadsSeed]);
+    expect(userHandlerRan).toBe(true);
+    expect(await getAll(db, 'items')).toEqual([{ id: 'x', amount: 1 }]);
+  });
+
+  it('cursor walk via getAll-style addEventListener users still settles (H1 symmetry)', async () => {
+    const name = freshName();
+    const db1 = await open(name, [V1_CREATE_ITEMS]);
+    await put(db1, 'items', { id: 'a', amount: 5 });
+    db1.close();
+    const v2Walk: MigrationStep = {
+      toVersion: 2,
+      migrate: (ctx) => {
+        const cursorReq = ctx.store('items').openCursor();
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result as IDBCursorWithValue | null;
+          if (!cursor) return;
+          cursor.continue();
+        };
+      },
+    };
+    const db = await open(name, [V1_CREATE_ITEMS, v2Walk]);
+    expect(db.version).toBe(2);
+  });
+});

@@ -27,6 +27,12 @@ export function openDatabase(name: string, steps: MigrationStep[]): Promise<IDBD
     }
     const targetVersion = steps[steps.length - 1].toVersion;
     let migrationError: unknown = null;
+
+    // H4: Track whether onupgradeneeded fired and how many steps completed.
+    let upgradeFired = false;
+    let pendingStepCount = 0;
+    let completedSteps = 0;
+
     const request = indexedDB.open(name, targetVersion);
 
     request.onblocked = () => {
@@ -42,9 +48,24 @@ export function openDatabase(name: string, steps: MigrationStep[]): Promise<IDBD
       reject(migrationError ?? request.error ?? new Error(`Failed to open database "${name}"`));
     };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      // H4: If an upgrade ran and not all steps completed (and no known error already
+      // caused an abort), reject loudly rather than silently resolving with a
+      // partially-migrated database.
+      if (upgradeFired && completedSteps !== pendingStepCount && migrationError === null) {
+        request.result.close();
+        reject(
+          new Error(
+            `migration sequencing invariant violated: expected ${pendingStepCount} steps, completed ${completedSteps} — database closed`,
+          ),
+        );
+        return;
+      }
+      resolve(request.result);
+    };
 
     request.onupgradeneeded = (event) => {
+      upgradeFired = true;
       const db = request.result;
       const tx = request.transaction;
       if (!tx) {
@@ -52,6 +73,8 @@ export function openDatabase(name: string, steps: MigrationStep[]): Promise<IDBD
         return;
       }
       const pending = steps.filter((s) => s.toVersion > event.oldVersion);
+      // H4: Record how many steps are expected for this upgrade.
+      pendingStepCount = pending.length;
 
       const runFrom = (index: number): void => {
         if (index >= pending.length) return; // queue drains → tx commits → onsuccess fires
@@ -64,7 +87,11 @@ export function openDatabase(name: string, steps: MigrationStep[]): Promise<IDBD
           return;
         }
         whenSettled(
-          () => runFrom(index + 1),
+          () => {
+            // H4: Count this step as completed before advancing to the next.
+            completedSteps++;
+            runFrom(index + 1);
+          },
           (err) => {
             migrationError = err instanceof Error ? err : new Error(String(err));
             tx.abort();
