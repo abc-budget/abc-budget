@@ -39,4 +39,25 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // ALTUS stays app-agnostic: props only — no engine, no app modules (1.3 spec §3).
+    files: ['apps/web/src/ui/altus/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@abc-budget/engine', '@abc-budget/engine/*'],
+              message: 'altus/ is app-agnostic — components take props, never talk to the engine.',
+            },
+            {
+              group: ['../../**'],
+              message: 'altus/ is app-agnostic — no imports from app modules above src/ui/altus/.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

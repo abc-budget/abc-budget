@@ -1,17 +1,14 @@
-import './ui/altus/altus.css';
-import './ui/altus/altus-components.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register';
-import { App } from './ui/App';
-
-registerSW({ immediate: true });
+import '../altus.css';
+import '../altus-components.css';
+import { Gallery } from './Gallery';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('#root not found');
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <Gallery />
   </StrictMode>,
 );
