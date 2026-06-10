@@ -17,5 +17,9 @@
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
       }
     ]
+  },
+  "functions": {
+    "source": "functions",
+    "predeploy": ["npm --prefix functions run build"]
   }
 }

@@ -9,6 +9,7 @@
     "build": "tsc -b && pnpm --filter @abc-budget/web build",
     "preview": "pnpm --filter @abc-budget/web preview",
     "test": "pnpm -r test",
+    "test:functions": "npm --prefix functions run test",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "make-icons": "node tools/make-icons.mjs"

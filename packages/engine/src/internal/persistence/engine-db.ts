@@ -6,6 +6,7 @@ import type { MigrationStep } from '../store/migrations/migration';
 import { openDatabase } from '../store/migrations/open-with-migrations';
 import type { DurabilityStatus } from './durability';
 import { requestDurability } from './durability';
+import { EXCHANGE_RATES_STORE, EXCHANGE_RATES_STORE_CONFIG } from '../exchange-rate/dao';
 
 export const ENGINE_DB_NAME = 'abc-budget';
 
@@ -13,12 +14,21 @@ export const ENGINE_DB_NAME = 'abc-budget';
  * v1 is a deliberate NO-OP ANCHOR: it pins the version sequence without creating any
  * store (HC-2/3 — no raw-ledger assumptions; store shapes are settled by their epics).
  * EP-3 footprints / EP-4 rules / EP-6 budget append steps v2+ here.
+ *
+ * v2: creates the `exchangeRates` object store (keyPath: ['base', 'date'], indexes: base + date).
  */
 export const ENGINE_MIGRATIONS: MigrationStep[] = [
   {
     toVersion: 1,
     migrate: () => {
       // intentionally empty
+    },
+  },
+  {
+    toVersion: 2,
+    migrate: (ctx) => {
+      const { name: _name, ...spec } = EXCHANGE_RATES_STORE_CONFIG;
+      ctx.createStore(EXCHANGE_RATES_STORE, spec);
     },
   },
 ];
