@@ -1,0 +1,9 @@
+/* ===========================================================================
+   App shell layout (OURS). Page scaffolding for the 1.5 navigation skeleton;
+   screen-specific layout arrives with the screens' own epics.
+   ========================================================================= */
+.shell{ max-width:1080px; margin:0 auto; padding:var(--sp-l) var(--sp-xl) var(--sp-section); }
+.topbar{ display:flex; align-items:center; justify-content:space-between; gap:var(--sp-l); padding:var(--sp-m) 0 var(--sp-l); }
+.topbar-right{ display:flex; align-items:center; gap:12px; } /* source: Dashboard.html .topbar-right */
+.screen-body{ display:grid; gap:var(--sp-l); }
+.flow-footer{ display:flex; justify-content:space-between; gap:var(--sp-m); margin-top:var(--sp-l); }
