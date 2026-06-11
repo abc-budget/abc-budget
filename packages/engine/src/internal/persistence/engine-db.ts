@@ -7,7 +7,9 @@ import { openDatabase } from '../store/migrations/open-with-migrations';
 import type { DurabilityStatus } from './durability';
 import { requestDurability } from './durability';
 import { EXCHANGE_RATES_STORE, EXCHANGE_RATES_STORE_CONFIG } from '../exchange-rate/dao';
-import { USER_SETTINGS_STORE, USER_SETTINGS_STORE_CONFIG } from '../settings/user-settings-idb';
+import { USER_SETTINGS_STORE, USER_SETTINGS_STORE_CONFIG, UserSettingsIDBDAO } from '../settings/user-settings-idb';
+import { hydrateEngineConfig } from '../settings/engine-config';
+import { getLogger } from '../logging';
 
 export const ENGINE_DB_NAME = 'abc-budget';
 
@@ -96,8 +98,25 @@ async function doInit(): Promise<PersistenceInitResult> {
     return { opened: false, durability: null };
   }
   try {
-    await openEngineDb();
+    const db = await openEngineDb();
     const durability = await requestDurability();
+
+    // Story 2.4 (Task 4) — ENGINE-INIT HYDRATION:
+    // After the DB opens, construct a UserSettingsIDBDAO over the live database
+    // and hydrate the engine-config snapshot so it reflects any stored overrides
+    // before any service or component reads getEngineConfig().
+    // Failure here is NON-FATAL but LOUD (HC-7 pattern from 2.3 savePool catch):
+    // the snapshot falls back to ENT-016 defaults; the engine continues.
+    try {
+      const settingsDao = new UserSettingsIDBDAO(() => db);
+      await hydrateEngineConfig(settingsDao);
+    } catch (hydrateErr) {
+      getLogger('engine.persistence.engine-db').error(
+        '[engine-init] engine-config hydration failed (non-fatal) — defaults stand:',
+        hydrateErr
+      );
+    }
+
     return { opened: true, durability };
   } catch (err) {
     console.warn('[abc-engine] persistence init failed (non-fatal in 1.2):', err);

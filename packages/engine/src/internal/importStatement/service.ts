@@ -19,6 +19,16 @@
  *    `UserSettingsService`, `DecisionTreeService`, stage3 impl references are RETAINED
  *    (stage3 is ported in Task 4; they are type-only stubs for now).
  *
+ * 2.5 **Story 2.4 — settingsDao injection** (Task 4):
+ *    `settingsDao: UserSettingsDAO | null` — injected for engine-config hydration at
+ *    import-session start. Default null for backward-compat; production wiring is 2.6.
+ *    DAOs (constructor injection table — all params):
+ *      - fileFormatDAO      ← IoCKeys.FILE_FORMAT_DAO
+ *      - fileSourceDAO      ← IoCKeys.FILE_SOURCE_DAO
+ *      - settingsDao        ← UserSettingsDAO (2.4, default null; 2.6 wiring)
+ *      - _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, Task 4)
+ *      - _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, Task 4)
+ *
  * 2. **`cloneDeep` from lodash-es** → `structuredClone` (built-in; same semantics
  *    for plain-data transformation arrays).
  *
@@ -40,6 +50,8 @@ import { firstValueFrom, type Observable, tap } from 'rxjs'; // rxjs — INTERNA
 import { getLogger } from '../logging';
 import { $t, LocalizableException, NativeMessage } from '../utils/messages/index';
 import { generateUniqueId } from '../utils/id/generator';
+import { hydrateEngineConfig } from '../settings/engine-config';
+import type { UserSettingsDAO } from '../settings/user-settings';
 import type { FileFormatDAO, FileSourceDAO } from './dao';
 import { ImportStatementStage1Impl } from './stage1';
 import type { ImportStatementStage1 } from './stage1';
@@ -101,6 +113,8 @@ export interface ImportStatementServiceInternal extends ImportStatementService {
  * Constructor injection (IoC removal):
  *   - fileFormatDAO    ← IoCKeys.FILE_FORMAT_DAO
  *   - fileSourceDAO    ← IoCKeys.FILE_SOURCE_DAO
+ *   - settingsDao      ← UserSettingsDAO (Story 2.4 — engine-config hydration; default null;
+ *                         production wiring is 2.6 ⚠️ MUST-DO before shipping)
  *   - [Stage3 deps are Task 4 — DecisionTreeService, UserSettingsService]
  *
  * Note: CurrencyCache is NOT injected. The 1.6 wiring removed it from
@@ -124,7 +138,9 @@ export class ImportStatementServiceImpl
     private readonly _fileSourceDAO: FileSourceDAO,
     // Stage3 deps (Task 4) — optional for now; non-null in production wiring
     private readonly _decisionTreeService: DecisionTreeService = null,
-    private readonly _userSettingsService: UserSettingsService = null
+    private readonly _userSettingsService: UserSettingsService = null,
+    // Story 2.4: engine-config hydration at import-session start (production wiring 2.6)
+    private readonly _settingsDao: UserSettingsDAO | null = null
   ) {
     super();
   }
@@ -137,6 +153,18 @@ export class ImportStatementServiceImpl
 
   // region Stage 2
   async stage2(stage1: ImportStatementStage1): Promise<ImportStatementStage2> {
+    // Story 2.4 (Task 4) — SESSION ENTRY HYDRATION:
+    // `stage2()` is the import-session boundary: it is the first async transition
+    // that commits decoded rows into the column-mapping pipeline where getEngineConfig()
+    // is read.  Hydrating here (once, before any column is created) ensures the
+    // snapshot is frozen for the duration of this import session.
+    // A mid-session `setEngineParam` after this point writes store-only (locked
+    // decision 1); the next call to `stage2()` will hydrate again and pick up the
+    // new value.  Null dao → no hydrate call, defaults stand (deterministic baseline).
+    if (this._settingsDao !== null) {
+      await hydrateEngineConfig(this._settingsDao);
+    }
+
     const initialColumns = await this._createInitialColumns(stage1);
     const stage2 = new ImportStatementStage2Impl(stage1, this, initialColumns);
 
