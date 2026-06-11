@@ -48,6 +48,18 @@ export interface EngineConfig {
    * @default 0.8 — Most common value must cover ≥ 80 % of rows (ENT-016).
    */
   readonly successStatusThreshold: number;
+
+  /**
+   * Whether to run deterministic auto-detect heuristics on unknown column names
+   * during recall (FEAT-013).
+   *
+   * When OFF (default): unknown names remain UNKNOWN (no prefill generated).
+   * When ON: deterministic heuristics are applied — date try-parse via detectDateFormat,
+   * status-pattern via distinct-value dominance check. Results carry state: 'guessed'.
+   *
+   * @default false — Auto-detect is opt-in; never AI, always deterministic.
+   */
+  readonly recallAutoDetectEnabled: boolean;
 }
 
 /** Static singleton holding the ENT-016 defaults. */
@@ -55,6 +67,7 @@ const staticConfig: EngineConfig = {
   acceptableParseDatePercentage: 90,
   acceptableColumnErrorPercentage: 0.3,
   successStatusThreshold: 0.8,
+  recallAutoDetectEnabled: false,
 };
 
 /**
