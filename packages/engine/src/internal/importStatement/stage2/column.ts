@@ -92,6 +92,7 @@ import type {
   ImportStatementColumnHeaderStage2,
   ImportStatementStage2,
 } from './types';
+import { ColumnTransformRejection } from './errors';
 
 // Create a logger for this file
 const logger = getLogger('engine.importStatement.column');
@@ -200,35 +201,6 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
   }
 
   /**
-   * Checks if the error percentage is acceptable.
-   * @param errorCount The number of errors encountered during parsing
-   * @param totalCount The total number of items to consider for error percentage calculation
-   * @param errorMessageKey The localization key for error messages
-   * @throws LocalizableException if the error percentage exceeds the acceptable threshold
-   * @private
-   */
-  private validateErrorPercentage(
-    errorCount: number,
-    totalCount: number,
-    errorMessageKey: string
-  ): void {
-    const errorPercentage = totalCount > 0 ? errorCount / totalCount : 0;
-    const acceptableErrorPercentage =
-      getEngineConfig().acceptableColumnErrorPercentage;
-
-    if (errorPercentage > acceptableErrorPercentage) {
-      throw new LocalizableException(
-        $t(errorMessageKey, {
-          message: $t('engine.importStatement.too-many-parsing-errors', {
-            errorPercentage: (errorPercentage * 100).toFixed(1),
-            acceptablePercentage: (acceptableErrorPercentage * 100).toFixed(1),
-          }),
-        })
-      );
-    }
-  }
-
-  /**
    * Generic method to handle the common pattern of parsing column data.
    * @param options The options for parsing
    * @param options.targetDefinition The target column definition
@@ -313,6 +285,16 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       }
     }
 
+    // Collect ALL per-cell errors for the rejection payload (FEAT-022: complete-not-first).
+    // rowIndex = position in the column data array.
+    const cellErrors: Array<{ rowIndex: number; error: Message }> = [];
+    for (let i = 0; i < newData.length; i++) {
+      const cellError = newData[i].error;
+      if (cellError != null) {
+        cellErrors.push({ rowIndex: i, error: cellError });
+      }
+    }
+
     logger.debug(
       'Cell processing completed. Results: errorCount=',
       errorCount,
@@ -332,14 +314,23 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       errorPercentage
     );
 
-    try {
-      this.validateErrorPercentage(errorCount, totalCount, errorMessageKey);
-      logger.debug('Error percentage validation passed');
-    } catch (error) {
-      logger.debug('Error percentage validation failed:', error);
+    // Gate (ENT-015): error fraction over the configured threshold → structured
+    // ColumnTransformRejection with the complete per-cell evidence. Must stay BEFORE
+    // copy/applyColumn — rollback-to-UNKNOWN is structural only while rejection
+    // precedes commit.
+    const acceptableErrorPercentage = getEngineConfig().acceptableColumnErrorPercentage;
+    if (errorPercentage > acceptableErrorPercentage) {
+      logger.debug('Error percentage validation failed, throwing ColumnTransformRejection');
       logger.groupEnd();
-      throw error;
+      throw new ColumnTransformRejection(
+        errorCount,
+        totalCount,
+        acceptableErrorPercentage,
+        cellErrors,
+        errorMessageKey,
+      );
     }
+    logger.debug('Error percentage validation passed');
 
     // Create a new copy of column with the new data, target definition, and name
     logger.debug('Creating new column with updated data, definition, and name');

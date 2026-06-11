@@ -1,17 +1,27 @@
 /**
- * Engine configuration — static ENT-016 defaults.
+ * Engine configuration — store-backed hydrated snapshot.
  * @module internal/settings/engine-config
  *
- * Mirrors the prior-art `settings/engine-config.ts` call surface:
- *   `getEngineConfig()` → `EngineConfig`
+ * ✅ 2.4 store-backing: the snapshot is initialized to ENT-016 defaults and is
+ * overlaid by `hydrateEngineConfig(dao)` at engine init and at import-session
+ * start. `setEngineParam` validates range LOUDLY (NFR-009 teeth) and writes the
+ * STORE ONLY — the snapshot is frozen for the duration of the current session.
  *
- * Constants are hard-coded here (ENT-016: 90 / 0.3 / 0.8).
+ * Call surface:
+ *   `getEngineConfig()` → `EngineConfig`  (byte-compatible — 6 call sites untouched)
+ *   `hydrateEngineConfig(dao)` → `Promise<void>`  (ONLY snapshot mutation point)
+ *   `setEngineParam(dao, key, value)` → `Promise<void>`  (validates + store write)
  *
- * @note 2.4 store-backing: when the settings store is implemented (Story 2.4),
- * this module will be upgraded to read from the persistent store via IDB.
- * Until then, values are constants — do NOT surface raw config values in the UI
- * (NFR-009: configuration is internal engine concern).
+ * @note NFR-009: never surface raw config values in the UI — `setEngineParam` is
+ * the ONLY write path for engineConfig.* keys.
+ *
+ * `resetEngineConfigForTests()` is a test seam; it is NOT exported from any barrel.
  */
+
+import { getLogger } from '../logging';
+import { SettingKeys, type UserSettingsDAO } from './user-settings';
+
+// ── EngineConfig interface ────────────────────────────────────────────────────
 
 /**
  * Interface for engine configuration.
@@ -62,20 +72,227 @@ export interface EngineConfig {
   readonly recallAutoDetectEnabled: boolean;
 }
 
-/** Static singleton holding the ENT-016 defaults. */
-const staticConfig: EngineConfig = {
+// ── InvalidEngineParamError ───────────────────────────────────────────────────
+
+/**
+ * Thrown by `setEngineParam` when a value is out of range or wrong type.
+ * NFR-009: validation is LOUD — the caller must handle this error explicitly.
+ */
+export class InvalidEngineParamError extends Error {
+  constructor(key: string, reason: string) {
+    super(`[engine-config] Invalid value for ${key}: ${reason}`);
+    this.name = 'InvalidEngineParamError';
+  }
+}
+
+// ── ENT-016 defaults ──────────────────────────────────────────────────────────
+
+const DEFAULTS: EngineConfig = {
   acceptableParseDatePercentage: 90,
   acceptableColumnErrorPercentage: 0.3,
   successStatusThreshold: 0.8,
   recallAutoDetectEnabled: false,
 };
 
+// ── Module-level snapshot ────────────────────────────────────────────────────
+
+/** Current session snapshot. Initialized to defaults; replaced atomically by hydrateEngineConfig. */
+let snapshot: EngineConfig = { ...DEFAULTS };
+
+// ── Validation helpers ───────────────────────────────────────────────────────
+
 /**
- * Returns the engine configuration.
+ * Validates a value for the given engineConfig.* key.
+ * Throws InvalidEngineParamError on out-of-range or wrong type.
+ */
+function validateParam(
+  key: SettingKeys,
+  value: unknown,
+): void {
+  switch (key) {
+    case SettingKeys.ENGINE_ACCEPTABLE_PARSE_DATE_PERCENTAGE: {
+      if (typeof value !== 'number' || !isFinite(value) || value < 0 || value > 100) {
+        throw new InvalidEngineParamError(
+          key,
+          `must be a finite number in [0, 100], got ${String(value)}`,
+        );
+      }
+      break;
+    }
+    case SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE: {
+      if (typeof value !== 'number' || !isFinite(value) || value < 0 || value > 1) {
+        throw new InvalidEngineParamError(
+          key,
+          `must be a finite number in [0, 1], got ${String(value)}`,
+        );
+      }
+      break;
+    }
+    case SettingKeys.ENGINE_SUCCESS_STATUS_THRESHOLD: {
+      if (typeof value !== 'number' || !isFinite(value) || value < 0 || value > 1) {
+        throw new InvalidEngineParamError(
+          key,
+          `must be a finite number in [0, 1], got ${String(value)}`,
+        );
+      }
+      break;
+    }
+    case SettingKeys.ENGINE_RECALL_AUTO_DETECT_ENABLED: {
+      if (typeof value !== 'boolean') {
+        throw new InvalidEngineParamError(
+          key,
+          `must be a boolean, got ${typeof value}`,
+        );
+      }
+      break;
+    }
+    default: {
+      // setEngineParam is the write path for engineConfig.* keys ONLY — any other
+      // key here is a programming error; refusing keeps it from becoming a raw,
+      // unvalidated write path (NFR-009).
+      throw new InvalidEngineParamError(
+        key,
+        'not an engineConfig.* key — setEngineParam only writes engine params',
+      );
+    }
+  }
+}
+
+// ── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Returns the engine configuration snapshot for the current session.
  *
- * Currently returns the static ENT-016 defaults.  Story 2.4 will replace this
- * with a store-backed implementation that reads user overrides from IDB.
+ * The snapshot is initialized to ENT-016 defaults and is overlaid by
+ * `hydrateEngineConfig` at session start. It is NOT mutated by `setEngineParam`
+ * mid-session — session-frozen by design (locked decision 1).
+ *
+ * Byte-compatible with the prior-art static surface — all 6 call sites unchanged.
  */
 export function getEngineConfig(): EngineConfig {
-  return staticConfig;
+  return snapshot;
+}
+
+/**
+ * Loads engine-config overrides from the store and replaces the module snapshot.
+ *
+ * This is the ONLY mutation point for the snapshot. Call at engine init and at
+ * import-session start. Missing keys fall back to ENT-016 defaults.
+ *
+ * @param dao — UserSettingsDAO backed by the v3 userSettings store.
+ */
+export async function hydrateEngineConfig(dao: UserSettingsDAO): Promise<void> {
+  const [
+    parseDatePct,
+    columnErrorPct,
+    successThreshold,
+    autoDetect,
+  ] = await Promise.all([
+    dao.getSetting<number>(SettingKeys.ENGINE_ACCEPTABLE_PARSE_DATE_PERCENTAGE),
+    dao.getSetting<number>(SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE),
+    dao.getSetting<number>(SettingKeys.ENGINE_SUCCESS_STATUS_THRESHOLD),
+    dao.getSetting<boolean>(SettingKeys.ENGINE_RECALL_AUTO_DETECT_ENABLED),
+  ]);
+
+  snapshot = {
+    acceptableParseDatePercentage: overlayValidated(
+      SettingKeys.ENGINE_ACCEPTABLE_PARSE_DATE_PERCENTAGE,
+      parseDatePct,
+      DEFAULTS.acceptableParseDatePercentage,
+    ),
+    acceptableColumnErrorPercentage: overlayValidated(
+      SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE,
+      columnErrorPct,
+      DEFAULTS.acceptableColumnErrorPercentage,
+    ),
+    successStatusThreshold: overlayValidated(
+      SettingKeys.ENGINE_SUCCESS_STATUS_THRESHOLD,
+      successThreshold,
+      DEFAULTS.successStatusThreshold,
+    ),
+    recallAutoDetectEnabled: overlayValidated(
+      SettingKeys.ENGINE_RECALL_AUTO_DETECT_ENABLED,
+      autoDetect,
+      DEFAULTS.recallAutoDetectEnabled,
+    ),
+  };
+}
+
+/**
+ * Overlay helper for hydrate: returns the stored value when present AND valid;
+ * otherwise the default. An INVALID stored value (corrupted/hand-edited row that
+ * bypassed setEngineParam) falls back to the default LOUDLY — silently arming the
+ * gate with a nonsense threshold is exactly the NFR-009 failure class.
+ */
+function overlayValidated<T>(key: SettingKeys, stored: T | undefined, fallback: T): T {
+  if (stored === undefined) {
+    return fallback;
+  }
+  try {
+    validateParam(key, stored);
+    return stored;
+  } catch {
+    getLogger('engine.settings.engine-config').error(
+      'stored engine-config override is invalid — falling back to the ENT-016 default:',
+      key,
+      stored,
+    );
+    return fallback;
+  }
+}
+
+/**
+ * Validates `value` for `key` and writes it to the store ONLY.
+ *
+ * The current-session snapshot is NOT mutated — the new value takes effect on the
+ * next `hydrateEngineConfig` call (session-frozen by design, locked decision 1).
+ *
+ * Throws `InvalidEngineParamError` loudly if the value is out of range or wrong type.
+ * Store is NOT written on validation failure.
+ *
+ * @param dao — UserSettingsDAO backed by the v3 userSettings store.
+ * @param key — One of the ENGINE_* SettingKeys.
+ * @param value — The new value (type enforced by the overloads below).
+ */
+export async function setEngineParam(
+  dao: UserSettingsDAO,
+  key: SettingKeys.ENGINE_ACCEPTABLE_PARSE_DATE_PERCENTAGE,
+  value: number,
+): Promise<void>;
+export async function setEngineParam(
+  dao: UserSettingsDAO,
+  key: SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE,
+  value: number,
+): Promise<void>;
+export async function setEngineParam(
+  dao: UserSettingsDAO,
+  key: SettingKeys.ENGINE_SUCCESS_STATUS_THRESHOLD,
+  value: number,
+): Promise<void>;
+export async function setEngineParam(
+  dao: UserSettingsDAO,
+  key: SettingKeys.ENGINE_RECALL_AUTO_DETECT_ENABLED,
+  value: boolean,
+): Promise<void>;
+export async function setEngineParam(
+  dao: UserSettingsDAO,
+  key: SettingKeys,
+  value: unknown,
+): Promise<void> {
+  // Validate LOUDLY before any store write (NFR-009).
+  validateParam(key, value);
+  // Write store only — snapshot is frozen for the current session.
+  await dao.setSetting(key, value);
+}
+
+// ── Test seam ────────────────────────────────────────────────────────────────
+
+/**
+ * Restores the snapshot to pristine ENT-016 defaults.
+ *
+ * TEST SEAM ONLY — not exported from any barrel.
+ * Must be called in beforeEach/afterEach to isolate engine-config state between tests.
+ */
+export function resetEngineConfigForTests(): void {
+  snapshot = { ...DEFAULTS };
 }

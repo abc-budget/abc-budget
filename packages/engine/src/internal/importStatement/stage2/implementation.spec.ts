@@ -40,6 +40,7 @@ import type { ColumnParams } from '../types';
 import type { ImportStatementStage3 } from '../stage3/types';
 import { ImportStatementColumn } from './column';
 import { ImportStatementStage2Impl } from './implementation';
+import { UnmappedColumnsError } from './errors';
 import type { CellData } from './types';
 import { SupportedDataType } from './types';
 
@@ -343,9 +344,11 @@ describe('ImportStatementStage2Impl', () => {
         mockService,
         mockInitialState
       );
-      await expect(stage2.next()).rejects.toThrow(
-        'Cannot move forward: some columns do not have a definition'
-      );
+      // LEGIT UPDATE (Story 2.4 Task 3): old pin was the generic Error message string
+      // 'Cannot move forward: some columns do not have a definition'.
+      // New pin: throws UnmappedColumnsError (LocalizableException subclass) — the
+      // toThrow(LocalizableException) contract is STRENGTHENED (typed stop, Q-009).
+      await expect(stage2.next()).rejects.toBeInstanceOf(UnmappedColumnsError);
     });
 
     it('should call service.stage3 with itself when columns are processed', async () => {

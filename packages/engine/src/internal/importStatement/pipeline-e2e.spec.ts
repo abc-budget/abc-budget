@@ -22,7 +22,7 @@
 
 import 'fake-indexeddb/auto';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +42,16 @@ import { createRecallPool } from './recall/recall';
 import type { RecallResult } from './recall/recall';
 import { generateRows } from './stage3/row-generator';
 import type { ColumnInfo } from './stage3/row-generator';
+import { ColumnTransformRejection } from './stage2/errors';
+import { UnmappedColumnsError } from './stage2/errors';
+import {
+  getEngineConfig,
+  hydrateEngineConfig,
+  setEngineParam,
+  resetEngineConfigForTests,
+} from '../settings/engine-config';
+import { SettingKeys } from '../settings/user-settings';
+import { UserSettingsIDBDAO } from '../settings/user-settings-idb';
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -786,5 +796,356 @@ describe('migration v3 exercised via openDatabase', () => {
 
     const keys = await pool.getAllKeys();
     expect(keys).toContain('TestColumn');
+  });
+});
+
+// ============================================================================
+// D. Story 2.4 — thresholds, rejection, Q-009 (Task 4 E2E)
+//
+// Fixture: bad-dates.csv (internal/ingest/fixtures/bad-dates.csv)
+// Shape:
+//   Columns: "Date", "Amount", "Description"
+//   12 rows total (no header-skip: decode treats first row as header).
+//   Date column: 7 valid ISO-style dates (rows 0,1,3,5,7,9,11)
+//                5 garbage strings (rows 2,4,6,8,10) → 5/12 = 41.7% errors
+//                Applying DATE with { format: { custom: 'yyyy-MM-dd' } }
+//                bypasses format detection; parseGeneric sees 5 bad cells
+//                → 41.7% > default 30% threshold → ColumnTransformRejection.
+//   Amount column: 11 valid negative numbers, 1 garbage ("NOT-A-NUMBER" at row 10)
+//                  → 1/12 = 8.3% errors → passes default 30% gate, fails 5% gate.
+//   Description column: all 12 rows clean (plain text).
+//
+// Good dates (0-indexed): rows 0,1,3,5,7,9,11
+// Bad date rows: rows 2,4,6,8,10
+// Bad amount row: row 10 ("NOT-A-NUMBER")
+//
+// Config leakage guard: resetEngineConfigForTests() called in afterEach.
+// ============================================================================
+
+describe('Story 2.4 — thresholds, rejection, Q-009', () => {
+  // ── Config leakage guard ──────────────────────────────────────────────────
+  // Always reset the engine-config snapshot so no test bleeds threshold changes
+  // into subsequent tests (or into other spec files sharing the module-level snapshot).
+  afterEach(() => {
+    resetEngineConfigForTests();
+  });
+
+  // Helper: creates a fresh service backed by the current test DB
+  function makeService(db: IDBDatabase): ImportStatementServiceImpl {
+    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
+    const settingsDao = new UserSettingsIDBDAO(() => db);
+    return new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO, null, null, settingsDao);
+  }
+
+  // ---------------------------------------------------------------------------
+  // D1. bad-dates fixture: DATE on bad column → ColumnTransformRejection
+  //     → re-map as IGNORE → session completes (per-COLUMN boundary at E2E level)
+  // ---------------------------------------------------------------------------
+
+  it('D1: bad-dates DATE column (>30% bad) → ColumnTransformRejection with exact payload', async () => {
+    const decodeResult = await decode(readFixture('bad-dates.csv'));
+    // 12 data rows (bad-dates.csv has 12 data rows + 1 header)
+    expect(decodeResult.rows).toHaveLength(12);
+
+    const service = makeService(db);
+    const stage1 = service.startWith(decodeResult.rows);
+    const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
+
+    const cols = await firstValueFrom(stage2.columns);
+    const dateCol = cols.find((c) => c.originalName.getText() === 'Date');
+    expect(dateCol).toBeDefined();
+    if (!(dateCol instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+
+    // Custom format bypasses format detection; parseGeneric sees 5/12 bad cells → rejection
+    const rejection = await dateCol
+      .parseAsDate({ format: { custom: 'yyyy-MM-dd' } })
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect(rejection).toBeInstanceOf(ColumnTransformRejection);
+    if (!(rejection instanceof ColumnTransformRejection)) throw new Error('Not ColumnTransformRejection');
+
+    // Exact counts: 5 bad / 12 total
+    expect(rejection.errorCount).toBe(5);
+    expect(rejection.totalCount).toBe(12);
+    // Threshold equals the default acceptableColumnErrorPercentage
+    expect(rejection.threshold).toBe(0.3);
+    // ALL cell errors collected (FEAT-022 complete-not-first)
+    expect(rejection.cellErrors).toHaveLength(5);
+    // rowIndex values for the bad rows: 2, 4, 6, 8, 10
+    const badRowIndices = rejection.cellErrors.map((e) => e.rowIndex).sort((a, b) => a - b);
+    expect(badRowIndices).toEqual([2, 4, 6, 8, 10]);
+
+    // Date column stays UNKNOWN (rollback-to-UNKNOWN is structural on rejection)
+    const colsAfter = await firstValueFrom(stage2.columns);
+    const dateColAfter = colsAfter.find((c) => c.originalName.getText() === 'Date');
+    expect(dateColAfter?.definition).toBeNull();
+  });
+
+  it('D1b: re-map rejected column as IGNORE → session completes (per-COLUMN boundary)', async () => {
+    const decodeResult = await decode(readFixture('bad-dates.csv'));
+    const service = makeService(db);
+    const stage1 = service.startWith(decodeResult.rows);
+    const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
+
+    const cols = await firstValueFrom(stage2.columns);
+    const dateCol = cols.find((c) => c.originalName.getText() === 'Date');
+    expect(dateCol).toBeDefined();
+    if (!(dateCol instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+
+    // First attempt: rejection
+    await expect(
+      dateCol.parseAsDate({ format: { custom: 'yyyy-MM-dd' } })
+    ).rejects.toBeInstanceOf(ColumnTransformRejection);
+
+    // Re-map as IGNORE
+    const colsAfterRejection = await firstValueFrom(stage2.columns);
+    const dateColAfterRejection = colsAfterRejection.find((c) => c.originalName.getText() === 'Date');
+    expect(dateColAfterRejection instanceof ImportStatementColumn).toBe(true);
+    if (!(dateColAfterRejection instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+    await dateColAfterRejection.ignore();
+
+    // Map remaining columns (Amount, Description) so next() won't throw UnmappedColumnsError
+    const transformations: ColumnTransformation[] = [
+      { columnName: 'Amount',      definition: ColumnDefinition.AMOUNT,      params: { type: 'outcome', currency: { code: 'UAH' } } as AmountColumnParams },
+      { columnName: 'Description', definition: ColumnDefinition.DESCRIPTION, params: null },
+    ];
+    await applyMappings(stage2, transformations);
+
+    // Session must still be alive — stage2 completes without throwing.
+    // (The per-COLUMN boundary: one bad column rejected does NOT kill the session.)
+    // Generate rows: Date is IGNORED → extractDate finds no DATE column → each row
+    // lands in rowErrors (no date = incomplete row), but generateRows itself doesn't throw.
+    const colsFinal = await firstValueFrom(stage2.columns);
+    const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
+    const genResult = await generateRows(rows, toColumnInfo(colsFinal), 'UAH');
+    // key assertion: generateRows completes (session alive), 12 row errors (no date column)
+    expect(genResult.rowErrors).toHaveLength(12);
+    expect(genResult.rows).toHaveLength(0);
+    expect(genResult.skipped).toHaveLength(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // D2. Store-override E2E: seed acceptableColumnErrorPercentage = 0.05 before
+  //     session → a mildly-bad Amount column (1/12 = 8.3%) is now REJECTED
+  // ---------------------------------------------------------------------------
+
+  it('D2: store-seeded threshold 0.05 → 8.3%-bad Amount column rejected', async () => {
+    // Seed the store with a low threshold
+    const settingsDao = new UserSettingsIDBDAO(() => db);
+    await setEngineParam(settingsDao, SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE, 0.05);
+
+    // Session start via service (which hydrates on stage2() call)
+    const service = makeService(db);
+    const decodeResult = await decode(readFixture('bad-dates.csv'));
+    const stage1 = service.startWith(decodeResult.rows);
+    const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
+
+    // Config must reflect the stored override (0.05) after hydration
+    expect(getEngineConfig().acceptableColumnErrorPercentage).toBe(0.05);
+
+    const cols = await firstValueFrom(stage2.columns);
+    const amountCol = cols.find((c) => c.originalName.getText() === 'Amount');
+    expect(amountCol instanceof ImportStatementColumn).toBe(true);
+    if (!(amountCol instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+
+    // Amount column: 1/12 = 8.3% errors; with threshold 0.05 → REJECTED
+    const rejection = await amountCol
+      .parseAsAmount({ type: 'outcome', currency: { code: 'UAH' } })
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect(rejection).toBeInstanceOf(ColumnTransformRejection);
+    if (!(rejection instanceof ColumnTransformRejection)) throw new Error('Not ColumnTransformRejection');
+    expect(rejection.errorCount).toBe(1);
+    expect(rejection.totalCount).toBe(12);
+    expect(rejection.threshold).toBe(0.05);
+  });
+
+  it('D2b: default threshold 0.3 → same 8.3%-bad Amount column APPLIES', async () => {
+    // No store override → defaults stand → 8.3% < 30% → applies
+    const service = makeService(db);
+    const decodeResult = await decode(readFixture('bad-dates.csv'));
+    const stage1 = service.startWith(decodeResult.rows);
+    const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
+
+    expect(getEngineConfig().acceptableColumnErrorPercentage).toBe(0.3);
+
+    const cols = await firstValueFrom(stage2.columns);
+    const amountCol = cols.find((c) => c.originalName.getText() === 'Amount');
+    if (!(amountCol instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+
+    // Should NOT throw — 8.3% < 30%
+    await expect(
+      amountCol.parseAsAmount({ type: 'outcome', currency: { code: 'UAH' } })
+    ).resolves.toBeUndefined();
+
+    const colsAfter = await firstValueFrom(stage2.columns);
+    const amountColAfter = colsAfter.find((c) => c.originalName.getText() === 'Amount');
+    expect(amountColAfter?.definition).toBe(ColumnDefinition.AMOUNT);
+  });
+
+  // ---------------------------------------------------------------------------
+  // D3. TRIPLE PIN at E2E level (locked decision 1):
+  //     (1) setEngineParam mid-session → current session's applies use the old threshold
+  //     (2) value IS in the store
+  //     (3) re-hydrate (new session) → new threshold bites
+  // ---------------------------------------------------------------------------
+
+  it('D3: TRIPLE PIN — mid-session setEngineParam is session-frozen; re-hydrate bites', async () => {
+    const settingsDao = new UserSettingsIDBDAO(() => db);
+    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
+
+    // ── Session 1: start with default threshold (0.3) ────────────────────────
+    const service1 = new ImportStatementServiceImpl(
+      fileFormatDAO, fileSourceDAO, null, null, settingsDao
+    );
+    const decodeResult = await decode(readFixture('bad-dates.csv'));
+
+    const stage1a = service1.startWith(decodeResult.rows);
+    const stage2a = (await service1.stage2(stage1a)) as ImportStatementStage2Impl;
+
+    // Snapshot is defaults (0.3) for session 1
+    expect(getEngineConfig().acceptableColumnErrorPercentage).toBe(0.3);
+
+    // Amount column: 1/12 = 8.3% errors; threshold 0.3 → should apply
+    const colsA = await firstValueFrom(stage2a.columns);
+    const amountColA = colsA.find((c) => c.originalName.getText() === 'Amount');
+    if (!(amountColA instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+
+    // ASSERT (1): mid-session setEngineParam → store-only write, snapshot unchanged
+    await setEngineParam(settingsDao, SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE, 0.05);
+    // Snapshot still 0.3 (session-frozen)
+    expect(getEngineConfig().acceptableColumnErrorPercentage).toBe(0.3);
+
+    // ASSERT (2): value IS in the store
+    const storedValue = await settingsDao.getSetting<number>(
+      SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE
+    );
+    expect(storedValue).toBe(0.05);
+
+    // Amount still applies with old threshold (1/12 < 0.3)
+    await expect(
+      amountColA.parseAsAmount({ type: 'outcome', currency: { code: 'UAH' } })
+    ).resolves.toBeUndefined();
+
+    // ── Session 2: new service.stage2() → re-hydrate → new threshold active ──
+    const stage1b = service1.startWith(decodeResult.rows);
+    const stage2b = (await service1.stage2(stage1b)) as ImportStatementStage2Impl;
+
+    // ASSERT (3): re-hydrate picks up 0.05
+    expect(getEngineConfig().acceptableColumnErrorPercentage).toBe(0.05);
+
+    const colsB = await firstValueFrom(stage2b.columns);
+    const amountColB = colsB.find((c) => c.originalName.getText() === 'Amount');
+    if (!(amountColB instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+
+    // Amount now rejected with 0.05 threshold (1/12 = 8.3% > 5%)
+    const rejectionB = await amountColB
+      .parseAsAmount({ type: 'outcome', currency: { code: 'UAH' } })
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect(rejectionB).toBeInstanceOf(ColumnTransformRejection);
+    if (!(rejectionB instanceof ColumnTransformRejection)) throw new Error('Not ColumnTransformRejection');
+    expect(rejectionB.threshold).toBe(0.05);
+  });
+
+  // ---------------------------------------------------------------------------
+  // D4. Q-009 E2E: complete mapping EXCEPT one column → next() throws
+  //     UnmappedColumnsError naming exactly it; map it → next() resolves
+  // ---------------------------------------------------------------------------
+
+  it('D4: Q-009 — leave one column unmapped → UnmappedColumnsError; map it → resolves', async () => {
+    const decodeResult = await decode(readFixture('bad-dates.csv'));
+    const service = makeService(db);
+    const stage1 = service.startWith(decodeResult.rows);
+    const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
+
+    // Map only Amount and Description; leave Date unmapped (UNKNOWN)
+    const partialTransformations: ColumnTransformation[] = [
+      { columnName: 'Amount',      definition: ColumnDefinition.AMOUNT,      params: { type: 'outcome', currency: { code: 'UAH' } } as AmountColumnParams },
+      { columnName: 'Description', definition: ColumnDefinition.DESCRIPTION, params: null },
+    ];
+    await applyMappings(stage2, partialTransformations);
+
+    // getUnmappedColumns() should list "Date" as unmapped
+    const unmapped = stage2.getUnmappedColumns();
+    expect(unmapped).toHaveLength(1);
+    expect(unmapped[0].name).toBe('Date');
+
+    // next() throws UnmappedColumnsError naming "Date"
+    const throwable = await stage2.next().then(() => null).catch((e: unknown) => e);
+    expect(throwable).toBeInstanceOf(UnmappedColumnsError);
+    if (!(throwable instanceof UnmappedColumnsError)) throw new Error('Not UnmappedColumnsError');
+    expect(throwable.unmappedColumns).toHaveLength(1);
+    expect(throwable.unmappedColumns[0].name).toBe('Date');
+    // Error enumeration agrees with getter
+    expect(throwable.unmappedColumns[0].id).toBe(unmapped[0].id);
+
+    // Map the remaining column (as IGNORE to avoid ColumnTransformRejection on bad dates)
+    const colsNow = await firstValueFrom(stage2.columns);
+    const dateColNow = colsNow.find((c) => c.originalName.getText() === 'Date');
+    if (!(dateColNow instanceof ImportStatementColumn)) throw new Error('Not ImportStatementColumn');
+    await dateColNow.ignore();
+
+    // getUnmappedColumns() is now empty
+    const unmappedAfter = stage2.getUnmappedColumns();
+    expect(unmappedAfter).toHaveLength(0);
+
+    // next() no longer throws UnmappedColumnsError
+    // (It throws a categorization stub error from the service, but NOT UnmappedColumnsError)
+    try {
+      await stage2.next();
+    } catch (e: unknown) {
+      // next() calls service.stage3() which throws the categorization stub error.
+      // What matters is it's NOT an UnmappedColumnsError.
+      expect(e).not.toBeInstanceOf(UnmappedColumnsError);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // D5. Engine-init hydrate path: UserSettingsIDBDAO seeded before initEnginePersistence
+  //     → getEngineConfig() reflects store override post-init
+  //     (Uses openDatabase directly to avoid the global memoization of initEnginePersistence)
+  // ---------------------------------------------------------------------------
+
+  it('D5: engine-init hydrate — store override reflected in getEngineConfig() after hydration', async () => {
+    // Seed a store override via DAO over the test DB
+    const settingsDao = new UserSettingsIDBDAO(() => db);
+    await setEngineParam(settingsDao, SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE, 0.1);
+
+    // Manually call hydrateEngineConfig (mirrors what doInit() does after openEngineDb())
+    await hydrateEngineConfig(settingsDao);
+
+    // getEngineConfig() must reflect the stored override
+    expect(getEngineConfig().acceptableColumnErrorPercentage).toBe(0.1);
+  });
+
+  it('D5b: engine-init hydrate failure — non-fatal, defaults stand', async () => {
+    // DAO that rejects every read — simulates doInit() hydrate-failure path
+    const failingDao = {
+      getSetting: vi.fn().mockRejectedValue(new Error('IDB read failure')),
+      setSetting: vi.fn().mockRejectedValue(new Error('IDB read failure')),
+      removeSetting: vi.fn().mockRejectedValue(new Error('IDB read failure')),
+      getAllSettings: vi.fn().mockRejectedValue(new Error('IDB read failure')),
+    };
+
+    // Simulate what doInit() does: try hydrateEngineConfig, catch non-fatally (HC-7)
+    // hydrateEngineConfig rejects when getSetting rejects; the caller swallows it,
+    // defaults stand, engine continues.
+    let caughtError: unknown = null;
+    try {
+      await hydrateEngineConfig(failingDao as Parameters<typeof hydrateEngineConfig>[0]);
+    } catch (e) {
+      caughtError = e;
+    }
+
+    // hydrateEngineConfig rejection is caught by doInit(); defaults remain intact
+    expect(caughtError).not.toBeNull(); // it DID reject (caller must swallow)
+    expect(getEngineConfig().acceptableColumnErrorPercentage).toBe(0.3);
+    expect(getEngineConfig().acceptableParseDatePercentage).toBe(90);
+    expect(getEngineConfig().successStatusThreshold).toBe(0.8);
+    expect(getEngineConfig().recallAutoDetectEnabled).toBe(false);
   });
 });
