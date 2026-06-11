@@ -358,7 +358,7 @@ describe('ImportStatementColumn (core behaviors)', () => {
       expect(applied.definition).toBe(ColumnDefinition.DATE);
       const d0 = applied.data[0];
       expect(d0.type).toBe(SupportedDataType.DATE);
-      expect(DateTime.fromJSDate(d0.value as Date).toFormat('yyyy-MM-dd')).toBe(
+      expect(DateTime.fromJSDate(d0.value as Date, { zone: 'utc' }).toFormat('yyyy-MM-dd')).toBe(
         '2025-01-02'
       );
       const err = applied.data[3];
@@ -392,12 +392,12 @@ describe('ImportStatementColumn (core behaviors)', () => {
       expect(appliedIso.definition).toBe(ColumnDefinition.DATE);
       expect(appliedIso.data[0].type).toBe(SupportedDataType.DATE);
       expect(
-        DateTime.fromJSDate(appliedIso.data[0].value as Date).toFormat(
+        DateTime.fromJSDate(appliedIso.data[0].value as Date, { zone: 'utc' }).toFormat(
           'yyyy-MM-dd'
         )
       ).toBe('2020-02-29');
       expect(
-        DateTime.fromJSDate(appliedIso.data[1].value as Date).toFormat(
+        DateTime.fromJSDate(appliedIso.data[1].value as Date, { zone: 'utc' }).toFormat(
           'yyyy-MM-dd'
         )
       ).toBe('2021-01-31');
@@ -422,7 +422,7 @@ describe('ImportStatementColumn (core behaviors)', () => {
       expect(appliedDmy2.definition).toBe(ColumnDefinition.DATE);
       expect(appliedDmy2.data[0].type).toBe(SupportedDataType.DATE);
       expect(
-        DateTime.fromJSDate(appliedDmy2.data[0].value as Date).toFormat(
+        DateTime.fromJSDate(appliedDmy2.data[0].value as Date, { zone: 'utc' }).toFormat(
           'yyyy-MM-dd'
         )
       ).toBe('2019-03-24');
@@ -505,24 +505,24 @@ describe('ImportStatementColumn (core behaviors)', () => {
       // First few should be parsed as dates
       expect(applied.data[0].type).toBe(SupportedDataType.DATE);
       expect(
-        DateTime.fromJSDate(applied.data[0].value as Date).toFormat(
+        DateTime.fromJSDate(applied.data[0].value as Date, { zone: 'utc' }).toFormat(
           'yyyy-MM-dd'
         )
       ).toBe('2024-03-01');
       expect(
-        DateTime.fromJSDate(applied.data[2].value as Date).toFormat(
+        DateTime.fromJSDate(applied.data[2].value as Date, { zone: 'utc' }).toFormat(
           'yyyy-MM-dd'
         )
       ).toBe('2024-12-31');
 
       // Ensure extractor strips time portion properly
       expect(
-        DateTime.fromJSDate(applied.data[3].value as Date).toFormat(
+        DateTime.fromJSDate(applied.data[3].value as Date, { zone: 'utc' }).toFormat(
           'yyyy-MM-dd'
         )
       ).toBe('2024-01-15');
       expect(
-        DateTime.fromJSDate(applied.data[4].value as Date).toFormat(
+        DateTime.fromJSDate(applied.data[4].value as Date, { zone: 'utc' }).toFormat(
           'yyyy-MM-dd'
         )
       ).toBe('2024-02-28');
