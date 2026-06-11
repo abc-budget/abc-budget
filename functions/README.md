@@ -31,16 +31,17 @@ OPENEXCHANGERATES_APP_ID=<your-key>
 Alternatively, if the date you're testing is **already cached in Firestore**,
 OER is never called and you can omit the secret entirely.
 
-### Vite dev-server convenience override
+### Vite dev-server note (`VITE_RATES_URL`)
 
-When running `pnpm dev` (Vite's dev server, not the emulator), set:
+⚠️ Pointing `VITE_RATES_URL` directly at the function URL does **NOT** work against the
+origin gate: a browser POST from Vite (`http://localhost:5173`) carries that localhost
+Origin, which is deliberately absent from the prod-only allowlist → `403 origin-forbidden`
+(ENT-004: no localhost in the prod allowlist — any local process could claim it).
 
-```
-VITE_RATES_URL=http://localhost:5001/abc-budget-2d379/europe-west1/getUSDRates
-```
-
-in `apps/web/.env.local`. This points the plain-fetch client directly at the
-emulated function URL, bypassing the Hosting rewrite layer.
+**The supported dev flow is the emulator-with-rewrite path above** (same-origin, like prod).
+`VITE_RATES_URL` exists only for special local setups (e.g. a locally-relaxed allowlist in
+your working copy — never committed). The override is build-time and defaults to the
+relative path, so it cannot leak into prod builds.
 
 ## Deployment
 

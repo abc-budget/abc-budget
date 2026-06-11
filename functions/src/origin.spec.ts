@@ -112,4 +112,16 @@ describe("checkOrigin", () => {
         expect(checkOrigin("https://custom.example.com", undefined, custom).allowed).toBe(true);
         expect(checkOrigin("https://abc-budget-2d379.web.app", undefined, custom).allowed).toBe(false);
     });
+
+    // ── exact-match hardening: browser-canonical origins only ──────────────────
+    it("rejects near-miss origin variants (trailing slash, case, port, null)", () => {
+        for (const variant of [
+            "https://abc-budget-2d379.web.app/",
+            "https://ABC-BUDGET-2D379.WEB.APP",
+            "https://abc-budget-2d379.web.app:443",
+            "null",
+        ]) {
+            expect(checkOrigin(variant, undefined, PROD_ORIGIN_ALLOWLIST).allowed, variant).toBe(false);
+        }
+    });
 });

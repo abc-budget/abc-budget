@@ -90,4 +90,12 @@ describe("RateLimiter", () => {
         }
         expect(allowed).toBe(CAPACITY);
     });
+
+    it("clock skew: a now earlier than lastRefill never inflates tokens (negative-time guard)", () => {
+        const rl = new RateLimiter(CAPACITY, REFILL_PER_MS);
+        for (let i = 0; i < CAPACITY; i++) rl.take("skew-ip", 1_000_000);
+        // clock jumps BACKWARD — refill must not fire, bucket stays drained
+        expect(rl.take("skew-ip", 0)).toBe(false);
+        expect(rl.take("skew-ip", 999_999)).toBe(false);
+    });
 });
