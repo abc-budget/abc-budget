@@ -14,6 +14,11 @@
  * 'kr' → undefined: 'kr' does not appear in any symbol or specialSymbols field
  *   in the 233-entry dataset.
  *
+ * getAmbiguousSymbols: deduplicates symbols WITHIN each entry (per-entry Set) before
+ *   counting distinct ISO codes.  '₴' appears in UAH uk.symbol AND UAH specialSymbols —
+ *   same currency → not ambiguous.  Dataset reality: only 'C$' (CAD+NIO) and
+ *   'K' (MMK+PGK) are genuinely shared by 2+ distinct ISO codes.
+ *
  * formatAmount: uses Intl.NumberFormat with digits from the dataset (ENT-019).
  *   Never uses Intl currency style — digits are explicit (minimumFractionDigits /
  *   maximumFractionDigits set to entry.defaultFractionDigits).
@@ -145,6 +150,75 @@ export function symbolToIso(input: string): string | undefined {
   if (byCode.has(input)) return input;
   // Rules 2 & 3: symbol/specialSymbols map
   return symbolMap.get(input);
+}
+
+/**
+ * Returns the ISO currency code for a numeric (ISO 4217) code.
+ *
+ * Added for the 2.2 column-transform port: `parseAsCurrency` needs to match
+ * numeric cell values (e.g. 840 → 'USD') against the static dataset.
+ *
+ * @param numericCode - ISO 4217 numeric code (integer).
+ * @returns ISO alpha code, or `undefined` if not found.
+ */
+export function numericCodeToIso(numericCode: number): string | undefined {
+  for (const entry of currencies) {
+    if (entry.numericCode === numericCode) {
+      return entry.code;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Returns all symbol strings that map to more than one DISTINCT ISO code (ambiguous symbols).
+ *
+ * Used by `parseAsCurrency` to detect ambiguous symbol inputs and emit an error
+ * instead of silently choosing one currency.
+ *
+ * Note: The symbolMap used by `symbolToIso` always picks the FIRST dataset match.
+ * This function identifies which inputs would have been ambiguous so callers can
+ * surface that information rather than silently accepting the first match.
+ *
+ * Deduplication rule: symbols are deduplicated WITHIN each entry before counting.
+ * For example, UAH has uk.symbol === '₴' and specialSymbols includes '₴' — both
+ * refer to the same ISO code (UAH), so '₴' counts as 1, not 2.  Only symbols that
+ * appear under 2+ DISTINCT ISO codes are truly ambiguous.
+ *
+ * Dataset reality (233 entries, verified): exactly 2 ambiguous symbols —
+ *   'C$' (CAD + NIO) and 'K' (MMK + PGK).
+ *
+ * @returns A Set of symbol strings that appear under more than one distinct currency entry.
+ */
+export function getAmbiguousSymbols(): Set<string> {
+  // Map each symbol → Set of distinct ISO codes that use it.
+  // Symbols are deduplicated per entry so that a symbol appearing in both
+  // en.symbol/uk.symbol AND specialSymbols of the SAME entry is counted once.
+  const symbolToCodes = new Map<string, Set<string>>();
+
+  for (const entry of currencies) {
+    // Build the de-duplicated set of symbols for this single entry.
+    const entrySymbols = new Set<string>([
+      entry.localizedData.en.symbol,
+      entry.localizedData.uk.symbol,
+      ...(entry.specialSymbols ?? []),
+    ]);
+
+    for (const sym of entrySymbols) {
+      let codes = symbolToCodes.get(sym);
+      if (!codes) {
+        codes = new Set<string>();
+        symbolToCodes.set(sym, codes);
+      }
+      codes.add(entry.code);
+    }
+  }
+
+  const ambiguous = new Set<string>();
+  for (const [sym, codes] of symbolToCodes) {
+    if (codes.size > 1) ambiguous.add(sym);
+  }
+  return ambiguous;
 }
 
 /**

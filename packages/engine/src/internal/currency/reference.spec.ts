@@ -7,6 +7,11 @@
  *          Exact-symbol match (en or uk) takes priority over specialSymbols lookup.
  *  - symbolToIso ambiguity rule: exact en/uk symbol match wins; if still ambiguous, first
  *    entry in dataset order wins.  Code passthrough ('UAH' → 'UAH') checked before all.
+ *  - getAmbiguousSymbols: 215/233 entries share en.symbol === uk.symbol; the CORRECT
+ *    implementation deduplicates symbols WITHIN each entry (per-entry Set) before counting
+ *    distinct ISO codes per symbol. Only symbols shared by 2+ DISTINCT currencies are
+ *    ambiguous. Dataset inspection result: 2 genuinely ambiguous symbols — 'C$' (CAD+NIO)
+ *    and 'K' (MMK+PGK). '₴' and 'грн' belong to UAH only → NOT ambiguous.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -16,6 +21,7 @@ import {
   formatAmount,
   symbolToIso,
   localeToCurrency,
+  getAmbiguousSymbols,
 } from './reference';
 
 describe('getCurrency', () => {
@@ -159,5 +165,46 @@ describe('localeToCurrency', () => {
 
   it('returns undefined for unknown locale', () => {
     expect(localeToCurrency('xx_ZZ')).toBeUndefined();
+  });
+});
+
+describe('getAmbiguousSymbols', () => {
+  /**
+   * Dataset inspection (currencies.json, 233 entries):
+   *   - 215 entries share en.symbol === uk.symbol (e.g. 'ADP', 'AED' …).
+   *     The BUGGY raw-count approach counts each such symbol twice → 234 false positives.
+   *   - Correct approach: deduplicate symbols WITHIN each entry (per-entry Set), then
+   *     track which DISTINCT ISO codes use each symbol.
+   *   - Genuinely ambiguous (2 entries sharing a symbol): 'C$' (CAD + NIO), 'K' (MMK + PGK).
+   *   - '₴' appears in UAH uk.symbol AND UAH specialSymbols — same currency → NOT ambiguous.
+   *   - 'грн' appears only in UAH specialSymbols → NOT ambiguous.
+   */
+
+  it('does NOT flag ₴ as ambiguous (UAH uk.symbol and specialSymbols share the same entry)', () => {
+    expect(getAmbiguousSymbols().has('₴')).toBe(false);
+  });
+
+  it('does NOT flag грн as ambiguous (UAH specialSymbols only)', () => {
+    expect(getAmbiguousSymbols().has('грн')).toBe(false);
+  });
+
+  it('returns exactly 2 genuinely ambiguous symbols in the 233-entry dataset', () => {
+    // Dataset reality (verified by inspection): only 'C$' (CAD+NIO) and 'K' (MMK+PGK)
+    // are shared by more than one distinct ISO code.
+    expect(getAmbiguousSymbols().size).toBe(2);
+  });
+
+  it('includes C$ as ambiguous (shared by CAD and NIO)', () => {
+    expect(getAmbiguousSymbols().has('C$')).toBe(true);
+  });
+
+  it('includes K as ambiguous (shared by MMK and PGK)', () => {
+    expect(getAmbiguousSymbols().has('K')).toBe(true);
+  });
+
+  it('symbolToIso still resolves ₴ → UAH (not blocked by ambiguity guard)', () => {
+    // This is the downstream proof: parseAsCurrency calls getAmbiguousSymbols() BEFORE
+    // symbolToIso. If ₴ were ambiguous it would never reach symbolToIso and would error.
+    expect(symbolToIso('₴')).toBe('UAH');
   });
 });
