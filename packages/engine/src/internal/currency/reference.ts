@@ -148,6 +148,57 @@ export function symbolToIso(input: string): string | undefined {
 }
 
 /**
+ * Returns the ISO currency code for a numeric (ISO 4217) code.
+ *
+ * Added for the 2.2 column-transform port: `parseAsCurrency` needs to match
+ * numeric cell values (e.g. 840 → 'USD') against the static dataset.
+ *
+ * @param numericCode - ISO 4217 numeric code (integer).
+ * @returns ISO alpha code, or `undefined` if not found.
+ */
+export function numericCodeToIso(numericCode: number): string | undefined {
+  for (const entry of currencies) {
+    if (entry.numericCode === numericCode) {
+      return entry.code;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Returns all symbol strings that map to more than one ISO code (ambiguous symbols).
+ *
+ * Used by `parseAsCurrency` to detect ambiguous symbol inputs and emit an error
+ * instead of silently choosing one currency.
+ *
+ * Note: The symbolMap used by `symbolToIso` always picks the FIRST dataset match.
+ * This function identifies which inputs would have been ambiguous so callers can
+ * surface that information rather than silently accepting the first match.
+ *
+ * @returns A Set of symbol strings that appear under more than one currency entry.
+ */
+export function getAmbiguousSymbols(): Set<string> {
+  const counts = new Map<string, number>();
+
+  for (const entry of currencies) {
+    const syms: string[] = [
+      entry.localizedData.en.symbol,
+      entry.localizedData.uk.symbol,
+      ...(entry.specialSymbols ?? []),
+    ];
+    for (const sym of syms) {
+      counts.set(sym, (counts.get(sym) ?? 0) + 1);
+    }
+  }
+
+  const ambiguous = new Set<string>();
+  for (const [sym, count] of counts) {
+    if (count > 1) ambiguous.add(sym);
+  }
+  return ambiguous;
+}
+
+/**
  * Returns the default ISO currency code for the given locale string.
  * Normalises BCP-47 dashes to underscores before lookup (e.g. 'uk-UA' → 'uk_UA').
  * Returns undefined for unknown locales.

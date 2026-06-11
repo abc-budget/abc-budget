@@ -53,6 +53,86 @@ export interface CellData {
   readonly type: SupportedDataType;
 }
 
-// 2.3 ports the rest (ImportStatementStage2, ImportStatementColumnHeaderStage2,
-//                      ImportStatementRowData — these require rxjs which is not
-//                      a dep of this package in 2.2, and depend on stage1/stage3).
+// ── Minimal stage interfaces needed by column.ts / row.ts (2.2) ─────────────
+//
+// The full prior-art ImportStatementStage2 / ImportStatementColumnHeaderStage2 /
+// ImportStatementRowData interfaces have Observable<> return types (rxjs) which
+// is not a dep of this package in 2.2.  Only the subset used by column.ts and
+// row.ts is included here.  2.3 will merge the full set when rxjs is added.
+
+import type {
+  AmountColumnParams,
+  BalanceColumnParams,
+  BankCommissionColumnParams,
+  CashbackColumnParams,
+  ColumnDefinition,
+  ColumnParams,
+  DateColumnParams,
+  TransactionStatusColumnParams,
+} from '../types';
+
+/**
+ * Minimal stage-2 interface used by ImportStatementColumn and ImportStatementRow.
+ * The full Observable-bearing surface is carried forward to 2.3.
+ *
+ * // 2.3 ports the rest (full ImportStatementStage2 with Observable<> members,
+ * //                      stage1/stage3 cross-refs, rxjs imports).
+ */
+export interface ImportStatementStage2 {
+  /**
+   * Applies (upserts) a column into the stage's column list.
+   * @param column The column to apply.
+   */
+  applyColumn(column: ImportStatementColumnHeaderStage2): void;
+
+  /**
+   * Resets a column to its initial state.
+   * @param columnId The id of the column to reset.
+   * @returns Promise that resolves when complete.
+   */
+  resetColumn(columnId: string): Promise<unknown>;
+}
+
+/**
+ * Minimal column-header interface for stage 2.
+ * Full surface (all parseAs* methods) is included here because column.ts
+ * implements them; the Observable-dependent members live in 2.3.
+ */
+export interface ImportStatementColumnHeaderStage2 {
+  readonly id: string;
+  readonly name: Message;
+  readonly isIgnored: boolean;
+  readonly definition: ColumnDefinition | null;
+  readonly params: ColumnParams | null;
+  readonly originalName: Message;
+
+  ignore(): Promise<void>;
+  parseAsDate(params: DateColumnParams): Promise<void>;
+  parseAsAmount(params: AmountColumnParams): Promise<void>;
+  parseAsCurrency(): Promise<void>;
+  parseAsDescription(): Promise<void>;
+  parseAsBankCategory(): Promise<void>;
+  parseAsBalance(params: BalanceColumnParams): Promise<void>;
+  parseAsBankAccount(): Promise<void>;
+  parseAsTransactionStatus(params: TransactionStatusColumnParams): Promise<void>;
+  parseAsExchangeRate(): Promise<void>;
+  parseAsBankCommission(params: BankCommissionColumnParams): Promise<void>;
+  parseAsCashback(params: CashbackColumnParams): Promise<void>;
+  parseAsMerchant(): Promise<void>;
+  parseAsTime(): Promise<void>;
+  parseAsCounterparty(): Promise<void>;
+  undo(): Promise<void>;
+}
+
+/**
+ * Minimal row-data interface for stage 2.
+ * // 2.3 ports the full surface (extends ImportStatementStage<…>, Observable members).
+ */
+export interface ImportStatementRowData {
+  readonly rowIndex: number;
+  get(column: string): CellData;
+  readonly isIgnored: boolean;
+  readonly hasErrors: boolean;
+  errorMessageAt(column: string): Message | null;
+  ignoreMessageAt(column: string): Message | null;
+}

@@ -16,6 +16,10 @@ export interface Logger {
   info(...args: unknown[]): void;
   warn(...args: unknown[]): void;
   error(...args: unknown[]): void;
+  /** Opens a collapsed log group (prior-art compat — mirrors console.groupCollapsed). */
+  groupCollapsed(...args: unknown[]): void;
+  /** Closes the current log group (prior-art compat — mirrors console.groupEnd). */
+  groupEnd(): void;
 }
 
 /** No-op logger used under Vitest */
@@ -24,6 +28,8 @@ const noopLogger: Logger = {
   info(): void {},
   warn(): void {},
   error(): void {},
+  groupCollapsed(): void {},
+  groupEnd(): void {},
 };
 
 /**
@@ -50,6 +56,12 @@ export function getLogger(name: string): Logger {
     },
     error(...args: unknown[]): void {
       console.error(prefix, ...args);
+    },
+    groupCollapsed(...args: unknown[]): void {
+      console.groupCollapsed(prefix, ...args);
+    },
+    groupEnd(): void {
+      console.groupEnd();
     },
   };
 }
