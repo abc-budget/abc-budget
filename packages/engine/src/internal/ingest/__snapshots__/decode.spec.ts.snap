@@ -1,0 +1,766 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`decode() — CSV path > dual-currency.csv > full result matches snapshot 1`] = `
+{
+  "issues": [],
+  "meta": {
+    "bom": false,
+    "decodedRows": 5,
+    "delimiter": ",",
+    "encoding": "utf-8",
+    "format": "csv",
+    "headerRow": 0,
+    "totalRows": 5,
+  },
+  "rows": [
+    {
+      "Amount": "12.50 USD (461.00 UAH)",
+      "Date": "15.01.2024",
+      "Description": "TEST FOREIGN SHOP 1",
+      "Original": "12.50 USD",
+    },
+    {
+      "Amount": "250.00 EUR (10250.00 UAH)",
+      "Date": "16.01.2024",
+      "Description": "TEST FOREIGN HOTEL 1",
+      "Original": "250.00 EUR",
+    },
+    {
+      "Amount": "-320,00",
+      "Date": "17.01.2024",
+      "Description": "TEST LOCAL SHOP 1",
+      "Original": "—",
+    },
+    {
+      "Amount": "9.99 USD (368.63 UAH)",
+      "Date": "18.01.2024",
+      "Description": "TEST FOREIGN SUBSCRIPTION",
+      "Original": "9.99 USD",
+    },
+    {
+      "Amount": "1000.00 USD (36800.00 UAH)",
+      "Date": "19.01.2024",
+      "Description": "TEST EXCHANGE OFFICE 1",
+      "Original": "1000.00 USD",
+    },
+  ],
+}
+`;
+
+exports[`decode() — CSV path > empty.csv > full result matches snapshot 1`] = `
+{
+  "issues": [],
+  "meta": {
+    "bom": false,
+    "decodedRows": 0,
+    "delimiter": ",",
+    "encoding": "utf-8",
+    "format": "csv",
+    "headerRow": 0,
+    "totalRows": 0,
+  },
+  "rows": [],
+}
+`;
+
+exports[`decode() — CSV path > empty-header-cells.csv > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "renamed-column",
+      "column": 1,
+      "raw": "",
+      "row": 0,
+      "what": "empty-header-cell",
+      "why": "Column at index 1 (1-based position 2) has an empty or whitespace-only header cell; assigned stable placeholder name 'col_2'. The 2.3 recall pool keys on columnName — empty-string keys would break recall.",
+    },
+  ],
+  "meta": {
+    "bom": false,
+    "decodedRows": 3,
+    "delimiter": ",",
+    "encoding": "utf-8",
+    "format": "csv",
+    "headerRow": 0,
+    "totalRows": 3,
+  },
+  "rows": [
+    {
+      "col_2": "x",
+      "Дата": "01.02.2024",
+      "Контрагент": "ТОВ КАВА ПЛЮС",
+      "Опис": "Кава в кафе",
+    },
+    {
+      "col_2": "y",
+      "Дата": "02.02.2024",
+      "Контрагент": "ФОП ЧАЙ СЕРВІС",
+      "Опис": "Чай та десерт",
+    },
+    {
+      "col_2": "z",
+      "Дата": "03.02.2024",
+      "Контрагент": "РЕСТОРАН СМАК",
+      "Опис": "Обід бізнес-ланч",
+    },
+  ],
+}
+`;
+
+exports[`decode() — CSV path > mono-like-utf8.csv > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "skipped-row",
+      "raw": " - | - | - | - | - | - | - | - | - ",
+      "row": 8,
+      "what": "placeholder-row",
+      "why": "Row 8 contains only placeholder values (empty, '-', '—', 'N/A'); skipped.",
+    },
+  ],
+  "meta": {
+    "bom": false,
+    "decodedRows": 12,
+    "delimiter": ",",
+    "encoding": "utf-8",
+    "format": "csv",
+    "headerRow": 0,
+    "totalRows": 13,
+  },
+  "rows": [
+    {
+      "MCC": "5814",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "15.01.2024 08:23:14",
+      "Деталі операції": "TEST COFFEE 1",
+      "Залишок": "12345,67",
+      "Кешбек": "0,42",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-42,00",
+    },
+    {
+      "MCC": "5411",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "15.01.2024 10:45:30",
+      "Деталі операції": "TEST SUPERMARKET 1",
+      "Залишок": "12025,17",
+      "Кешбек": "3,21",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-320,50",
+    },
+    {
+      "MCC": "6011",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "15.01.2024 14:12:00",
+      "Деталі операції": "TEST ATM WITHDRAWAL",
+      "Залишок": "11520,17",
+      "Кешбек": "—",
+      "Комісія": "-5,00",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-500,00",
+    },
+    {
+      "MCC": "5812",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "16.01.2024 09:00:00",
+      "Деталі операції": "TEST CAFE 2",
+      "Залишок": "11435,17",
+      "Кешбек": "0,85",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-85,00",
+    },
+    {
+      "MCC": "5912",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "16.01.2024 12:30:45",
+      "Деталі операції": "TEST PHARMACY 1",
+      "Залишок": "11279,17",
+      "Кешбек": "—",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-156,00",
+    },
+    {
+      "MCC": "5541",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "17.01.2024 07:55:00",
+      "Деталі операції": "TEST FUEL STATION 1",
+      "Залишок": "10067,17",
+      "Кешбек": "—",
+      "Комісія": "-12,00",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-1200,00",
+    },
+    {
+      "MCC": "5812",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "17.01.2024 18:22:10",
+      "Деталі операції": "TEST RESTAURANT 1",
+      "Залишок": "9637,17",
+      "Кешбек": "4,30",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-430,00",
+    },
+    {
+      "MCC": "5310",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "18.01.2024 08:00:00",
+      "Деталі операції": "TEST ONLINE SHOP 1",
+      "Залишок": "7487,17",
+      "Кешбек": "21,50",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-2150,00",
+    },
+    {
+      "MCC": "7372",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "18.01.2024 11:11:11",
+      "Деталі операції": "TEST SUBSCRIPTION 1",
+      "Залишок": "7288,17",
+      "Кешбек": "—",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-199,00",
+    },
+    {
+      "MCC": "5411",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "19.01.2024 09:30:00",
+      "Деталі операції": "TEST GROCERY 1",
+      "Залишок": "6843,17",
+      "Кешбек": "4,45",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-445,00",
+    },
+    {
+      "MCC": "7832",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "19.01.2024 20:00:00",
+      "Деталі операції": "TEST CINEMA 1",
+      "Залишок": "6563,17",
+      "Кешбек": "2,80",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-280,00",
+    },
+    {
+      "MCC": "5251",
+      "Валюта картки": "UAH",
+      "Дата i час операції": "20.01.2024 13:00:00",
+      "Деталі операції": "TEST HARDWARE STORE 1",
+      "Залишок": "5783,17",
+      "Кешбек": "—",
+      "Комісія": "—",
+      "Сума в USD": "—",
+      "Сума в валюті картки": "-780,00",
+    },
+  ],
+}
+`;
+
+exports[`decode() — CSV path > privat-like-cp1251.csv > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "skipped-row",
+      "raw": "Виписка з рахунку",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes the detected header (row 6); treated as preamble and skipped.",
+    },
+    {
+      "action": "recovered-quote",
+      "raw": "АТ КБ ",
+      "row": 1,
+      "what": "bare-quote",
+      "why": "Unquoted field on physical line 1 contains a bare double-quote; kept as literal.",
+    },
+    {
+      "action": "recovered-quote",
+      "raw": "АТ КБ "ПРИВАТБАНК",
+      "row": 1,
+      "what": "bare-quote",
+      "why": "Unquoted field on physical line 1 contains a bare double-quote; kept as literal.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "АТ КБ "ПРИВАТБАНК"",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes the detected header (row 6); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "row": 2,
+      "what": "empty-line",
+      "why": "Physical line is empty; row skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Клієнт: ТЕСТОВИЙ ТЕСТ ТЕСТОВИЧ",
+      "row": 3,
+      "what": "preamble-row",
+      "why": "Row 2 precedes the detected header (row 6); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Рахунок: UA12 3456 7890 0000 0001 2345 6789",
+      "row": 4,
+      "what": "preamble-row",
+      "why": "Row 3 precedes the detected header (row 6); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Період: 01.01.2024 — 31.01.2024",
+      "row": 5,
+      "what": "preamble-row",
+      "why": "Row 4 precedes the detected header (row 6); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Валюта: UAH",
+      "row": 6,
+      "what": "preamble-row",
+      "why": "Row 5 precedes the detected header (row 6); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "row": 7,
+      "what": "empty-line",
+      "why": "Physical line is empty; row skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Разом|||-261,50||",
+      "row": 16,
+      "what": "summary-row",
+      "why": "Row 14 matches the summary-row pattern (keyword 'Разом' in first cell, ≤40% fill); skipped.",
+    },
+  ],
+  "meta": {
+    "bom": false,
+    "decodedRows": 7,
+    "delimiter": ";",
+    "encoding": "windows-1251",
+    "format": "csv",
+    "headerRow": 8,
+    "totalRows": 8,
+  },
+  "rows": [
+    {
+      "Валюта": "UAH",
+      "Дата": "15.01.2024",
+      "Залишок": "10000,00",
+      "МФО": "5812",
+      "Опис операції": "Оплата в TEST КАФЕ 1",
+      "Сума": "-85,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "15.01.2024",
+      "Залишок": "10500,00",
+      "МФО": "0",
+      "Опис операції": "Переказ від ТЕСТ ІВАНОВ І.І.",
+      "Сума": "+500,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "16.01.2024",
+      "Залишок": "10179,50",
+      "МФО": "5411",
+      "Опис операції": "Оплата в TEST СУПЕРМАРКЕТ 1",
+      "Сума": "-320,50",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "16.01.2024",
+      "Залишок": "9980,50",
+      "МФО": "7372",
+      "Опис операції": "Оплата "TEST SPECIAL" операція",
+      "Сума": "-199,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "17.01.2024",
+      "Залишок": "8980,50",
+      "МФО": "6011",
+      "Опис операції": "Зняття в TEST БАНКОМАТ 1",
+      "Сума": "-1000,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "18.01.2024",
+      "Залишок": "8824,50",
+      "МФО": "5912",
+      "Опис операції": "Оплата в TEST АПТЕКА 1",
+      "Сума": "-156,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "19.01.2024",
+      "Залишок": "10824,50",
+      "МФО": "0",
+      "Опис операції": "Поповнення рахунку ТЕСТ",
+      "Сума": "+2000,00",
+    },
+  ],
+}
+`;
+
+exports[`decode() — CSV path > tabs-ragged.csv > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "skipped-row",
+      "raw": "Date|Description|Amount|Currency",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "15.01.2024|TEST PAYMENT 1|-100.00|UAH",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "16.01.2024|TEST PAYMENT 2|-250.50|UAH|EXTRA_COL",
+      "row": 2,
+      "what": "preamble-row",
+      "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "truncated-row",
+      "row": 4,
+      "what": "ragged-long",
+      "why": "Row 4 has 4 cell(s) but the header has 2; 2 extra cell(s) preserved under positional key(s) col_3, col_4 instead of being silently dropped.",
+    },
+    {
+      "action": "recovered-quote",
+      "raw": "TEST PAYMENT 5 with ",
+      "row": 5,
+      "what": "bare-quote",
+      "why": "Unquoted field on physical line 5 contains a bare double-quote; kept as literal.",
+    },
+    {
+      "action": "truncated-row",
+      "row": 5,
+      "what": "ragged-long",
+      "why": "Row 5 has 4 cell(s) but the header has 2; 2 extra cell(s) preserved under positional key(s) col_3, col_4 instead of being silently dropped.",
+    },
+    {
+      "action": "truncated-row",
+      "row": 6,
+      "what": "ragged-long",
+      "why": "Row 6 has 4 cell(s) but the header has 2; 2 extra cell(s) preserved under positional key(s) col_3, col_4 instead of being silently dropped.",
+    },
+  ],
+  "meta": {
+    "bom": false,
+    "decodedRows": 3,
+    "delimiter": "	",
+    "encoding": "utf-8",
+    "format": "csv",
+    "headerRow": 3,
+    "totalRows": 3,
+  },
+  "rows": [
+    {
+      "17.01.2024": "18.01.2024",
+      "TEST PAYMENT 3 short": "TEST PAYMENT 4",
+      "col_3": "-75.00",
+      "col_4": "UAH",
+    },
+    {
+      "17.01.2024": "19.01.2024",
+      "TEST PAYMENT 3 short": "TEST PAYMENT 5 with "bare quote inside",
+      "col_3": "-90.00",
+      "col_4": "UAH",
+    },
+    {
+      "17.01.2024": "20.01.2024",
+      "TEST PAYMENT 3 short": "TEST PAYMENT 6",
+      "col_3": "-140.00",
+      "col_4": "UAH",
+    },
+  ],
+}
+`;
+
+exports[`decode() — CSV path > utf8-bom.csv > full result matches snapshot 1`] = `
+{
+  "issues": [],
+  "meta": {
+    "bom": true,
+    "decodedRows": 3,
+    "delimiter": ",",
+    "encoding": "utf-8",
+    "format": "csv",
+    "headerRow": 0,
+    "totalRows": 3,
+  },
+  "rows": [
+    {
+      "Amount": "-100.00",
+      "Date": "15.01.2024",
+      "Description": "TEST BOM PAYMENT 1",
+    },
+    {
+      "Amount": "-250.50",
+      "Date": "16.01.2024",
+      "Description": "TEST BOM PAYMENT 2",
+    },
+    {
+      "Amount": "-75.00",
+      "Date": "17.01.2024",
+      "Description": "TEST BOM PAYMENT 3",
+    },
+  ],
+}
+`;
+
+exports[`decode() — spreadsheet path > bank-like.xlsx > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "skipped-row",
+      "raw": "Виписка за рахунком UA21 3006 4900 0026 0071 3578 4|||||",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Період: 01.01.2024 – 31.01.2024|||||",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "|||||",
+      "row": 2,
+      "what": "preamble-row",
+      "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Разом||+7220,00|||5,00",
+      "row": 14,
+      "what": "summary-row",
+      "why": "Row 14 matches the summary-row pattern (keyword 'Разом' in first cell, ≤40% fill); skipped.",
+    },
+  ],
+  "meta": {
+    "decodedRows": 10,
+    "format": "xlsx",
+    "headerRow": 3,
+    "otherSheets": undefined,
+    "sheet": "Виписка",
+    "totalRows": 11,
+  },
+  "rows": [
+    {
+      "Валюта": "UAH",
+      "Дата": "01.01.2024",
+      "Залишок": "98500,00",
+      "Комісія": "0,00",
+      "Опис": "Покупка в METRO 1",
+      "Сума": "-1500,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "02.01.2024",
+      "Залишок": "103500,00",
+      "Комісія": "0,00",
+      "Опис": "Переказ від ІВАНЕНКО",
+      "Сума": "+5000,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "03.01.2024",
+      "Залишок": "103050,00",
+      "Комісія": "0,00",
+      "Опис": "Комунальні послуги",
+      "Сума": "-450,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "04.01.2024",
+      "Залишок": "101050,00",
+      "Комісія": "5,00",
+      "Опис": "Зняття в банкоматі",
+      "Сума": "-2000,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "05.01.2024",
+      "Залишок": "100900,00",
+      "Комісія": "0,00",
+      "Опис": "Оплата за інтернет",
+      "Сума": "-150,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "06.01.2024",
+      "Залишок": "100580,00",
+      "Комісія": "0,00",
+      "Опис": "Покупка в АТБ",
+      "Сума": "-320,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "07.01.2024",
+      "Залишок": "110580,00",
+      "Комісія": "0,00",
+      "Опис": "Поповнення від клієнта",
+      "Сума": "+10000,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "08.01.2024",
+      "Залишок": "109780,00",
+      "Комісія": "0,00",
+      "Опис": "Оплата за газ",
+      "Сума": "-800,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "09.01.2024",
+      "Залишок": "109220,00",
+      "Комісія": "0,00",
+      "Опис": "Покупка в Сільпо",
+      "Сума": "-560,00",
+    },
+    {
+      "Валюта": "UAH",
+      "Дата": "10.01.2024",
+      "Залишок": "106220,00",
+      "Комісія": "0,00",
+      "Опис": "Переказ Monobank",
+      "Сума": "-3000,00",
+    },
+  ],
+}
+`;
+
+exports[`decode() — spreadsheet path > legacy.xls > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "skipped-row",
+      "raw": "Виписка з рахунку (старий формат)||||",
+      "row": 0,
+      "what": "preamble-row",
+      "why": "Row 0 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Клієнт: ТЕСТ ТЕСТОВИЧ||||",
+      "row": 1,
+      "what": "preamble-row",
+      "why": "Row 1 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "||||",
+      "row": 2,
+      "what": "preamble-row",
+      "why": "Row 2 precedes the detected header (row 3); treated as preamble and skipped.",
+    },
+    {
+      "action": "skipped-row",
+      "raw": "Разом||+7720,00||",
+      "row": 9,
+      "what": "summary-row",
+      "why": "Row 9 matches the summary-row pattern (keyword 'Разом' in first cell, ≤40% fill); skipped.",
+    },
+  ],
+  "meta": {
+    "decodedRows": 5,
+    "format": "xls",
+    "headerRow": 3,
+    "otherSheets": undefined,
+    "sheet": "Sheet1",
+    "totalRows": 6,
+  },
+  "rows": [
+    {
+      "Банк": "ПАТ Ощадбанк",
+      "Дата": "15.03.2023",
+      "МФО": "322001",
+      "Призначення": "Оплата послуг ЖКГ",
+      "Сума": "-850,00",
+    },
+    {
+      "Банк": "АТ Приватбанк",
+      "Дата": "16.03.2023",
+      "МФО": "305299",
+      "Призначення": "Переказ фізособі",
+      "Сума": "-1200,00",
+    },
+    {
+      "Банк": "ПАТ Ощадбанк",
+      "Дата": "17.03.2023",
+      "МФО": "322001",
+      "Призначення": "Поповнення депозиту",
+      "Сума": "-5000,00",
+    },
+    {
+      "Банк": "ПАТ Ощадбанк",
+      "Дата": "18.03.2023",
+      "МФО": "322001",
+      "Призначення": "Зарахування зарплати",
+      "Сума": "+15000,00",
+    },
+    {
+      "Банк": "АТ Приватбанк",
+      "Дата": "19.03.2023",
+      "МФО": "305299",
+      "Призначення": "Оплата в Fozzy",
+      "Сума": "-230,00",
+    },
+  ],
+}
+`;
+
+exports[`decode() — spreadsheet path > multi-sheet.xlsx > full result matches snapshot 1`] = `
+{
+  "issues": [],
+  "meta": {
+    "decodedRows": 3,
+    "format": "xlsx",
+    "headerRow": 0,
+    "otherSheets": [
+      "Інфо",
+    ],
+    "sheet": "Виписка",
+    "totalRows": 3,
+  },
+  "rows": [
+    {
+      "Дата": "01.06.2024",
+      "Деталі": "Оплата за товар",
+      "Сума": "-1000,00",
+    },
+    {
+      "Дата": "02.06.2024",
+      "Деталі": "Надходження",
+      "Сума": "+5000,00",
+    },
+    {
+      "Дата": "03.06.2024",
+      "Деталі": "Комісія банку",
+      "Сума": "-25,00",
+    },
+  ],
+}
+`;

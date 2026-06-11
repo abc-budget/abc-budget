@@ -41,6 +41,27 @@ export default tseslint.config(
     },
   },
   {
+    // qa/ is allowed to import the UNSTABLE ./qa subpath only — all other deep engine imports
+    // are still banned (NFR-003). This block overrides the apps/web/** rule above.
+    // The two-pattern group covers both single-segment (@abc-budget/engine/internal) and
+    // multi-segment (@abc-budget/engine/internal/ingest/decode) deep imports.
+    files: ['apps/web/src/qa/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@abc-budget/engine/!(qa)', '@abc-budget/engine/*/**'],
+              message:
+                'qa/ may only import the @abc-budget/engine/qa unstable subpath — no other deep engine imports (NFR-003).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // ALTUS stays app-agnostic: props only — no engine, no app modules (1.3 spec §3).
     files: ['apps/web/src/ui/altus/**/*.{ts,tsx}'],
     rules: {
