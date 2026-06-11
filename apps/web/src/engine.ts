@@ -3,17 +3,17 @@ import {
   type EngineClient,
   type ExchangeRateApi,
 } from '@abc-budget/engine';
-import { createFirebaseRatesApi } from './app/rates/firebase-rates-api';
+import { createHttpRatesApi } from './app/rates/http-rates-api';
 
-/** Try to construct the Firebase exchange rate API.
- *  If initialisation fails (e.g. wrong build-time config), degrade gracefully:
+/** Try to construct the HTTP exchange rate API.
+ *  If initialisation fails (e.g. env misconfiguration), degrade gracefully:
  *  log loudly and omit the api so the engine stays usable without rates (EP-3 carry-forward). */
 function buildExchangeRateApi(): ExchangeRateApi | undefined {
   try {
-    return createFirebaseRatesApi();
+    return createHttpRatesApi();
   } catch (err) {
     console.error(
-      '[abc-budget] Failed to construct FirebaseRatesApi — exchange rate features unavailable:',
+      '[abc-budget] Failed to construct HttpRatesApi — exchange rate features unavailable:',
       err
     );
     return undefined;

@@ -2,7 +2,10 @@
   "hosting": {
     "public": "apps/web/dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "rewrites": [
+      { "source": "/api/rates", "function": { "functionId": "getUSDRates", "region": "europe-west1" } },
+      { "source": "**", "destination": "/index.html" }
+    ],
     "headers": [
       {
         "source": "**/*.@(js|css|woff2|png|svg|ico)",
