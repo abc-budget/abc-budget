@@ -47,6 +47,7 @@
  */
 
 import { BehaviorSubject, Observable, map, of } from 'rxjs'; // rxjs — INTERNAL only
+import { getLogger } from '../../logging';
 import type { ImportStatementServiceInternal } from '../service';
 import type { ImportStatementStage1 } from '../stage1';
 import type { RecallPool, RecallResult } from '../recall/recall';
@@ -352,15 +353,23 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
         }
       }
 
-      // Fire savePool async — errors are swallowed to keep applyColumn sync
-      // (matches prior-art recall-save timing: per-column, non-blocking)
+      // Fire savePool async — non-blocking so applyColumn stays sync (prior-art
+      // recall-save timing: per-column). NON-FATAL but NEVER SILENT (HC-7): a failed
+      // pool save means the next import quietly loses recall — log loudly.
+      // 2.8 carry-forward: surface this as a non-fatal UI notice in S3b.
       this._recallPool.save(name, definition, params).then((result) => {
         if (result.outcome === 'collision') {
           this.lastSaveCollision = result.collision;
         } else {
           this.lastSaveCollision = null;
         }
-      }).catch(() => { /* pool errors are non-fatal */ });
+      }).catch((err) => {
+        getLogger('engine.importStatement.stage2').error(
+          'recall-pool save failed — the mapping works for THIS import, but it will NOT be recalled next time:',
+          name,
+          err,
+        );
+      });
     }
     // ─────────────────────────────────────────────────────────────────────────
 
