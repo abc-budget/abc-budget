@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MigrationStep } from '../../store/migrations/migration';
 import { openDatabase } from '../../store/migrations/open-with-migrations';
 import { ColumnDefinition } from '../types';
-import type { DateColumnParams } from '../types';
+import type { AmountColumnParams, DateColumnParams } from '../types';
 import type { RecallPool } from './recall';
 import { normalizeKey, createRecallPool } from './recall';
 import { getEngineConfig } from '../../settings/engine-config';
@@ -197,6 +197,20 @@ describe('save semantics', () => {
     await pool.save('Amount', ColumnDefinition.AMOUNT, null);
     const result = await pool.save('Amount', ColumnDefinition.AMOUNT, null);
     expect(result.outcome).toBe('saved');
+  });
+
+  it('semantically identical params with different key order → no-op saved, NOT a phantom collision (QA FINDING-2)', async () => {
+    // Same data, different key insertion order — JSON.stringify would differ,
+    // but paramsEqual must be key-order-insensitive.
+    const paramsAB = { currency: 'auto', type: 'outcome' } as unknown as AmountColumnParams;
+    const paramsBA = { type: 'outcome', currency: 'auto' } as unknown as AmountColumnParams;
+
+    await pool.save('Amount', ColumnDefinition.AMOUNT, paramsAB);
+    const result = await pool.save('Amount', ColumnDefinition.AMOUNT, paramsBA);
+
+    expect(result.outcome).toBe('saved');
+    const keys = await pool.getAllKeys();
+    expect(keys).toHaveLength(1);
   });
 
   it('same definition + different params → params-change collision', async () => {

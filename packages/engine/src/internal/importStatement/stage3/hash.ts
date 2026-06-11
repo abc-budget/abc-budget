@@ -76,6 +76,12 @@ const HASH_COLUMN_DEFINITIONS = [
   ColumnDefinition.DATE,
   ColumnDefinition.AMOUNT,
   ColumnDefinition.DESCRIPTION,
+  // EXTEND vs prior art (2.3 QA FINDING-1, ENT-009): COUNTERPARTY is identifying
+  // data — hashed like description. Without it, rows differing only by
+  // counterparty hash identically and silently dedup-merge once footprint
+  // dedup lands (EP-3/ENT-014). Hashes are not persisted yet (HC-2/3), so
+  // extending the recipe now is free.
+  ColumnDefinition.COUNTERPARTY,
   ColumnDefinition.CURRENCY,
   ColumnDefinition.BALANCE,
   ColumnDefinition.BANK_ACCOUNT,

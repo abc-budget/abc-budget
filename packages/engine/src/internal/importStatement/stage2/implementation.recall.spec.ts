@@ -15,6 +15,7 @@
 
 import { describe, it, expect, beforeEach, vi, type Mocked } from 'vitest';
 import { firstValueFrom } from 'rxjs';
+import { getLogger } from '../../logging';
 import { NativeMessage } from '../../utils/messages/message';
 import type { ImportStatementServiceInternal } from '../service';
 import type { ImportStatementStage1 } from '../stage1';
@@ -610,8 +611,12 @@ describe('ImportStatementStage2Impl — recall mount (2.3)', () => {
       expect(stage2.lastSaveCollision).toBeNull();
     });
 
-    it('savePool save errors are swallowed (applyColumn does not throw)', async () => {
+    it('savePool save failure is non-fatal but LOUD (HC-7): applyColumn does not throw AND the error is logged', async () => {
       mockRecallPool.save = vi.fn().mockRejectedValue(new Error('IndexedDB error'));
+
+      // Under Vitest getLogger returns a shared singleton — spying on its
+      // error method captures the production catch-handler's loud log.
+      const errorSpy = vi.spyOn(getLogger('engine.importStatement.stage2'), 'error');
 
       const col = createMockColumn('col-a', 'Amount', ['100', '200']);
       const stage2 = new ImportStatementStage2Impl(
@@ -628,13 +633,22 @@ describe('ImportStatementStage2Impl — recall mount (2.3)', () => {
         params: null,
       });
 
-      // applyColumn must not throw even when save rejects
+      // applyColumn must not throw even when save rejects (non-fatal)...
       expect(() => stage2.applyColumn(appliedCol)).not.toThrow();
 
       await new Promise<void>((resolve) => setTimeout(resolve, 10));
 
+      // ...but the failure must be LOGGED, never silently swallowed (HC-7).
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('recall-pool save failed'),
+        expect.anything(),
+        expect.any(Error)
+      );
+
       // lastSaveCollision stays null on error
       expect(stage2.lastSaveCollision).toBeNull();
+
+      errorSpy.mockRestore();
     });
   });
 

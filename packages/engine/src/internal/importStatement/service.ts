@@ -161,8 +161,12 @@ export class ImportStatementServiceImpl
       );
 
       const originalName = new NativeMessage(columnName);
-      // CurrencyCache removed (1.6 wiring) — settingsDao passed as null here;
-      // Task 3 recall wiring happens in ImportStatementStage2Impl.create() later.
+      // CurrencyCache removed (1.6 wiring) — settingsDao passed as null here.
+      // Recall mounts via the ImportStatementStage2Impl CONSTRUCTOR (recallPool
+      // param); this service-level path does not wire it yet — the production
+      // wiring (recall pool + settingsDao injection) lands with the client
+      // surface in 2.6. ⚠️ 2.6 MUST-DO: do not ship the client surface with
+      // this path unwired.
       return new ImportStatementColumn(
         generateUniqueId('column'),
         originalName,

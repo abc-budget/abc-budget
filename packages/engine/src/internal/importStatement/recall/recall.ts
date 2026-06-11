@@ -156,15 +156,34 @@ export function normalizeKey(name: string): string {
 // ── Deep-equality for params ──────────────────────────────────────────────────
 
 /**
+ * Canonical JSON for plain data values: object keys are sorted recursively so
+ * the serialization is insensitive to key insertion order.
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  const record = value as Record<string, unknown>;
+  const parts = Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`);
+  return `{${parts.join(',')}}`;
+}
+
+/**
  * Deep-equal comparison for ColumnParams | null.
  * Used to detect no-op saves vs. params-change collisions.
+ * Key-order-insensitive (2.3 QA FINDING-2): semantically identical params with
+ * different key insertion order must NOT raise a phantom params-change collision.
  * Deterministic: no Date.now/Math.random.
  */
 function paramsEqual(a: ColumnParams | null, b: ColumnParams | null): boolean {
   if (a === b) return true;
   if (a === null || b === null) return false;
-  // Use JSON serialization for deep equality (params are plain data objects)
-  return JSON.stringify(a) === JSON.stringify(b);
+  return stableStringify(a) === stableStringify(b);
 }
 
 // ── Auto-detect heuristics ────────────────────────────────────────────────────
