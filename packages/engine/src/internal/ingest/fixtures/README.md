@@ -19,6 +19,12 @@ No real bank data — all amounts, names, and account numbers are fabricated.
 
 Messiness items exercised across CSV fixtures: ① encoding (cp1251 + BOM) ② delimiter sniffing ③ preamble rows ④ summary rows ⑤ placeholder rows ⑥ ragged rows (short + long) ⑦ merged/empty columns at the HEADER level (empty-header-cells.csv).
 
+### Threshold fixture (Story 2.4)
+
+| Fixture | Encoding | Delimiter | Preamble rows | Messiness / key traits |
+|---|---|---|---|---|
+| `bad-dates.csv` | UTF-8 | `,` | 0 | 12 data rows, 3 columns. `Date`: 7 valid ISO dates + 5 garbage strings (rows 2,4,6,8,10) → 41.7 % errors, trips the default 0.3 gate (`ColumnTransformRejection`). `Amount`: 11 valid negatives + 1 garbage at row 10 → 8.3 % errors — passes the default gate, REJECTED under a 0.05 store override (store-backing/E2E triple-pin fixture). `Description`: clean |
+
 ### Spreadsheet fixtures (Task 5)
 
 | Fixture | Format | Messiness / key traits |
