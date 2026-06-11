@@ -94,6 +94,12 @@ export class InvalidSettingError extends Error {
  */
 export enum SettingKeys {
   BASE_CURRENCY = 'baseCurrency',
+
+  // engineConfig.* keys (Story 2.4 — store-backed engine params, ENT-016/NFR-009)
+  ENGINE_ACCEPTABLE_PARSE_DATE_PERCENTAGE = 'engineConfig.acceptableParseDatePercentage',
+  ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE = 'engineConfig.acceptableColumnErrorPercentage',
+  ENGINE_SUCCESS_STATUS_THRESHOLD = 'engineConfig.successStatusThreshold',
+  ENGINE_RECALL_AUTO_DETECT_ENABLED = 'engineConfig.recallAutoDetectEnabled',
 }
 
 // ── Abstract base ─────────────────────────────────────────────────────────────
