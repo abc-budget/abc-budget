@@ -81,12 +81,22 @@ export type TransactionRow = ImportStatementStage3Row;
  * error is collected here and generation continues with the next row.
  *
  * FEAT-022 contract: `generateRows()` NEVER throws; it collects.
+ *
+ * 2.5 amendment (RowError columnId): optional `columnId` carries the cell
+ * coordinate for pseudo-op failures so S3b/S3d can point at the exact column.
+ * Main-op row errors leave it absent (whole-row errors have no single column).
+ * Optional field — zero churn in the 2.3/2.4 suites.
  */
 export interface RowError {
   /** Index of the row that failed (matches `ImportStatementRowData.rowIndex`) */
   readonly rowIndex: number;
   /** One or more error messages describing why this row could not be generated */
   readonly errors: readonly Message[];
+  /**
+   * Column id for pseudo-op failures (BANK_COMMISSION / CASHBACK column that
+   * caused the error). Absent for whole-row main-op errors.
+   */
+  readonly columnId?: string;
 }
 
 /**

@@ -50,15 +50,19 @@ import { generateRows } from './row-generator';
 import type { ImportStatementRowData, CellData } from '../stage2/types';
 import { SupportedDataType } from '../stage2/types';
 import { ColumnDefinition } from '../types';
-import type { AmountColumnParams } from '../types';
+import type { AmountColumnParams, BankCommissionColumnParams, CashbackColumnParams } from '../types';
 import { $t } from '../../utils/messages/index';
 
 // ---------------------------------------------------------------------------
 // Hash mock — avoid WebCrypto in unit tests
+// discriminator-aware so pseudo-op hash pins work
 // ---------------------------------------------------------------------------
 
 vi.mock('./hash', () => ({
-  calculateRowHash: vi.fn().mockResolvedValue('dummy-hash'),
+  calculateRowHash: vi.fn().mockImplementation(
+    async (_row: unknown, _cols: unknown, discriminator: string = 'main') =>
+      `dummy-hash-${discriminator}`,
+  ),
   generateHashableObject: vi.fn().mockReturnValue({}),
 }));
 
@@ -646,6 +650,242 @@ describe('ImportStatementStage3 Row Generator', () => {
         expect(result1.rows[i].hash).toBe(result2.rows[i].hash);
         expect(result1.rows[i].date).toEqual(result2.rows[i].date);
       }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // ENT-013: pseudo-op expansion wired into generateRows
+  // ---------------------------------------------------------------------------
+
+  describe('ENT-013: pseudo-op expansion', () => {
+    // Helper to create a column with BankCommission / Cashback params
+    function createCommissionColumn(id: string, params: BankCommissionColumnParams): ColumnInfo {
+      return { id, definition: ColumnDefinition.BANK_COMMISSION, params };
+    }
+
+    function createCashbackColumn(id: string, params: CashbackColumnParams): ColumnInfo {
+      return { id, definition: ColumnDefinition.CASHBACK, params };
+    }
+
+    // ── SPAWN-SCOPE PIN 1: income-skipped main + commission → skipped entry AND 1 commission op
+    describe('SPAWN-SCOPE PIN 1 (decision 3): income-skipped main spawns pseudo-ops', () => {
+      it('PIN1a: income-skipped main + commission cell → main in skipped WITH reason AND exactly 1 commission op in rows', async () => {
+        const date = new Date('2024-01-10');
+        const ignoreMsg = $t('engine.importStatement.income-value-ignored', { value: 5000 });
+
+        // Row 0: income (AMOUNT cell has ignore) + commission cell
+        const row0 = createMockRow(
+          0,
+          { col1: date, col2: 5000.0, colComm: 100.0 },
+          { col2: ignoreMsg }, // income → skipped
+        );
+
+        const columns = [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams),
+          createCommissionColumn('colComm', { currency: 'use_base' }),
+        ];
+
+        const result = await generateRows([row0], columns, BASE_CURRENCY);
+
+        // Main op skipped (income)
+        expect(result.skipped).toHaveLength(1);
+        expect(result.skipped[0].rowIndex).toBe(0);
+        expect(result.skipped[0].reason).toBeTruthy();
+
+        // Commission pseudo-op spawned
+        expect(result.rows).toHaveLength(1);
+        expect(result.rows[0].isBankCommission).toBe(true);
+
+        expect(result.rowErrors).toHaveLength(0);
+      });
+
+      it('PIN1b: income-skipped main + cashback cell → main in skipped AND exactly 1 cashback op in rows', async () => {
+        const date = new Date('2024-01-10');
+        const ignoreMsg = $t('engine.importStatement.income-value-ignored', { value: 5000 });
+
+        const row0 = createMockRow(
+          0,
+          { col1: date, col2: 5000.0, colCb: 20.0 },
+          { col2: ignoreMsg },
+        );
+
+        const columns = [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams),
+          createCashbackColumn('colCb', { currency: 'use_base' }),
+        ];
+
+        const result = await generateRows([row0], columns, BASE_CURRENCY);
+
+        expect(result.skipped).toHaveLength(1);
+        expect(result.rows).toHaveLength(1);
+        expect(result.rows[0].isCashback).toBe(true);
+        expect(result.rowErrors).toHaveLength(0);
+      });
+
+      it('PIN1c: income-skipped main + both commission + cashback → 2 pseudo-ops in rows + skipped main', async () => {
+        const date = new Date('2024-01-10');
+        const ignoreMsg = $t('engine.importStatement.income-value-ignored', { value: 5000 });
+
+        const row0 = createMockRow(
+          0,
+          { col1: date, col2: 5000.0, colComm: 100.0, colCb: 20.0 },
+          { col2: ignoreMsg },
+        );
+
+        const columns = [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams),
+          createCommissionColumn('colComm', { currency: 'use_base' }),
+          createCashbackColumn('colCb', { currency: 'use_base' }),
+        ];
+
+        const result = await generateRows([row0], columns, BASE_CURRENCY);
+
+        expect(result.skipped).toHaveLength(1);
+        expect(result.rows).toHaveLength(2);
+        expect(result.rows[0].isBankCommission).toBe(true);
+        expect(result.rows[1].isCashback).toBe(true);
+        expect(result.rowErrors).toHaveLength(0);
+      });
+    });
+
+    // ── SPAWN-SCOPE PIN 2: errored row → rowError only, ZERO pseudo-ops
+    describe('SPAWN-SCOPE PIN 2: errored row never spawns pseudo-ops', () => {
+      it('PIN2: errored row + non-empty commission cell → rowError only, ZERO pseudo-ops', async () => {
+        // Use a throwing row to simulate an errored row (same pattern as N1)
+        const throwingRow: ImportStatementRowData = {
+          rowIndex: 0,
+          get: vi.fn((_id: string): CellData => {
+            throw new Error('Simulated row error');
+          }),
+          errorMessageAt: vi.fn().mockReturnValue(null),
+          ignoreMessageAt: vi.fn().mockReturnValue(null),
+          get isIgnored() { return false; },
+          get hasErrors() { return false; },
+        };
+
+        const columns = [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams),
+          createCommissionColumn('colComm', { currency: 'use_base' }),
+        ];
+
+        const result = await generateRows([throwingRow], columns, BASE_CURRENCY);
+
+        expect(result.rows).toHaveLength(0);
+        expect(result.rowErrors).toHaveLength(1);
+        expect(result.skipped).toHaveLength(0);
+        // No commission pseudo-op was spawned
+      });
+    });
+
+    // ── ENT-013 acceptance: fixture row with commission+cashback → exactly 3 ops, 3 DISTINCT hashes
+    describe('ENT-013 acceptance: 3 ops with distinct hashes', () => {
+      it('ENT-013: row with commission+cashback → 3 ops (main, commission, cashback) with distinct hashes', async () => {
+        const date = new Date('2024-03-01');
+        const row = createMockRow(0, {
+          col1: date,
+          col2: 1000.0,
+          col3: 'USD',
+          colComm: 50.0,
+          colCb: 10.0,
+        });
+
+        const columns = [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'auto' } as AmountColumnParams),
+          createColumn('col3', ColumnDefinition.CURRENCY),
+          createCommissionColumn('colComm', { currency: 'use_base' }),
+          createCashbackColumn('colCb', { currency: 'use_base' }),
+        ];
+
+        const result = await generateRows([row], columns, BASE_CURRENCY);
+
+        expect(result.rowErrors).toHaveLength(0);
+        expect(result.skipped).toHaveLength(0);
+        expect(result.rows).toHaveLength(3);
+
+        // Main op
+        expect(result.rows[0].isBankCommission).toBe(false);
+        expect(result.rows[0].isCashback).toBe(false);
+
+        // Commission op
+        expect(result.rows[1].isBankCommission).toBe(true);
+        expect(result.rows[1].isCashback).toBe(false);
+
+        // Cashback op
+        expect(result.rows[2].isBankCommission).toBe(false);
+        expect(result.rows[2].isCashback).toBe(true);
+
+        // 3 DISTINCT hashes (Q-011 pin)
+        const hashes = result.rows.map((r) => r.hash);
+        const uniqueHashes = new Set(hashes);
+        expect(uniqueHashes.size).toBe(3);
+      });
+    });
+
+    // ── never-throw: bad commission cell on good main → main in rows + pseudo-error with columnId
+    describe('never-throw contract holds for pseudo-ops', () => {
+      it('bad commission cell on good main → main in rows + pseudo-error in rowErrors with columnId, generation continues', async () => {
+        const date = new Date('2024-04-01');
+        const errMsg = $t("engine.importStatement.can't-parse-as-bank-commission", {
+          message: $t('engine.importStatement.bank-commission-parse-failed', { value: 'bad' }),
+        });
+
+        const row = createMockRow(
+          2,
+          { col1: date, col2: 200.0, col3: 'USD', colComm: 'bad' },
+          {},
+          { colComm: errMsg }, // error cell
+        );
+
+        const columns = [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'auto' } as AmountColumnParams),
+          createColumn('col3', ColumnDefinition.CURRENCY),
+          createCommissionColumn('colComm', { currency: 'use_base' }),
+        ];
+
+        const result = await generateRows([row], columns, BASE_CURRENCY);
+
+        // Main op generated
+        expect(result.rows).toHaveLength(1);
+        expect(result.rows[0].isBankCommission).toBe(false);
+
+        // Pseudo-error collected with columnId
+        expect(result.rowErrors).toHaveLength(1);
+        expect(result.rowErrors[0].columnId).toBe('colComm');
+
+        expect(result.skipped).toHaveLength(0);
+      });
+    });
+
+    // ── existing tests: zero pseudo-op count changes when no commission/cashback columns mapped
+    describe('suite integrity: no commission/cashback columns → zero pseudo-ops', () => {
+      it('existing rows without commission/cashback columns produce same count (no extra pseudo-ops)', async () => {
+        const date = new Date('2024-01-01');
+        const rows = [
+          createMockRow(0, { col1: date, col2: 100.0, col3: 'USD', col4: 'Buy' }),
+          createMockRow(1, { col1: date, col2: 200.0, col3: 'EUR', col4: 'Sell' }),
+        ];
+
+        const columns = [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'auto' } as AmountColumnParams),
+          createColumn('col3', ColumnDefinition.CURRENCY),
+          createColumn('col4', ColumnDefinition.DESCRIPTION),
+          // No BANK_COMMISSION or CASHBACK columns
+        ];
+
+        const result = await generateRows(rows, columns, BASE_CURRENCY);
+
+        // Still exactly 2 main ops — no extra pseudo-ops
+        expect(result.rows).toHaveLength(2);
+        expect(result.rowErrors).toHaveLength(0);
+        expect(result.skipped).toHaveLength(0);
+      });
     });
   });
 });
