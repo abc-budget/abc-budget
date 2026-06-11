@@ -123,7 +123,7 @@ describe("handler order: rate-limit guard (429) before date validation", () => {
     it("returns 429 when rate-limiter denies — no Firestore touch", async () => {
         const req = makeReq({
             method: "POST",
-            origin: "https://abc-budget-2d379.web.app",
+            origin: "https://abcbudget.web.app",
             body: { date: "NOT-A-DATE" }, // invalid date; but rate limit fires first
         });
         const res = makeRes();
@@ -152,7 +152,7 @@ describe("handler order: date validation (400) before Firestore", () => {
     it("returns 400 for invalid date — Firestore NOT called", async () => {
         const req = makeReq({
             method: "POST",
-            origin: "https://abc-budget-2d379.web.app",
+            origin: "https://abcbudget.web.app",
             body: { date: "NOT-A-DATE" },
         });
         const res = makeRes();
@@ -176,7 +176,7 @@ describe("handler order: date validation (400) before Firestore", () => {
     it("returns 400 for out-of-range date — Firestore NOT called", async () => {
         const req = makeReq({
             method: "POST",
-            origin: "https://abc-budget-2d379.web.app",
+            origin: "https://abcbudget.web.app",
             body: { date: "1990-01-01" }, // before 1999
         });
         const res = makeRes();
@@ -199,7 +199,7 @@ describe("handler order: date validation (400) before Firestore", () => {
     it("returns 400 for missing date field — Firestore NOT called", async () => {
         const req = makeReq({
             method: "POST",
-            origin: "https://abc-budget-2d379.web.app",
+            origin: "https://abcbudget.web.app",
             body: {},
         });
         const res = makeRes();
@@ -225,7 +225,7 @@ describe("handler order: cache hit returns 200 without budget/OER", () => {
         const cachedRates = { USD: 1, EUR: 0.85 };
         const req = makeReq({
             method: "POST",
-            origin: "https://abc-budget-2d379.web.app",
+            origin: "https://abcbudget.web.app",
             body: { date: "2024-01-15" },
         });
         const res = makeRes();
@@ -256,7 +256,7 @@ describe("handler order: budget cap (429) before OER fetch", () => {
     it("returns 429 resource-exhausted when budget is exhausted — OER NOT called", async () => {
         const req = makeReq({
             method: "POST",
-            origin: "https://abc-budget-2d379.web.app",
+            origin: "https://abcbudget.web.app",
             body: { date: "2024-01-15" },
         });
         const res = makeRes();
@@ -285,7 +285,7 @@ describe("handler order: OER failure → 500", () => {
     it("returns 500 when OER throws — no internals leaked", async () => {
         const req = makeReq({
             method: "POST",
-            origin: "https://abc-budget-2d379.web.app",
+            origin: "https://abcbudget.web.app",
             body: { date: "2024-01-15" },
         });
         const res = makeRes();
@@ -425,7 +425,7 @@ describe("effectiveAllowlist — emulator-gated origin relaxation", () => {
         expect(list).not.toContain("http://localhost:5000");
         expect(list).not.toContain("http://127.0.0.1:5000");
         // Prod origins still present
-        expect(list).toContain("https://abc-budget-2d379.web.app");
-        expect(list).toContain("https://abc-budget-2d379.firebaseapp.com");
+        expect(list).toContain("https://abcbudget.web.app");
+        expect(list).toContain("https://abcbudget.firebaseapp.com");
     });
 });
