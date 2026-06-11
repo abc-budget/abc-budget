@@ -115,6 +115,14 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
   /** Optional settings DAO injected at construction; enables `use_base` resolution. */
   private readonly _settingsDao: UserSettingsDAO | null;
 
+  /**
+   * Recall state for this column's definition (FEAT-013 / 2.3).
+   * 'guessed'   — prefilled from pool or auto-detect; awaiting user confirmation.
+   * 'confirmed' — user explicitly confirmed the mapping.
+   * null        — not from recall (manually mapped or not yet mapped).
+   */
+  readonly recallState: 'guessed' | 'confirmed' | null;
+
   constructor(
     id: string,
     name: Message,
@@ -122,7 +130,8 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     definition: ColumnDefinition | null = null,
     params: ColumnParams | null = null,
     data: CellData[] = [],
-    settingsDao: UserSettingsDAO | null = null
+    settingsDao: UserSettingsDAO | null = null,
+    recallState: 'guessed' | 'confirmed' | null = null
   ) {
     this.id = id;
     this.name = name;
@@ -131,6 +140,7 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     this.params = params;
     this.data = data;
     this._settingsDao = settingsDao;
+    this.recallState = recallState;
   }
 
   /**
@@ -361,11 +371,13 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     definition,
     params,
     data,
+    recallState,
   }: {
     name?: Message;
     definition?: ColumnDefinition | null;
     params?: ColumnParams | null;
     data?: CellData[];
+    recallState?: 'guessed' | 'confirmed' | null;
   } = {}): ImportStatementColumn {
     const newColumn = new ImportStatementColumn(
       this.id,
@@ -374,7 +386,8 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       definition !== undefined ? definition : this.definition,
       params !== undefined ? params : this.params,
       data !== undefined ? data : this.data,
-      this._settingsDao
+      this._settingsDao,
+      recallState !== undefined ? recallState : this.recallState
     );
 
     // Associate with the same stage2 if this column is associated
