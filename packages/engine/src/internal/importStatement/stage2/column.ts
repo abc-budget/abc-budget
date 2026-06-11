@@ -677,10 +677,15 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
 
           // Apply type-specific transformations
           if (effectiveAmountType === 'income') {
-            // Income type - keep current behavior
+            // Income type — VIS-011 label-and-discard: ALL rows are skipped with a reason
+            // (FEAT-022 shape: the `ignore` field names the cause so downstream row
+            //  processing can report why this cell was discarded).
             return {
               value: numberValue,
               type: SupportedDataType.NUMBER,
+              ignore: $t('engine.importStatement.income-value-ignored', {
+                value: numberValue,
+              }),
             } satisfies CellData;
           } else if (effectiveAmountType === 'outcome') {
             // Outcome type - take absolute value, ignore zeros

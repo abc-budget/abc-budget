@@ -576,13 +576,14 @@ describe('ImportStatementColumn (core behaviors)', () => {
   });
 
   describe('parseAsAmount (income/outcome types)', () => {
-    it('income: keeps numbers as-is, including zero; parses strings with separators', async () => {
+    it('income: all rows skipped with reason (VIS-011 label-and-discard; FEAT-022 ignore shape)', async () => {
+      // Spec §5 (ENT-009): income → rows SKIPPED with reason object.
+      // The `ignore` field on every successfully-parsed cell names the cause (FEAT-022).
       const data = [
         cell(123.45, SupportedDataType.NUMBER),
         cell(0, SupportedDataType.NUMBER),
-        cell('1,234.56'), // thousand separator
-        cell('1 234,56'), // localized comma decimal (depends on parseNumber)
-        cell('-789.10'),
+        cell('1,234.56'), // thousand separator — parses to a number
+        cell('-789.10'),  // negative value also discarded (income = label-and-discard ALL)
       ];
       const col = new ImportStatementColumn(
         columnId,
@@ -604,19 +605,17 @@ describe('ImportStatementColumn (core behaviors)', () => {
         -1
       )?.[0] as ImportStatementColumn;
       expect(applied.definition).toBe(ColumnDefinition.AMOUNT);
+      // Every successfully-parsed number must have an ignore reason (FEAT-022 shape)
       expect(applied.data[0].value).toBe(123.45);
-      expect(applied.data[0].ignore).toBeUndefined();
-      expect(applied.data[1].value).toBe(0); // zero not ignored for income
-      expect(applied.data[1].ignore).toBeUndefined();
-      // We cannot assert exact parse of '1 234,56' without knowing parseNumber rules; assert it became a NUMBER or errored deterministically
-      expect([SupportedDataType.NUMBER, undefined]).toContain(
-        applied.data[2].type
-      );
-      expect([SupportedDataType.NUMBER, undefined]).toContain(
-        applied.data[3].type
-      );
-      // Negative values remain negative for income
-      expect(applied.data[4].value).toBeCloseTo(-789.1);
+      expect(applied.data[0].ignore).toBeTruthy(); // income skipped with reason
+      expect(applied.data[1].value).toBe(0);
+      expect(applied.data[1].ignore).toBeTruthy(); // zero also skipped for income
+      // '1,234.56' parses to a number; the result cell must also carry ignore
+      if (!applied.data[2].error) {
+        expect(applied.data[2].ignore).toBeTruthy();
+      }
+      // Negative values are also skipped (income = label-and-discard ALL rows)
+      expect(applied.data[3].ignore).toBeTruthy();
     });
 
     it('outcome: returns absolute values; zero is ignored', async () => {
