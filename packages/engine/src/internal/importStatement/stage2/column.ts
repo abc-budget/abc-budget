@@ -314,14 +314,10 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       errorPercentage
     );
 
-    // Gate: if the error fraction exceeds the configured threshold, throw a structured
-    // ColumnTransformRejection carrying the complete per-cell evidence payload.
-    // Throw semantics are identical to the prior validateErrorPercentage throw — the
-    // copy/applyColumn below is still never reached on rejection.
-    // (Declared adaptation — hunk-audited: validateErrorPercentage is KEPT for other
-    // call sites but the gate site now constructs ColumnTransformRejection instead of
-    // a bare LocalizableException, enabling callers to access per-cell evidence.)
-    // Note: errorPercentage is already computed above for the logger.debug call.
+    // Gate (ENT-015): error fraction over the configured threshold → structured
+    // ColumnTransformRejection with the complete per-cell evidence. Must stay BEFORE
+    // copy/applyColumn — rollback-to-UNKNOWN is structural only while rejection
+    // precedes commit.
     const acceptableErrorPercentage = getEngineConfig().acceptableColumnErrorPercentage;
     if (errorPercentage > acceptableErrorPercentage) {
       logger.debug('Error percentage validation failed, throwing ColumnTransformRejection');
