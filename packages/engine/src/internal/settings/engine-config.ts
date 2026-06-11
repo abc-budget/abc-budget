@@ -18,6 +18,7 @@
  * `resetEngineConfigForTests()` is a test seam; it is NOT exported from any barrel.
  */
 
+import { getLogger } from '../logging';
 import { SettingKeys, type UserSettingsDAO } from './user-settings';
 
 // ── EngineConfig interface ────────────────────────────────────────────────────
@@ -146,8 +147,13 @@ function validateParam(
       break;
     }
     default: {
-      // Non-engineConfig keys are not handled by this function; pass through.
-      break;
+      // setEngineParam is the write path for engineConfig.* keys ONLY — any other
+      // key here is a programming error; refusing keeps it from becoming a raw,
+      // unvalidated write path (NFR-009).
+      throw new InvalidEngineParamError(
+        key,
+        'not an engineConfig.* key — setEngineParam only writes engine params',
+      );
     }
   }
 }
@@ -189,15 +195,50 @@ export async function hydrateEngineConfig(dao: UserSettingsDAO): Promise<void> {
   ]);
 
   snapshot = {
-    acceptableParseDatePercentage:
-      parseDatePct !== undefined ? parseDatePct : DEFAULTS.acceptableParseDatePercentage,
-    acceptableColumnErrorPercentage:
-      columnErrorPct !== undefined ? columnErrorPct : DEFAULTS.acceptableColumnErrorPercentage,
-    successStatusThreshold:
-      successThreshold !== undefined ? successThreshold : DEFAULTS.successStatusThreshold,
-    recallAutoDetectEnabled:
-      autoDetect !== undefined ? autoDetect : DEFAULTS.recallAutoDetectEnabled,
+    acceptableParseDatePercentage: overlayValidated(
+      SettingKeys.ENGINE_ACCEPTABLE_PARSE_DATE_PERCENTAGE,
+      parseDatePct,
+      DEFAULTS.acceptableParseDatePercentage,
+    ),
+    acceptableColumnErrorPercentage: overlayValidated(
+      SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE,
+      columnErrorPct,
+      DEFAULTS.acceptableColumnErrorPercentage,
+    ),
+    successStatusThreshold: overlayValidated(
+      SettingKeys.ENGINE_SUCCESS_STATUS_THRESHOLD,
+      successThreshold,
+      DEFAULTS.successStatusThreshold,
+    ),
+    recallAutoDetectEnabled: overlayValidated(
+      SettingKeys.ENGINE_RECALL_AUTO_DETECT_ENABLED,
+      autoDetect,
+      DEFAULTS.recallAutoDetectEnabled,
+    ),
   };
+}
+
+/**
+ * Overlay helper for hydrate: returns the stored value when present AND valid;
+ * otherwise the default. An INVALID stored value (corrupted/hand-edited row that
+ * bypassed setEngineParam) falls back to the default LOUDLY — silently arming the
+ * gate with a nonsense threshold is exactly the NFR-009 failure class.
+ */
+function overlayValidated<T>(key: SettingKeys, stored: T | undefined, fallback: T): T {
+  if (stored === undefined) {
+    return fallback;
+  }
+  try {
+    validateParam(key, stored);
+    return stored;
+  } catch {
+    getLogger('engine.settings.engine-config').error(
+      'stored engine-config override is invalid — falling back to the ENT-016 default:',
+      key,
+      stored,
+    );
+    return fallback;
+  }
 }
 
 /**

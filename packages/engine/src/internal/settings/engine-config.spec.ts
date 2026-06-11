@@ -17,7 +17,7 @@
  */
 
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   getEngineConfig,
   hydrateEngineConfig,
@@ -25,6 +25,7 @@ import {
   InvalidEngineParamError,
   resetEngineConfigForTests,
 } from './engine-config';
+import { getLogger } from '../logging';
 import { SettingKeys, type UserSettingsDAO } from './user-settings';
 import { UserSettingsIDBDAO } from './user-settings-idb';
 import { openEngineDb, resetPersistenceForTests } from '../persistence/engine-db';
@@ -92,6 +93,48 @@ describe('engine-config — hydrate with empty store ≡ defaults', () => {
     const dao = makeMemoryDao();
     await hydrateEngineConfig(dao);
     expect(getEngineConfig()).toEqual(DEFAULTS);
+  });
+});
+
+// ── NFR-009 tightenings (dev review of Task 1) ───────────────────────────────
+
+describe('engine-config — NFR-009 hardening', () => {
+  beforeEach(() => {
+    resetEngineConfigForTests();
+  });
+
+  it('setEngineParam with a non-engineConfig key throws — never a raw write path', async () => {
+    const dao = makeMemoryDao();
+    await expect(
+      setEngineParam(
+        dao,
+        SettingKeys.BASE_CURRENCY as SettingKeys.ENGINE_SUCCESS_STATUS_THRESHOLD,
+        0.5,
+      ),
+    ).rejects.toThrow(InvalidEngineParamError);
+    // Nothing written
+    expect(await dao.getSetting(SettingKeys.BASE_CURRENCY)).toBeUndefined();
+  });
+
+  it('hydrate with an INVALID stored override (corrupted row) falls back to the default loudly', async () => {
+    // error% = 5 is out of [0,1] — a row that bypassed setEngineParam (hand-edited IDB)
+    const dao = makeMemoryDao({
+      [SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE]: 5,
+      [SettingKeys.ENGINE_SUCCESS_STATUS_THRESHOLD]: 0.9, // valid — must still apply
+    });
+    const errorSpy = vi.spyOn(getLogger('engine.settings.engine-config'), 'error');
+
+    await hydrateEngineConfig(dao);
+
+    const cfg = getEngineConfig();
+    expect(cfg.acceptableColumnErrorPercentage).toBe(0.3); // default, not 5
+    expect(cfg.successStatusThreshold).toBe(0.9); // valid override applied
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('invalid'),
+      SettingKeys.ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE,
+      5,
+    );
+    errorSpy.mockRestore();
   });
 });
 
