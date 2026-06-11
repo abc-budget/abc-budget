@@ -57,6 +57,17 @@ import type {
 } from '../types';
 import { ImportStatementColumn } from './column';
 import { SupportedDataType } from './types';
+import type { UserSettingsDAO } from '../../settings/user-settings';
+
+/** Minimal mock DAO returning a fixed base currency. */
+function makeDaoWithBase(base: string): UserSettingsDAO {
+  return {
+    getSetting: vi.fn().mockResolvedValue(base),
+    setSetting: vi.fn().mockResolvedValue(undefined),
+    removeSetting: vi.fn().mockResolvedValue(false),
+    getAllSettings: vi.fn().mockResolvedValue({}),
+  } as UserSettingsDAO;
+}
 import type { CellData, ImportStatementColumnHeaderStage2, ImportStatementStage2 } from './types';
 
 // ── Local test helpers (replacing prior-art @abc-budget/test-utils) ──────────
@@ -1141,23 +1152,16 @@ describe('ImportStatementColumn — additional coverage', () => {
   });
 
   describe('parseAsAmount currency naming and errors', () => {
-    it('sets column name for currency=auto, use_base, and fixed code', async () => {
+    it('sets column name for currency=auto, use_base (resolved), and fixed code', async () => {
       const data = [
         cell(-1, SupportedDataType.NUMBER),
         cell(2, SupportedDataType.NUMBER),
       ];
-      const col = new ImportStatementColumn(
-        columnId,
-        columnName,
-        columnName,
-        null,
-        null,
-        data
-      );
-      col.associateWith(assertType<ImportStatementStage2>(mockStage2));
 
-      // auto currency
-      await col.parseAsAmount({
+      // auto currency — no DAO needed
+      const colAuto = new ImportStatementColumn(columnId, columnName, columnName, null, null, data);
+      colAuto.associateWith(assertType<ImportStatementStage2>(mockStage2));
+      await colAuto.parseAsAmount({
         type: 'outcome',
         currency: 'auto',
       } as AmountColumnParams);
@@ -1170,8 +1174,14 @@ describe('ImportStatementColumn — additional coverage', () => {
         'engine.importStatement.column.outcome'
       );
 
-      // use_base
-      await col.parseAsAmount({
+      // use_base — Story 2.3: resolved at parse time via DAO; base='UAH' → 'in-currency'
+      // ADAPTATION (Story 2.3, Task 1): test updated to inject a DAO with base='UAH'.
+      // Prior test expected 'outcome-in-base-currency' (pass-through); new behavior
+      // resolves to {code:'UAH'} → 'outcome-in-currency'.
+      const daoWithBase = makeDaoWithBase('UAH');
+      const colUseBase = new ImportStatementColumn(columnId, columnName, columnName, null, null, data, daoWithBase);
+      colUseBase.associateWith(assertType<ImportStatementStage2>(mockStage2));
+      await colUseBase.parseAsAmount({
         type: 'outcome',
         currency: 'use_base',
       } as AmountColumnParams);
@@ -1180,11 +1190,15 @@ describe('ImportStatementColumn — additional coverage', () => {
       )?.[0] as ImportStatementColumn;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Accessing private method for testing
       expect((applied.name as any).getText()).toBe(
-        'engine.importStatement.column.outcome-in-base-currency'
+        'engine.importStatement.column.outcome-in-currency'
       );
+      // The resolved params must carry the concrete code, not 'use_base'
+      expect((applied.params as AmountColumnParams).currency).toEqual({ code: 'UAH' });
 
       // fixed code
-      await col.parseAsAmount({
+      const colFixed = new ImportStatementColumn(columnId, columnName, columnName, null, null, data);
+      colFixed.associateWith(assertType<ImportStatementStage2>(mockStage2));
+      await colFixed.parseAsAmount({
         type: 'outcome',
         currency: { code: 'USD' },
       } as AmountColumnParams);

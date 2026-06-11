@@ -5,13 +5,17 @@ import {
   ENGINE_DB_NAME,
   ENGINE_MIGRATIONS,
   initEnginePersistence,
+  openEngineDb,
   resetPersistenceForTests,
 } from './engine-db';
+import { resetRatesHolderForTests, getRatesService, setRemoteRatesApi } from '../exchange-rate/rates-holder';
 import { openDatabase } from '../store/migrations/open-with-migrations';
+import type { ExchangeRateApi } from '../exchange-rate/api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
   resetPersistenceForTests();
+  resetRatesHolderForTests();
 });
 
 describe('requestDurability', () => {
@@ -50,17 +54,57 @@ describe('requestDurability', () => {
 });
 
 describe('engine DB migration anchor', () => {
-  // LEGITIMATE TEST UPDATE (Task 3, Story 1.6): v2 appended for exchangeRates store.
+  // LEGITIMATE TEST UPDATE (Task 1, Story 2.3): v3 appended for userSettings + recallPool stores.
   // Step[0] (v1) remains a no-op anchor byte-identical to its original form.
-  // Step[1] (v2) creates exactly the 'exchangeRates' object store.
-  it('ENGINE_MIGRATIONS has 2 steps: v1 no-op anchor + v2 creates exchangeRates', async () => {
-    expect(ENGINE_MIGRATIONS).toHaveLength(2);
+  // Step[1] (v2) creates 'exchangeRates' — byte-unchanged vs Story 1.6.
+  // Step[2] (v3) creates 'userSettings' (keyPath:'key', index:'key' unique) + 'recallPool' (keyPath:'columnName').
+  it('ENGINE_MIGRATIONS has 3 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool', async () => {
+    expect(ENGINE_MIGRATIONS).toHaveLength(3);
     expect(ENGINE_MIGRATIONS[0].toVersion).toBe(1);
     expect(ENGINE_MIGRATIONS[1].toVersion).toBe(2);
-    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test`, ENGINE_MIGRATIONS);
-    expect(db.version).toBe(2);
-    expect(Array.from(db.objectStoreNames)).toEqual(['exchangeRates']);
+    expect(ENGINE_MIGRATIONS[2].toVersion).toBe(3);
+    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v3`, ENGINE_MIGRATIONS);
+    expect(db.version).toBe(3);
+    const storeNames = Array.from(db.objectStoreNames).sort();
+    expect(storeNames).toEqual(['exchangeRates', 'recallPool', 'userSettings']);
     db.close();
+  });
+
+  it('v3 creates userSettings with keyPath "key" and unique "key" index', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v3-userSettings`, ENGINE_MIGRATIONS);
+    const tx = db.transaction('userSettings', 'readonly');
+    const store = tx.objectStore('userSettings');
+    expect(store.keyPath).toBe('key');
+    expect(Array.from(store.indexNames)).toContain('key');
+    const idx = store.index('key');
+    expect(idx.unique).toBe(true);
+    db.close();
+  });
+
+  it('v3 creates recallPool with keyPath "columnName"', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v3-recallPool`, ENGINE_MIGRATIONS);
+    const tx = db.transaction('recallPool', 'readonly');
+    const store = tx.objectStore('recallPool');
+    expect(store.keyPath).toBe('columnName');
+    db.close();
+  });
+
+  it('fresh open ≡ upgrade path: both reach v3 with same store names', async () => {
+    // fresh open
+    const freshDb = await openDatabase(`${ENGINE_DB_NAME}-fresh-v3`, ENGINE_MIGRATIONS);
+    const freshStores = Array.from(freshDb.objectStoreNames).sort();
+    freshDb.close();
+
+    // upgrade path: open at v2 first, then upgrade to v3
+    const v2Steps = ENGINE_MIGRATIONS.slice(0, 2);
+    const upgradeDb = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v3`, v2Steps);
+    upgradeDb.close();
+    const v3Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v3`, ENGINE_MIGRATIONS);
+    const upgradeStores = Array.from(v3Db.objectStoreNames).sort();
+    v3Db.close();
+
+    expect(freshStores).toEqual(upgradeStores);
+    expect(freshStores).toEqual(['exchangeRates', 'recallPool', 'userSettings']);
   });
 
   it('initEnginePersistence opens the DB, requests durability, and memoizes', async () => {
@@ -82,5 +126,126 @@ describe('engine DB migration anchor', () => {
     } finally {
       vi.stubGlobal('indexedDB', realIndexedDB);
     }
+  });
+});
+
+// ── clear-on-reject (TDD) ─────────────────────────────────────────────────────
+//
+// These tests verify that a rejected memoized promise is cleared so the next
+// call retries (new promise) rather than permanently bricks.
+//
+// Red phase first: add the tests here; they will fail until the implementation
+// is updated in engine-db.ts and rates-holder.ts.
+
+describe('clear-on-reject — openEngineDb', () => {
+  it('first open rejects (mocked) → second call retries and succeeds', async () => {
+    // Arrange: make indexedDB.open fail exactly once.
+    const realIndexedDB = globalThis.indexedDB;
+    let callCount = 0;
+    const stubbedIndexedDB = {
+      ...realIndexedDB,
+      open: (...args: Parameters<IDBFactory['open']>) => {
+        callCount++;
+        if (callCount === 1) {
+          // Return a request that fires onerror immediately
+          const req = realIndexedDB.open(...args);
+          // We abuse a separate open to get a valid IDBOpenDBRequest shape,
+          // then we simulate error by overriding the onsuccess/onerror.
+          // Simpler: just call the real open but simulate failure via a wrapper.
+          const wrapper = {
+            result: null as IDBDatabase | null,
+            error: new DOMException('Simulated IDB open failure', 'UnknownError'),
+            readyState: 'pending' as IDBRequestReadyState,
+            source: null,
+            transaction: null,
+            onsuccess: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
+            onerror: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
+            onupgradeneeded: null as ((this: IDBOpenDBRequest, ev: IDBVersionChangeEvent) => unknown) | null,
+            onblocked: null as ((this: IDBOpenDBRequest, ev: IDBVersionChangeEvent) => unknown) | null,
+            addEventListener: req.addEventListener.bind(req),
+            removeEventListener: req.removeEventListener.bind(req),
+            dispatchEvent: req.dispatchEvent.bind(req),
+          };
+          // Fire onerror asynchronously
+          setTimeout(() => {
+            if (wrapper.onerror) {
+              wrapper.onerror.call(wrapper as unknown as IDBOpenDBRequest, new Event('error'));
+            }
+          }, 0);
+          // Also abort the real request to avoid state leakage
+          return wrapper as unknown as IDBOpenDBRequest;
+        }
+        return realIndexedDB.open(...args);
+      },
+    } as IDBFactory;
+
+    vi.stubGlobal('indexedDB', stubbedIndexedDB);
+
+    // First call: should reject
+    await expect(openEngineDb()).rejects.toBeDefined();
+
+    // Restore real indexedDB for the second call
+    vi.stubGlobal('indexedDB', realIndexedDB);
+
+    // Second call: must NOT return the memoized rejected promise — must retry
+    const db = await openEngineDb();
+    expect(db).toBeDefined();
+    db.close();
+  });
+});
+
+describe('clear-on-reject — getRatesService', () => {
+  it('first call rejects (IDB open fails) → second call retries and returns service', async () => {
+    const realIndexedDB = globalThis.indexedDB;
+    let openCallCount = 0;
+
+    const stubbedIndexedDB = {
+      ...realIndexedDB,
+      open: (...args: Parameters<IDBFactory['open']>) => {
+        openCallCount++;
+        if (openCallCount === 1) {
+          const req = realIndexedDB.open(...args);
+          const wrapper = {
+            result: null as IDBDatabase | null,
+            error: new DOMException('Simulated IDB open failure #2', 'UnknownError'),
+            readyState: 'pending' as IDBRequestReadyState,
+            source: null,
+            transaction: null,
+            onsuccess: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
+            onerror: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
+            onupgradeneeded: null as ((this: IDBOpenDBRequest, ev: IDBVersionChangeEvent) => unknown) | null,
+            onblocked: null as ((this: IDBOpenDBRequest, ev: IDBVersionChangeEvent) => unknown) | null,
+            addEventListener: req.addEventListener.bind(req),
+            removeEventListener: req.removeEventListener.bind(req),
+            dispatchEvent: req.dispatchEvent.bind(req),
+          };
+          setTimeout(() => {
+            if (wrapper.onerror) {
+              wrapper.onerror.call(wrapper as unknown as IDBOpenDBRequest, new Event('error'));
+            }
+          }, 0);
+          return wrapper as unknown as IDBOpenDBRequest;
+        }
+        return realIndexedDB.open(...args);
+      },
+    } as IDBFactory;
+
+    // Inject a mock remote api so getRatesService won't short-circuit to null
+    const mockApi: ExchangeRateApi = {
+      getExchangeRate: vi.fn().mockResolvedValue({ EUR: 0.9 }),
+    };
+    setRemoteRatesApi(mockApi);
+
+    vi.stubGlobal('indexedDB', stubbedIndexedDB);
+
+    // First call: should reject (IDB open fails → the inner openEngineDb() rejects)
+    await expect(getRatesService()).rejects.toBeDefined();
+
+    // Restore real indexedDB
+    vi.stubGlobal('indexedDB', realIndexedDB);
+
+    // Second call: must NOT return the memoized rejected promise — must retry
+    const svc = await getRatesService();
+    expect(svc).not.toBeNull();
   });
 });

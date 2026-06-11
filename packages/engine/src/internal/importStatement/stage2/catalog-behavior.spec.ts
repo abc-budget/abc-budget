@@ -26,6 +26,8 @@ import { ColumnDefinition } from '../types';
 import type { AmountColumnParams, DateColumnParams } from '../types';
 import { NativeMessage } from '../../utils/messages/index';
 import type { Message } from '../../utils/messages/message';
+import { BaseCurrencyNotSetError } from '../../settings/base-currency';
+import type { UserSettingsDAO } from '../../settings/user-settings';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,33 @@ function makeCol(
   const col = new ImportStatementColumn(id, name, name, null, null, data);
   col.associateWith(mockStage2 as unknown as ImportStatementStage2);
   return col;
+}
+
+/** Creates a column with an injected settings DAO (for use_base wiring tests). */
+function makeColWithDao(
+  id: string,
+  name: Message,
+  data: CellData[],
+  mockStage2: Mocked<Pick<ImportStatementStage2, 'applyColumn' | 'resetColumn'>>,
+  dao: UserSettingsDAO
+): ImportStatementColumn {
+  const col = new ImportStatementColumn(id, name, name, null, null, data, dao);
+  col.associateWith(mockStage2 as unknown as ImportStatementStage2);
+  return col;
+}
+
+/** Creates a minimal mock DAO with a settable base currency. */
+function makeMockSettingsDao(storedBase?: string): UserSettingsDAO {
+  let stored: string | undefined = storedBase;
+  return {
+    getSetting: vi.fn().mockImplementation(() => Promise.resolve(stored)),
+    setSetting: vi.fn().mockImplementation((_k: string, v: string) => {
+      stored = v;
+      return Promise.resolve();
+    }),
+    removeSetting: vi.fn().mockResolvedValue(false),
+    getAllSettings: vi.fn().mockResolvedValue({}),
+  } as UserSettingsDAO;
 }
 
 function lastApplied(
@@ -506,27 +535,47 @@ describe('ENT-011 hook — AMOUNT currency resolution', () => {
     expect(appliedCurr.data[1].error).toBeUndefined();
   });
 
-  it('currency="use_base" — params carry use_base flag through to the applied column', async () => {
-    // use_base: the resolved currency is the budget's base currency.
-    // At column-transform time, the params just carry 'use_base'; the actual
-    // resolution happens at row-processing time (stage 3+, TODO-2.3/2.4).
+  it('currency="use_base" + set base (UAH) → resolves to {code:"UAH"} in applied params', async () => {
+    // Story 2.3, Task 1: use_base is now resolved at parse time via getBaseCurrency(dao).
+    // With a DAO that returns 'UAH', the effective params must carry { code: 'UAH' }.
     const data = [
       cell(-100, SupportedDataType.NUMBER),
       cell(-200, SupportedDataType.NUMBER),
     ];
-    const col = makeCol('amt2', new NativeMessage('amt2'), data, mockStage2);
+    const dao = makeMockSettingsDao('UAH');
+    const col = makeColWithDao('amt2', new NativeMessage('amt2'), data, mockStage2, dao);
 
     const params: AmountColumnParams = { type: 'outcome', currency: 'use_base' };
     await col.parseAsAmount(params);
 
     const applied = lastApplied(mockStage2);
     expect(applied.definition).toBe(ColumnDefinition.AMOUNT);
-    // The params must carry 'use_base' through
-    expect((applied.params as AmountColumnParams).currency).toBe('use_base');
-    // The column name key should reference base currency
+    // use_base must have been resolved to the stored base currency
+    const currency = (applied.params as AmountColumnParams).currency;
+    expect(currency).toEqual({ code: 'UAH' });
+    // The column name key should reference "in-currency" (resolved, not "base-currency")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nameText = (applied.name as any).getText?.() ?? String(applied.name);
-    expect(nameText).toContain('base-currency');
+    expect(nameText).toContain('in-currency');
+  });
+
+  it('currency="use_base" + unset base → throws BaseCurrencyNotSetError (loud)', async () => {
+    // Story 2.3, Task 1: if no base currency is set, parseAsAmount must throw loud.
+    const data = [cell(-100, SupportedDataType.NUMBER)];
+    const dao = makeMockSettingsDao(undefined); // no base currency
+    const col = makeColWithDao('amt2b', new NativeMessage('amt2b'), data, mockStage2, dao);
+
+    const params: AmountColumnParams = { type: 'outcome', currency: 'use_base' };
+    await expect(col.parseAsAmount(params)).rejects.toBeInstanceOf(BaseCurrencyNotSetError);
+  });
+
+  it('currency="use_base" + no DAO injected → throws BaseCurrencyNotSetError (loud)', async () => {
+    // Without a DAO injection, use_base cannot resolve — throws loud.
+    const data = [cell(-100, SupportedDataType.NUMBER)];
+    const col = makeCol('amt2c', new NativeMessage('amt2c'), data, mockStage2);
+
+    const params: AmountColumnParams = { type: 'outcome', currency: 'use_base' };
+    await expect(col.parseAsAmount(params)).rejects.toBeInstanceOf(BaseCurrencyNotSetError);
   });
 
   it('currency={code:"PLN"} override — params carry {code:"PLN"} through to the applied column', async () => {

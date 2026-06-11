@@ -7,6 +7,7 @@ import { openDatabase } from '../store/migrations/open-with-migrations';
 import type { DurabilityStatus } from './durability';
 import { requestDurability } from './durability';
 import { EXCHANGE_RATES_STORE, EXCHANGE_RATES_STORE_CONFIG } from '../exchange-rate/dao';
+import { USER_SETTINGS_STORE, USER_SETTINGS_STORE_CONFIG } from '../settings/user-settings-idb';
 
 export const ENGINE_DB_NAME = 'abc-budget';
 
@@ -16,6 +17,9 @@ export const ENGINE_DB_NAME = 'abc-budget';
  * EP-3 footprints / EP-4 rules / EP-6 budget append steps v2+ here.
  *
  * v2: creates the `exchangeRates` object store (keyPath: ['base', 'date'], indexes: base + date).
+ *
+ * v3: creates `userSettings` (keyPath: 'key', unique index: 'key') and
+ *     `recallPool` (keyPath: 'columnName') — ONE step, both stores.
  */
 export const ENGINE_MIGRATIONS: MigrationStep[] = [
   {
@@ -31,6 +35,19 @@ export const ENGINE_MIGRATIONS: MigrationStep[] = [
       ctx.createStore(EXCHANGE_RATES_STORE, spec);
     },
   },
+  {
+    toVersion: 3,
+    migrate: (ctx) => {
+      // userSettings store — exact prior-art STORE_CONFIG (keyPath:'key', unique index:'key')
+      const { name: _usName, keyPath: usKeyPath, indexes: usIndexes } = USER_SETTINGS_STORE_CONFIG;
+      ctx.createStore(USER_SETTINGS_STORE, {
+        keyPath: usKeyPath,
+        indexes: usIndexes.map((idx) => ({ ...idx, options: { ...idx.options } })),
+      });
+      // recallPool store — keyPath:'columnName' (Task 2 recall pool)
+      ctx.createStore('recallPool', { keyPath: 'columnName' });
+    },
+  },
 ];
 
 export interface PersistenceInitResult {
@@ -42,15 +59,20 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 let initPromise: Promise<PersistenceInitResult> | null = null;
 
 /**
- * Lazy, memoized engine-DB open. Future DAO consumers (EP-2+) build on this.
+ * Lazy, memoized engine-DB open.
  *
- * ⚠️ EP-2 NOTE: a failed open memoizes a REJECTED promise for the process lifetime —
- * fine in 1.2 (doInit masks it; nothing else calls this), but before real DAO consumers
- * wire in, add clear-on-reject (or retry) so one transient failure doesn't brick the
- * engine until reload.
+ * ✅ Clear-on-reject (Story 2.3, Task 1): on rejection the memoized promise is cleared
+ * so the next caller retries (new promise) rather than permanently receiving the same
+ * rejected promise. This resolves the 1.6 ⚠️ guardrail.
  */
 export function openEngineDb(): Promise<IDBDatabase> {
-  dbPromise ??= openDatabase(ENGINE_DB_NAME, ENGINE_MIGRATIONS);
+  if (!dbPromise) {
+    dbPromise = openDatabase(ENGINE_DB_NAME, ENGINE_MIGRATIONS).catch((err) => {
+      // Clear memoization so the next call retries
+      dbPromise = null;
+      return Promise.reject(err);
+    });
+  }
   return dbPromise;
 }
 
