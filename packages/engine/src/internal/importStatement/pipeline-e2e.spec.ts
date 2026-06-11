@@ -36,7 +36,13 @@ import type { FileFormatDAO, FileSourceDAO } from './dao';
 import { ImportStatementColumn } from './stage2/column';
 import { ImportStatementStage2Impl } from './stage2/implementation';
 import { ColumnDefinition } from './types';
-import type { AmountColumnParams, DateColumnParams, ColumnTransformation } from './types';
+import type {
+  AmountColumnParams,
+  BankCommissionColumnParams,
+  CashbackColumnParams,
+  DateColumnParams,
+  ColumnTransformation,
+} from './types';
 import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from './stage2/types';
 import { createRecallPool } from './recall/recall';
 import type { RecallResult } from './recall/recall';
@@ -150,6 +156,12 @@ async function applyMappings(
         break;
       case ColumnDefinition.MERCHANT_CATEGORY:
         await col.parseAsMerchant();
+        break;
+      case ColumnDefinition.BANK_COMMISSION:
+        await col.parseAsBankCommission(t.params as BankCommissionColumnParams);
+        break;
+      case ColumnDefinition.CASHBACK:
+        await col.parseAsCashback(t.params as CashbackColumnParams);
         break;
       case ColumnDefinition.IGNORE:
         await col.ignore();
@@ -1147,5 +1159,246 @@ describe('Story 2.4 — thresholds, rejection, Q-009', () => {
     expect(getEngineConfig().acceptableParseDatePercentage).toBe(90);
     expect(getEngineConfig().successStatusThreshold).toBe(0.8);
     expect(getEngineConfig().recallAutoDetectEnabled).toBe(false);
+  });
+});
+
+// ============================================================================
+// E. Story 2.5 — pseudo-ops (BANK_COMMISSION / CASHBACK expansion, ENT-013)
+//
+// E1. mono-like-utf8.csv with commission + cashback columns MAPPED
+//     (parseAsBankCommission / parseAsCashback, currency: { code: 'UAH' }).
+//     Fixture content (12 decoded rows, all outcome):
+//       commission cells non-empty: rows 3, 6            → 2 commission ops
+//       cashback   cells non-empty: rows 1,2,4,7,8,10,11 → 7 cashback ops
+//     → 12 mains + 2 commission + 7 cashback = 21 rows, 0 skipped, 0 rowErrors.
+//
+// E2. income-commission.csv — the spawn-scope matrix end-to-end (decision 3):
+//     (a) income main (+15000,00) WITH commission -100,00 → main SKIPPED with
+//         reason, commission pseudo-op in rows (the decisive case).
+//     (b) outcome -250,00 with cashback 2,50  → main + cashback op.
+//     (c) outcome -1000,00 with BOTH (-10,00 / 10,00) → 3 ops, 3 distinct hashes.
+//     (d) plain outcome -75,00 → main only.
+//     (e) outcome -400,00 with '+50,00' cashback (decision 1 in fixture form)
+//         → parses, cashback op amount 50.
+//     With AMOUNT type 'mixed': 4 mains + 2 commission + 3 cashback = 9 rows,
+//     1 skipped, 0 rowErrors.
+//
+// Determinism: no Date.now / Math.random; fresh service per test; per-test DB
+// via the shared beforeEach/afterEach seams above.
+// ============================================================================
+
+describe('Story 2.5 — pseudo-ops', () => {
+  // Shared pipeline runner: decode → stage1 → stage2(map) → generateRows
+  async function runPipeline(fixture: string, transformations: ColumnTransformation[]) {
+    const decodeResult = await decode(readFixture(fixture));
+    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
+    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const stage1 = service.startWith(decodeResult.rows);
+    const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
+    await applyMappings(stage2, transformations);
+    const cols = await firstValueFrom(stage2.columns);
+    const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
+    return generateRows(rows, toColumnInfo(cols), 'UAH');
+  }
+
+  // ── E1. mono-like-utf8.csv with commission + cashback mapped ──────────────
+  const MONO_PSEUDO_TRANSFORMATIONS: ColumnTransformation[] = [
+    { columnName: 'Дата i час операції',  definition: ColumnDefinition.DATE,              params: { format: 'auto' } as DateColumnParams },
+    { columnName: 'Деталі операції',      definition: ColumnDefinition.DESCRIPTION,       params: null },
+    { columnName: 'MCC',                  definition: ColumnDefinition.MERCHANT_CATEGORY, params: null },
+    { columnName: 'Сума в валюті картки', definition: ColumnDefinition.AMOUNT,            params: { type: 'outcome', currency: { code: 'UAH' } } as AmountColumnParams },
+    { columnName: 'Валюта картки',        definition: ColumnDefinition.IGNORE,            params: null },
+    { columnName: 'Сума в USD',           definition: ColumnDefinition.IGNORE,            params: null },
+    { columnName: 'Комісія',              definition: ColumnDefinition.BANK_COMMISSION,   params: { currency: { code: 'UAH' } } as BankCommissionColumnParams },
+    { columnName: 'Кешбек',              definition: ColumnDefinition.CASHBACK,          params: { currency: { code: 'UAH' } } as CashbackColumnParams },
+    { columnName: 'Залишок',             definition: ColumnDefinition.IGNORE,            params: null },
+  ];
+
+  describe('mono-like-utf8.csv — full pipeline with commission + cashback mapped', () => {
+    it('hard counts: 12 mains + 2 commission + 7 cashback = 21 rows, 0 skipped, 0 rowErrors', async () => {
+      const result = await runPipeline('mono-like-utf8.csv', MONO_PSEUDO_TRANSFORMATIONS);
+
+      const mains      = result.rows.filter((r) => !r.isBankCommission && !r.isCashback);
+      const commission = result.rows.filter((r) => r.isBankCommission);
+      const cashback   = result.rows.filter((r) => r.isCashback);
+
+      expect(mains).toHaveLength(12);
+      expect(commission).toHaveLength(2);
+      expect(cashback).toHaveLength(7);
+      expect(result.rows).toHaveLength(21);
+      expect(result.skipped).toHaveLength(0);
+      expect(result.rowErrors).toHaveLength(0);
+    });
+
+    it('commission ops: abs amounts {5, 12}, UAH, synthetic description, null counterparty/mcc', async () => {
+      const result = await runPipeline('mono-like-utf8.csv', MONO_PSEUDO_TRANSFORMATIONS);
+      const commission = result.rows.filter((r) => r.isBankCommission);
+
+      // Fixture commission cells: -5,00 (ATM row) and -12,00 (fuel row) → abs
+      expect(commission.map((r) => r.amount).sort((a, b) => a - b)).toEqual([5, 12]);
+      for (const op of commission) {
+        expect(op.currency).toBe('UAH');
+        expect(op.isCashback).toBe(false);
+        expect(op.description).toBe('engine.importStatement.pseudo-op.bank-commission');
+        expect(op.counterparty).toBeNull();
+        expect(op.bankCategory).toBeNull();
+        expect(op.mcc).toBeNull();
+        expect(op.date).toBeInstanceOf(Date);
+      }
+    });
+
+    it('cashback ops: 7 ops with exact abs amounts (incl. 0.42 and 21.5)', async () => {
+      const result = await runPipeline('mono-like-utf8.csv', MONO_PSEUDO_TRANSFORMATIONS);
+      const cashback = result.rows.filter((r) => r.isCashback);
+
+      const amounts = cashback.map((r) => r.amount).sort((a, b) => a - b);
+      expect(amounts).toEqual([0.42, 0.85, 2.8, 3.21, 4.3, 4.45, 21.5]);
+      for (const op of cashback) {
+        expect(op.isBankCommission).toBe(false);
+        expect(op.description).toBe('engine.importStatement.pseudo-op.cashback');
+      }
+    });
+
+    it('ordering main → commission → cashback per source row; rowIndex re-indexed; 21 distinct hashes', async () => {
+      const result = await runPipeline('mono-like-utf8.csv', MONO_PSEUDO_TRANSFORMATIONS);
+
+      // Row 0 (coffee, cashback 0,42): main at index 0, its cashback op directly after
+      expect(result.rows[0].isCashback).toBe(false);
+      expect(result.rows[0].description).toBe('TEST COFFEE 1');
+      expect(result.rows[1].isCashback).toBe(true);
+      expect(result.rows[1].amount).toBe(0.42);
+      // Pseudo-op inherits the main's date
+      expect(result.rows[1].date.getTime()).toBe(result.rows[0].date.getTime());
+
+      // rowIndex synced to array index by the final re-index pass
+      result.rows.forEach((r, i) => expect(r.rowIndex).toBe(i));
+
+      // Q-011: all 21 hashes distinct (discriminator separates pseudo-ops from mains)
+      expect(new Set(result.rows.map((r) => r.hash)).size).toBe(21);
+    });
+
+    it('determinism: same fixture run twice → deep-equal results incl. hashes', async () => {
+      const a = await runPipeline('mono-like-utf8.csv', MONO_PSEUDO_TRANSFORMATIONS);
+      const b = await runPipeline('mono-like-utf8.csv', MONO_PSEUDO_TRANSFORMATIONS);
+      expect(b.rows).toEqual(a.rows);
+      expect(b.rowErrors).toEqual(a.rowErrors);
+      expect(b.skipped).toEqual(a.skipped);
+    });
+  });
+
+  // ── E2. income-commission.csv — the spawn-scope matrix ────────────────────
+  const INCOME_COMMISSION_TRANSFORMATIONS: ColumnTransformation[] = [
+    { columnName: 'Дата операції',   definition: ColumnDefinition.DATE,            params: { format: 'auto' } as DateColumnParams },
+    { columnName: 'Деталі операції', definition: ColumnDefinition.DESCRIPTION,     params: null },
+    { columnName: 'Сума',            definition: ColumnDefinition.AMOUNT,          params: { type: 'mixed', currency: { code: 'UAH' } } as AmountColumnParams },
+    { columnName: 'Комісія',         definition: ColumnDefinition.BANK_COMMISSION, params: { currency: { code: 'UAH' } } as BankCommissionColumnParams },
+    { columnName: 'Кешбек',          definition: ColumnDefinition.CASHBACK,        params: { currency: { code: 'UAH' } } as CashbackColumnParams },
+  ];
+
+  describe('income-commission.csv — spawn-scope matrix end-to-end', () => {
+    it('decode → 5 rows, header detected at row 0', async () => {
+      const result = await decode(readFixture('income-commission.csv'));
+      expect(result.meta.decodedRows).toBe(5);
+      expect(result.meta.headerRow).toBe(0);
+    });
+
+    it('totals exact: 4 mains + 2 commission + 3 cashback = 9 rows, 1 skipped, 0 rowErrors', async () => {
+      const result = await runPipeline('income-commission.csv', INCOME_COMMISSION_TRANSFORMATIONS);
+
+      const mains      = result.rows.filter((r) => !r.isBankCommission && !r.isCashback);
+      const commission = result.rows.filter((r) => r.isBankCommission);
+      const cashback   = result.rows.filter((r) => r.isCashback);
+
+      expect(mains).toHaveLength(4);
+      expect(commission).toHaveLength(2);
+      expect(cashback).toHaveLength(3);
+      expect(result.rows).toHaveLength(9);
+      expect(result.skipped).toHaveLength(1);
+      expect(result.rowErrors).toHaveLength(0);
+    });
+
+    it('SPAWN-SCOPE PIN 1 (row a): income main skipped WITH reason; its commission op IS in rows', async () => {
+      const result = await runPipeline('income-commission.csv', INCOME_COMMISSION_TRANSFORMATIONS);
+
+      // Main of row (a) (rowIndex 0 in source order) is skipped with a reason
+      expect(result.skipped).toHaveLength(1);
+      expect(result.skipped[0].rowIndex).toBe(0);
+      expect(result.skipped[0].reason).toBeDefined();
+      expect(result.skipped[0].reason.getText().length).toBeGreaterThan(0);
+
+      // Its commission pseudo-op IS generated — the decisive ENT-013 case:
+      // the income transfer's 100 UAH commission is REAL EXPENSE, never dropped.
+      // It is the FIRST generated row (row a is the first source row).
+      const first = result.rows[0];
+      expect(first.isBankCommission).toBe(true);
+      expect(first.amount).toBe(100); // abs(-100,00)
+      expect(first.currency).toBe('UAH');
+      expect(first.date.toISOString().slice(0, 10)).toBe('2024-02-01');
+      // No main op for row (a) exists anywhere in rows
+      const mains = result.rows.filter((r) => !r.isBankCommission && !r.isCashback);
+      expect(mains.map((m) => m.description)).toEqual([
+        'TEST SHOP 1', 'TEST ATM 1', 'TEST CAFE 1', 'TEST MARKET 1',
+      ]);
+    });
+
+    it('row (c): commission + cashback → exactly 3 ops with 3 DISTINCT hashes (Q-011)', async () => {
+      const result = await runPipeline('income-commission.csv', INCOME_COMMISSION_TRANSFORMATIONS);
+
+      // Generated order: [a.comm, b.main, b.cb, c.main, c.comm, c.cb, d.main, e.main, e.cb]
+      const cMain = result.rows[3];
+      const cComm = result.rows[4];
+      const cCb   = result.rows[5];
+
+      expect(cMain.description).toBe('TEST ATM 1');
+      expect(cMain.isBankCommission).toBe(false);
+      expect(cMain.isCashback).toBe(false);
+      expect(cMain.amount).toBe(1000);
+
+      expect(cComm.isBankCommission).toBe(true);
+      expect(cComm.amount).toBe(10);
+
+      expect(cCb.isCashback).toBe(true);
+      expect(cCb.amount).toBe(10);
+
+      // Same source row, same date — only the discriminator (and own fields) differ
+      expect(cComm.date.getTime()).toBe(cMain.date.getTime());
+      expect(cCb.date.getTime()).toBe(cMain.date.getTime());
+
+      // THE 3-distinct-hashes pin (decision 2)
+      expect(new Set([cMain.hash, cComm.hash, cCb.hash]).size).toBe(3);
+    });
+
+    it("row (e): '+50,00' cashback cell parses (decision 1) → cashback op amount 50", async () => {
+      const result = await runPipeline('income-commission.csv', INCOME_COMMISSION_TRANSFORMATIONS);
+
+      // Last generated row is row (e)'s cashback op
+      const eCb = result.rows[result.rows.length - 1];
+      expect(eCb.isCashback).toBe(true);
+      expect(eCb.amount).toBe(50);
+      expect(eCb.currency).toBe('UAH');
+      // Its main precedes it
+      const eMain = result.rows[result.rows.length - 2];
+      expect(eMain.description).toBe('TEST MARKET 1');
+      expect(eMain.amount).toBe(400);
+      expect(eCb.date.getTime()).toBe(eMain.date.getTime());
+    });
+
+    it('row (d): plain outcome spawns NO pseudo-ops', async () => {
+      const result = await runPipeline('income-commission.csv', INCOME_COMMISSION_TRANSFORMATIONS);
+      // rows[6] is d.main; total stays 9 — no extra ops for row (d)
+      const dMain = result.rows[6];
+      expect(dMain.description).toBe('TEST CAFE 1');
+      expect(dMain.isBankCommission).toBe(false);
+      expect(dMain.isCashback).toBe(false);
+      expect(result.rows).toHaveLength(9);
+    });
+
+    it('determinism: same fixture run twice → deep-equal incl. hashes', async () => {
+      const a = await runPipeline('income-commission.csv', INCOME_COMMISSION_TRANSFORMATIONS);
+      const b = await runPipeline('income-commission.csv', INCOME_COMMISSION_TRANSFORMATIONS);
+      expect(b.rows).toEqual(a.rows);
+      expect(b.skipped.map((s) => s.rowIndex)).toEqual(a.skipped.map((s) => s.rowIndex));
+      expect(b.rowErrors).toEqual(a.rowErrors);
+    });
   });
 });
