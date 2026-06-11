@@ -35,9 +35,11 @@
  *    In `parseAsCurrency` the params are null (the CURRENCY column stores no params);
  *    base-currency resolution for AMOUNT is deferred to row-processing time (stage 3+)
  *    and does not happen inside this column transform.
- *    TODO-2.3/2.4: when the settings store is implemented, AMOUNT's `use_base` option
- *    will resolve against the budget's stored base currency via the store-backed
- *    `getEngineConfig()` successor.
+ *    DONE-2.3 (Task 1): when `currency === 'use_base'`, `parseAsAmount` calls
+ *    `getBaseCurrency(dao)` (Story 2.3 base-currency helper) and resolves the stored
+ *    ISO code; the effective params carry `{ code: resolvedIso }` for downstream use.
+ *    If the dao is null (legacy path without wiring) or no base currency is set,
+ *    `BaseCurrencyNotSetError` propagates loud to the caller.
  *
  * 3. **getEngineConfig** → `../../settings/engine-config`  (no behavior change)
  *
@@ -68,6 +70,8 @@ import {
 import { getLuxon } from '../../utils/date/luxon-lazy';
 import { getAmbiguousSymbols, numericCodeToIso, symbolToIso } from '../../currency/reference';
 import { getEngineConfig } from '../../settings/engine-config';
+import { getBaseCurrency as _getBaseCurrencyFromDao } from '../../settings/base-currency';
+import type { UserSettingsDAO } from '../../settings/user-settings';
 import {
   ColumnDefinition,
 } from '../types';
@@ -108,6 +112,16 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
   readonly params: ColumnParams | null = null;
   readonly data: CellData[] = [];
   private _stage2: ImportStatementStage2 | null = null;
+  /** Optional settings DAO injected at construction; enables `use_base` resolution. */
+  private readonly _settingsDao: UserSettingsDAO | null;
+
+  /**
+   * Recall state for this column's definition (FEAT-013 / 2.3).
+   * 'guessed'   — prefilled from pool or auto-detect; awaiting user confirmation.
+   * 'confirmed' — user explicitly confirmed the mapping.
+   * null        — not from recall (manually mapped or not yet mapped).
+   */
+  readonly recallState: 'guessed' | 'confirmed' | null;
 
   constructor(
     id: string,
@@ -115,7 +129,9 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     originalName: Message,
     definition: ColumnDefinition | null = null,
     params: ColumnParams | null = null,
-    data: CellData[] = []
+    data: CellData[] = [],
+    settingsDao: UserSettingsDAO | null = null,
+    recallState: 'guessed' | 'confirmed' | null = null
   ) {
     this.id = id;
     this.name = name;
@@ -123,6 +139,8 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     this.definition = definition;
     this.params = params;
     this.data = data;
+    this._settingsDao = settingsDao;
+    this.recallState = recallState;
   }
 
   /**
@@ -353,11 +371,13 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     definition,
     params,
     data,
+    recallState,
   }: {
     name?: Message;
     definition?: ColumnDefinition | null;
     params?: ColumnParams | null;
     data?: CellData[];
+    recallState?: 'guessed' | 'confirmed' | null;
   } = {}): ImportStatementColumn {
     const newColumn = new ImportStatementColumn(
       this.id,
@@ -365,7 +385,9 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       this.originalName,
       definition !== undefined ? definition : this.definition,
       params !== undefined ? params : this.params,
-      data !== undefined ? data : this.data
+      data !== undefined ? data : this.data,
+      this._settingsDao,
+      recallState !== undefined ? recallState : this.recallState
     );
 
     // Associate with the same stage2 if this column is associated
@@ -540,8 +562,24 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       return;
     }
 
+    // ── use_base resolution (Story 2.3, Task 1) ──────────────────────────────
+    // When params.currency === 'use_base', resolve the stored base currency ISO
+    // code now (before name determination) so the effective params carry the
+    // concrete code downstream.  Throws BaseCurrencyNotSetError if unset.
+    let effectiveParams = params;
+    if (params.currency === 'use_base') {
+      if (!this._settingsDao) {
+        // No DAO injected — cannot resolve use_base; propagate as loud error.
+        const { BaseCurrencyNotSetError } = await import('../../settings/base-currency');
+        throw new BaseCurrencyNotSetError();
+      }
+      const resolvedIso = await _getBaseCurrencyFromDao(this._settingsDao);
+      effectiveParams = { ...params, currency: { code: resolvedIso } };
+      logger.debug('use_base resolved to:', resolvedIso);
+    }
+
     // Determine amount type - default to 'auto' if not specified
-    const amountType = params.type || 'auto';
+    const amountType = effectiveParams.type || 'auto';
     logger.debug('Amount type:', amountType);
 
     // For 'auto' type, we need to analyze the data to determine if it's mixed or outcome
@@ -625,13 +663,15 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     }
 
     // Determine the full column name based on the prefix and currency
-    if (params.currency === 'auto') {
+    // Note: effectiveParams.currency is never 'use_base' here — already resolved above.
+    if (effectiveParams.currency === 'auto') {
       columnName = $t(columnPrefix);
-    } else if (params.currency === 'use_base') {
+    } else if (effectiveParams.currency === 'use_base') {
+      // Should not reach here after resolution, but kept for type narrowing safety
       columnName = $t(`${columnPrefix}-in-base-currency`);
     } else {
       columnName = $t(`${columnPrefix}-in-currency`, {
-        currency: params.currency.code,
+        currency: effectiveParams.currency.code,
       });
     }
 
@@ -641,7 +681,7 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     await this.parseGeneric({
       targetDefinition: ColumnDefinition.AMOUNT,
       errorMessageKey,
-      params,
+      params: effectiveParams,
       name: columnName,
       parseFunction: (cell) => {
         // Check for null or NaN values first

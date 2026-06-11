@@ -1,32 +1,93 @@
 /**
- * Import statement types — catalog + params + file-format shapes.
+ * Import statement types — catalog + params + file-format shapes + stage interfaces.
  *
  * PORT of `webapp/libs/engine/src/importStatement/types.ts` with:
  *   1. EXTEND: TIME = 'time', COUNTERPARTY = 'counterparty'  (ENT-009 → 16 entries)
  *   2. ADAPT:  AmountColumnParams.currency typed as the 1.6 CurrencyDetectOptions
  *              (imported from ../currency/detect — prior art had its own inline alias).
  *   3. verbatimModuleSyntax: all re-export/import fixes applied.
- *
- * Trimming decision:
- *   The prior-art file's top-level re-exports reference Observable (from rxjs) and
- *   stage1/stage3 interfaces that depend on modules not ported in 2.2.
- *   Those stage-orchestration interfaces (ImportStatementStage, ImportStatementStage4,
- *   ImportStatementColumnHeader) are retained verbatim — they compile standalone with
- *   the Message type from our ported utils. The Observable import and the stage1/stage3
- *   re-exports ARE removed because rxjs is not a dep of this package and those stages
- *   are not needed by column.ts or row.ts.
- *
- * // 2.3 ports the rest (stage orchestration: ImportStatementStage, ImportStatementStage4,
- * //                      stage1/stage3 re-exports, Observable-dependent interfaces).
+ *   4. (2.3) COMPLETE: stage orchestration interfaces (ImportStatementStage,
+ *      ImportStatementStage4) and re-exports of stage1/stage2/stage3 interfaces added.
+ *      rxjs is now a dep of this package (internal only — 1.1 rule: no Observables on
+ *      the public surface; the boundary spec must stay green).
  *
  * Diff-audit note:
  *   Prior art declared `CurrencyDetectOptions = 'auto' | 'use_base' | { code: string }`
  *   inline in this file (line ~122). That inline declaration is REPLACED by the import
  *   below — the type shape is identical so no callers are broken.
+ *
+ * 2.3 types.ts delta vs 2.2 trimmed version:
+ *   + `import type { Observable } from 'rxjs'` (rxjs is now a package dep)
+ *   + `ImportStatementStage<Column, Data>` interface (uses Observable)
+ *   + `ImportStatementStage4` interface
+ *   + Re-export `ImportStatementStage1` from './stage1'
+ *   + Re-export stage2 interfaces from './stage2/types'
+ *   = Everything else was already present in the 2.2 trimmed version
  */
 
+import type { Observable } from 'rxjs';
 import type { Message } from '../utils/messages/message';
 import type { CurrencyDetectOptions } from '../currency/detect';
+
+// ---------------------------------------------------------------------------
+// Stage orchestration re-exports (2.3 completion)
+// ---------------------------------------------------------------------------
+
+export type { ImportStatementStage1 } from './stage1';
+export type {
+  CellData,
+  ImportStatementColumnHeaderStage2,
+  ImportStatementRowData,
+  ImportStatementStage2,
+  SupportedDataType,
+} from './stage2/types';
+
+// ---------------------------------------------------------------------------
+// Stage interfaces (2.3 completion — require rxjs Observable)
+// ---------------------------------------------------------------------------
+
+/**
+ * Base interface for all import statement stages.
+ * Provides access to the current data and columns for a specific stage.
+ *
+ * @template Column - The type of column data for this stage
+ * @template Data - The type of row data for this stage
+ */
+export interface ImportStatementStage<Column, Data> {
+  /** Gets the current data rows for this stage as a subscribable */
+  get currentData(): Observable<Data[]>;
+
+  /** Gets the column definitions for this stage as a subscribable */
+  get columns(): Observable<Column[]>;
+
+  /**
+   * Proceeds to the next stage of the import process
+   * @returns Promise resolving to the next stage
+   */
+  next?: () => Promise<ImportStatementStage<unknown, unknown>>;
+
+  /** Observable indicating whether the process can move to the next stage */
+  readonly canMoveForward?: Observable<boolean>;
+
+  /**
+   * Saves the imported data
+   * @returns Promise that resolves when the save operation is complete
+   */
+  save?: () => Promise<void>;
+}
+
+/**
+ * Final stage of the import statement process.
+ * Handles saving the imported data.
+ */
+export interface ImportStatementStage4
+  extends ImportStatementStage<string, Record<string, unknown>> {
+  /**
+   * Saves the imported data
+   * @returns Promise that resolves when the save operation is complete
+   */
+  save(): Promise<void>;
+}
 
 // ---------------------------------------------------------------------------
 // Column Definition and Parameters
@@ -200,6 +261,4 @@ export interface FileFormatMatch {
   readonly matchPercentage: number;
 }
 
-// 2.3 ports the rest (stage orchestration: ImportStatementStage, ImportStatementStage4,
-//                      stage1/stage3 re-exports, Observable-dependent interfaces —
-//                      these require rxjs which is not a dep of this package in 2.2).
+// (2.3) stage orchestration interfaces and re-exports are now complete above.

@@ -27,10 +27,9 @@ export function setRemoteRatesApi(api: ExchangeRateApi | undefined): void {
  * Returns null if no remote api was injected (rates simply unavailable).
  * The lazy construction is async (awaits openEngineDb once) and memoized.
  *
- * ⚠️ EP-2 MUST-DO BEFORE FIRST INVOCATION: this memoization AND openEngineDb() both cache
- * a REJECTED promise forever — one transient IDB-open failure bricks rates until reload.
- * Dormant today (nothing calls this yet; only setRemoteRatesApi is wired), but EP-2's
- * conversion wiring makes it live: add clear-on-reject (or retry) to BOTH layers first.
+ * ✅ Clear-on-reject (Story 2.3, Task 1): on rejection the memoized promise is cleared
+ * so the next caller retries rather than receiving the same rejected promise forever.
+ * This resolves the 1.6 ⚠️ guardrail (both layers now clear on reject).
  */
 export async function getRatesService(): Promise<ExchangeRateService | null> {
   if (!_remoteApi) {
@@ -44,7 +43,11 @@ export async function getRatesService(): Promise<ExchangeRateService | null> {
       const dao = new IDBExchangeRateDAO(() => db);
       const cachedApi = new CachedExchangeRateApi(dao, remoteApi);
       return new ExchangeRateServiceImpl(cachedApi);
-    })();
+    })().catch((err) => {
+      // Clear memoization so the next call retries
+      _servicePromise = null;
+      return Promise.reject(err);
+    });
   }
 
   return _servicePromise;
