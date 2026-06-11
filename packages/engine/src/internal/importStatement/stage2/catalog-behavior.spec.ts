@@ -486,6 +486,26 @@ describe('ENT-011 hook — AMOUNT currency resolution', () => {
     expect(appliedCurr.data[1].value).toBe('UAH');
   });
 
+  it('ENT-011 C-1 fix: ₴ CURRENCY column — ₴ resolves to UAH (not flagged as ambiguous)', async () => {
+    // C-1 regression guard: '₴' appears in UAH uk.symbol AND UAH specialSymbols (same entry).
+    // The buggy raw-count approach counted it twice → flagged ambiguous → parse error.
+    // The fixed approach deduplicates symbols per entry → ₴ is unambiguous → resolves to UAH.
+    const currData = [
+      cell('₴'),   // UAH uk.symbol — must resolve to UAH, NOT error
+      cell('₴'),
+    ];
+    const currCol = makeCol('curr_uah', new NativeMessage('currency'), currData, mockStage2);
+    await currCol.parseAsCurrency();
+
+    const appliedCurr = lastApplied(mockStage2);
+    expect(appliedCurr.definition).toBe(ColumnDefinition.CURRENCY);
+    // '₴' must resolve to 'UAH' (C-1 fix: not counted as ambiguous)
+    expect(appliedCurr.data[0].value).toBe('UAH');
+    expect(appliedCurr.data[0].error).toBeUndefined();
+    expect(appliedCurr.data[1].value).toBe('UAH');
+    expect(appliedCurr.data[1].error).toBeUndefined();
+  });
+
   it('currency="use_base" — params carry use_base flag through to the applied column', async () => {
     // use_base: the resolved currency is the budget's base currency.
     // At column-transform time, the params just carry 'use_base'; the actual

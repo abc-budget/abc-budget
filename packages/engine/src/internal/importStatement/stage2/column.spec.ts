@@ -701,6 +701,14 @@ describe('ImportStatementColumn (core behaviors)', () => {
       expect(applied.data[1].value).toBe('USD');
       // 840 matches USD
       expect(applied.data[2].value).toBe('USD');
+      // EUR code stays
+      expect(applied.data[3].value).toBe('EUR');
+      // '₴' is UAH uk.symbol — must resolve to 'UAH' (not ambiguous; C-1 fix)
+      expect(applied.data[4].value).toBe('UAH');
+      // 'UAH' alpha code passthrough
+      expect(applied.data[5].value).toBe('UAH');
+      // duplicate 'USD' code stays
+      expect(applied.data[6].value).toBe('USD');
       // empty -> error (last item)
       expect(applied.data[7].error).toBeTruthy();
     });
