@@ -22,8 +22,12 @@ import type { Mocked } from 'vitest';
 import { LocalizableException } from '../../utils/messages/exceptions';
 import { NativeMessage } from '../../utils/messages/message';
 import type { Message } from '../../utils/messages/message';
-import { ColumnTransformRejection } from './errors';
+import { ColumnTransformRejection, UnmappedColumnsError } from './errors';
 import { ImportStatementColumn } from './column';
+import type { ImportStatementServiceInternal } from '../service';
+import type { ImportStatementStage1 } from '../stage1';
+import type { ImportStatementStage3 } from '../stage3/types';
+import { ImportStatementStage2Impl } from './implementation';
 import { SupportedDataType } from './types';
 import type { CellData, ImportStatementStage2 } from './types';
 import { ColumnDefinition } from '../types';
@@ -486,5 +490,163 @@ describe('store-backing proof: threshold from config, not constant', () => {
     const col2 = makeCol(data, mockStage2);
     await expect(col2.parseAsDate(DATE_PARAMS)).resolves.toBeUndefined();
     expect(mockStage2.applyColumn).toHaveBeenCalledOnce();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 2.4 Task 3 — UnmappedColumnsError + getUnmappedColumns (Q-009 stop)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Stage2 test helpers ───────────────────────────────────────────────────────
+
+function createMock<T>(overrides: Partial<T> = {}): Mocked<T> {
+  return overrides as Mocked<T>;
+}
+
+function makeStage2(
+  columns: ImportStatementColumn[]
+): ImportStatementStage2Impl {
+  const mockStage1 = createMock<ImportStatementStage1>({});
+  const mockStage3 = createMock<ImportStatementStage3>({});
+  const mockSvc = createMock<Pick<ImportStatementServiceInternal, 'startWith' | 'stage2' | 'stage3'>>({
+    stage3: vi.fn().mockResolvedValue(mockStage3),
+  });
+  return new ImportStatementStage2Impl(
+    mockStage1,
+    mockSvc as unknown as ImportStatementServiceInternal,
+    columns
+  );
+}
+
+function makeUnmappedCol(id: string, name: string): ImportStatementColumn {
+  const msg = new NativeMessage(name);
+  return new ImportStatementColumn(id, msg, msg, null, null, [cell('v')]);
+}
+
+// ── Suite 6: UnmappedColumnsError class ──────────────────────────────────────
+
+describe('UnmappedColumnsError', () => {
+  it('is instanceof LocalizableException and instanceof UnmappedColumnsError', () => {
+    const err = new UnmappedColumnsError([{ id: 'col1', name: 'Column 1' }]);
+    expect(err).toBeInstanceOf(LocalizableException);
+    expect(err).toBeInstanceOf(UnmappedColumnsError);
+    expect(err.name).toBe('UnmappedColumnsError');
+  });
+
+  it('carries the unmappedColumns list exactly', () => {
+    const list = [
+      { id: 'col-a', name: 'Date' },
+      { id: 'col-b', name: 'Amount' },
+    ];
+    const err = new UnmappedColumnsError(list);
+    expect(err.unmappedColumns).toBe(list);
+    expect(err.unmappedColumns).toHaveLength(2);
+    expect(err.unmappedColumns[0]).toEqual({ id: 'col-a', name: 'Date' });
+    expect(err.unmappedColumns[1]).toEqual({ id: 'col-b', name: 'Amount' });
+  });
+
+  it('message is localizable (getLocalizableMessage().getText() returns the catalog key)', () => {
+    const err = new UnmappedColumnsError([{ id: 'x', name: 'X' }]);
+    // $t-created messages return their key from getText() in the test environment
+    const locMsg = err.getLocalizableMessage();
+    expect(typeof locMsg.getText()).toBe('string');
+    expect(locMsg.getText()).toContain('engine.importStatement.unmapped-columns-stop');
+  });
+});
+
+// ── Suite 7: getUnmappedColumns() + next() with 2 unmapped columns ───────────
+
+describe('getUnmappedColumns: stage2 with 2 unmapped columns', () => {
+  it('returns both {id, name} for unmapped columns', () => {
+    const colA = makeUnmappedCol('col-a', 'Date');
+    const colB = makeUnmappedCol('col-b', 'Amount');
+    const stage2 = makeStage2([colA, colB]);
+
+    const list = stage2.getUnmappedColumns();
+    expect(list).toHaveLength(2);
+    expect(list[0]).toEqual({ id: 'col-a', name: 'Date' });
+    expect(list[1]).toEqual({ id: 'col-b', name: 'Amount' });
+  });
+
+  it('next() throws UnmappedColumnsError when columns are unmapped', async () => {
+    const colA = makeUnmappedCol('col-a', 'Date');
+    const colB = makeUnmappedCol('col-b', 'Amount');
+    const stage2 = makeStage2([colA, colB]);
+
+    await expect(stage2.next()).rejects.toBeInstanceOf(UnmappedColumnsError);
+    await expect(stage2.next()).rejects.toBeInstanceOf(LocalizableException);
+  });
+
+  it('error.unmappedColumns deep-equals getUnmappedColumns() list', async () => {
+    const colA = makeUnmappedCol('col-a', 'Date');
+    const colB = makeUnmappedCol('col-b', 'Amount');
+    const stage2 = makeStage2([colA, colB]);
+
+    const getterList = stage2.getUnmappedColumns();
+    let caughtError: UnmappedColumnsError | undefined;
+    try {
+      await stage2.next();
+    } catch (e) {
+      caughtError = e as UnmappedColumnsError;
+    }
+
+    expect(caughtError).toBeInstanceOf(UnmappedColumnsError);
+    expect(caughtError!.unmappedColumns).toEqual(getterList);
+    expect(caughtError!.unmappedColumns).toHaveLength(2);
+  });
+});
+
+// ── Suite 8: ⟺ pin (decision 3) — both directions ────────────────────────────
+
+describe('⟺ pin (decision 3): getUnmappedColumns().length === 0 ⟺ next() does not throw', () => {
+  it('direction A — all columns mapped: getter empty AND next() resolves', async () => {
+    // Dynamically import ColumnDefinition for the mapped column helper
+    const { ColumnDefinition } = await import('../types');
+    const msg = (n: string) => new NativeMessage(n);
+    const colDate = new ImportStatementColumn('col-date', msg('Date'), msg('Date'), ColumnDefinition.DATE, null, [cell('v')]);
+    const colAmt = new ImportStatementColumn('col-amt', msg('Amount'), msg('Amount'), ColumnDefinition.AMOUNT, null, [cell('v')]);
+
+    const stage2 = makeStage2([colDate, colAmt]);
+
+    // getter must be empty
+    expect(stage2.getUnmappedColumns()).toHaveLength(0);
+
+    // next() must resolve (stage3 stub)
+    await expect(stage2.next()).resolves.toBeDefined();
+  });
+
+  it('direction B — one unmapped: getter non-empty AND next() rejects with UnmappedColumnsError', async () => {
+    const { ColumnDefinition } = await import('../types');
+    const msg = (n: string) => new NativeMessage(n);
+    const colDate = new ImportStatementColumn('col-date', msg('Date'), msg('Date'), ColumnDefinition.DATE, null, [cell('v')]);
+    const colUnmapped = new ImportStatementColumn('col-u', msg('Notes'), msg('Notes'), null, null, [cell('v')]);
+
+    const stage2 = makeStage2([colDate, colUnmapped]);
+
+    // getter non-empty
+    const list = stage2.getUnmappedColumns();
+    expect(list.length).toBeGreaterThan(0);
+    expect(list[0]).toEqual({ id: 'col-u', name: 'Notes' });
+
+    // next() rejects with UnmappedColumnsError
+    await expect(stage2.next()).rejects.toBeInstanceOf(UnmappedColumnsError);
+  });
+});
+
+// ── Suite 9: Mixed — 3 columns, 1 unmapped → list has exactly that one ───────
+
+describe('getUnmappedColumns: mixed — 3 columns, 1 unmapped', () => {
+  it('returns exactly the one unmapped column', async () => {
+    const { ColumnDefinition } = await import('../types');
+    const msg = (n: string) => new NativeMessage(n);
+    const colDate = new ImportStatementColumn('c1', msg('Date'), msg('Date'), ColumnDefinition.DATE, null, [cell('v')]);
+    const colAmt = new ImportStatementColumn('c2', msg('Amount'), msg('Amount'), ColumnDefinition.AMOUNT, null, [cell('v')]);
+    const colNotes = new ImportStatementColumn('c3', msg('Notes'), msg('Notes'), null, null, [cell('v')]);
+
+    const stage2 = makeStage2([colDate, colAmt, colNotes]);
+
+    const list = stage2.getUnmappedColumns();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toEqual({ id: 'c3', name: 'Notes' });
   });
 });

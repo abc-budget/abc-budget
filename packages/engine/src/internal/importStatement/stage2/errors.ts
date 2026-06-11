@@ -3,6 +3,7 @@
  * @module internal/importStatement/stage2/errors
  *
  * Story 2.4, Task 2 — ENT-015 evidence payload.
+ * Story 2.4, Task 3 — Q-009 explicit stop.
  *
  * `ColumnTransformRejection` is a subclass of `LocalizableException` that carries
  * structured evidence for the >30%-bad-column rejection gate:
@@ -10,6 +11,19 @@
  *   ЩО   — class identity + counts (errorCount / totalCount / threshold)
  *   ЧОМУ  — the complete per-cell error list (cellErrors[], ALL collected — FEAT-022)
  *   ДІЯ   — localizable action hint (engine.importStatement.transform-rejected-action)
+ *
+ * `UnmappedColumnsError` is a subclass of `LocalizableException` that carries
+ * the list of column ids+names that are still unmapped when `next()` is called:
+ *
+ *   ЩО   — class identity + unmapped column list (ids + names)
+ *   ЧОМУ  — enumerated column names in the localizable message
+ *   ДІЄ   — Q-009: the stop is explicit and structured so that 2.8's Option-A gate
+ *            can render the list without provoking the throw
+ *
+ * Catalog keys:
+ *   `engine.importStatement.unmapped-columns-stop` (new, uk/en)
+ *     uk: "Неможливо продовжити: незіставлені стовпці — {names}"
+ *     en: "Cannot proceed: unmapped columns — {names}"
  *
  * Subclassing `LocalizableException` means all existing `toThrow(LocalizableException)`
  * assertions in the 1,347-line ported suites stay green without weakening.
@@ -76,5 +90,43 @@ export class ColumnTransformRejection extends LocalizableException {
     this.totalCount = totalCount;
     this.threshold = threshold;
     this.cellErrors = cellErrors;
+  }
+}
+
+/**
+ * Thrown by `ImportStatementStage2Impl.next()` when one or more columns are still
+ * unmapped (definition === null) and the user attempts to advance to stage 3.
+ *
+ * Carries the complete list of unmapped columns so that 2.8's Option-A gate can
+ * render the names without provoking the throw via `getUnmappedColumns()`.
+ *
+ * Catalog key: `engine.importStatement.unmapped-columns-stop`
+ *   uk: "Неможливо продовжити: незіставлені стовпці — {names}"
+ *   en: "Cannot proceed: unmapped columns — {names}"
+ *
+ * The `names` interpolation param is the comma-joined list of column names from
+ * `unmappedColumns[].name`.
+ *
+ * Subclassing `LocalizableException` means all existing `toThrow(LocalizableException)`
+ * assertions in the 1,347-line ported suites stay green without weakening.
+ */
+export class UnmappedColumnsError extends LocalizableException {
+  /**
+   * The list of columns that are still unmapped at the time `next()` was called.
+   * Each entry carries `id` (stable column identifier) and `name` (display name
+   * from `originalName.getText()` — the header text as it appears in the file).
+   */
+  readonly unmappedColumns: ReadonlyArray<{ id: string; name: string }>;
+
+  constructor(unmappedColumns: ReadonlyArray<{ id: string; name: string }>) {
+    const names = unmappedColumns.map((c) => c.name).join(', ');
+    super($t('engine.importStatement.unmapped-columns-stop', { names }));
+
+    // Restore prototype chain so `instanceof UnmappedColumnsError` works across
+    // compilation boundaries.
+    Object.setPrototypeOf(this, UnmappedColumnsError.prototype);
+    this.name = 'UnmappedColumnsError';
+
+    this.unmappedColumns = unmappedColumns;
   }
 }

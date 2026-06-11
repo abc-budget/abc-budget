@@ -76,16 +76,56 @@ import type { ImportStatementStage3 } from '../stage3/types';
 import { ImportStatementColumn } from './column';
 import { ImportStatementRow } from './row';
 import type { CellData } from './types';
+import { UnmappedColumnsError } from './errors';
 
 // ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
 
 export class ImportStatementStage2Impl implements ImportStatementStage2 {
+  /**
+   * ONE predicate — the single source of truth for "which columns are unmapped".
+   *
+   * Returns the list of columns (from the provided array) whose `definition` is
+   * null (i.e., still UNKNOWN).  The name is taken from `originalName.getText()`
+   * because `originalName` is the header text as it appears in the source file —
+   * the same field recall uses for key normalization and the most stable human-
+   * readable identifier at this stage.  `name` could be a localized display name
+   * that differs per locale; `originalName` is always the raw file header.
+   *
+   * Used by:
+   *   - `getUnmappedColumns()` (public) — for 2.8 Option-A gate rendering
+   *   - `next()` — throws `UnmappedColumnsError` when the list is non-empty
+   *   - `areAllColumnsProcessed()` (static) — delegates here; ONE source of truth
+   */
+  private static _computeUnmappedColumns(
+    columns: ImportStatementColumnHeaderStage2[]
+  ): ReadonlyArray<{ id: string; name: string }> {
+    return columns
+      .filter((col) => col.definition === null)
+      .map((col) => ({ id: col.id, name: col.originalName.getText() }));
+  }
+
+  /**
+   * Returns the list of currently unmapped columns (definition === null).
+   * Empty array means all columns are mapped.
+   *
+   * The ⟺ pin (decision 3): `getUnmappedColumns().length === 0 ⟺ next() does not throw`.
+   * Both sides derive from the same `_computeUnmappedColumns()` predicate.
+   */
+  getUnmappedColumns(): ReadonlyArray<{ id: string; name: string }> {
+    return ImportStatementStage2Impl._computeUnmappedColumns(this._columns.getValue());
+  }
+
+  /**
+   * Delegates to `_computeUnmappedColumns()` — ONE source of truth.
+   * The ported suite's `canMoveForward` observable path calls this static;
+   * it is preserved to keep that surface intact.
+   */
   private static areAllColumnsProcessed(
     columns: ImportStatementColumnHeaderStage2[]
   ): boolean {
-    return columns.every((column) => column.definition !== null);
+    return ImportStatementStage2Impl._computeUnmappedColumns(columns).length === 0;
   }
 
   private readonly _stage1: ImportStatementStage1;
@@ -298,10 +338,9 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
 
   async next(): Promise<ImportStatementStage3> {
     const currentColumns = this._columns.getValue();
-    if (!ImportStatementStage2Impl.areAllColumnsProcessed(currentColumns)) {
-      throw new Error(
-        'Cannot move forward: some columns do not have a definition'
-      );
+    const unmapped = ImportStatementStage2Impl._computeUnmappedColumns(currentColumns);
+    if (unmapped.length > 0) {
+      throw new UnmappedColumnsError(unmapped);
     }
 
     return this._service.stage3(this);
