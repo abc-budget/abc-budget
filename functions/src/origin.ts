@@ -7,8 +7,8 @@
  */
 
 export const PROD_ORIGIN_ALLOWLIST: readonly string[] = [
-    "https://abc-budget-2d379.web.app",
-    "https://abc-budget-2d379.firebaseapp.com",
+    "https://abcbudget.web.app",
+    "https://abcbudget.firebaseapp.com",
 ];
 
 /**

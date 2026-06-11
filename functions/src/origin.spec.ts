@@ -3,8 +3,8 @@ import { checkOrigin, PROD_ORIGIN_ALLOWLIST } from "./origin.js";
 
 describe("PROD_ORIGIN_ALLOWLIST", () => {
     it("contains the two production origins", () => {
-        expect(PROD_ORIGIN_ALLOWLIST).toContain("https://abc-budget-2d379.web.app");
-        expect(PROD_ORIGIN_ALLOWLIST).toContain("https://abc-budget-2d379.firebaseapp.com");
+        expect(PROD_ORIGIN_ALLOWLIST).toContain("https://abcbudget.web.app");
+        expect(PROD_ORIGIN_ALLOWLIST).toContain("https://abcbudget.firebaseapp.com");
         expect(PROD_ORIGIN_ALLOWLIST).toHaveLength(2);
     });
 });
@@ -13,21 +13,21 @@ describe("checkOrigin", () => {
     const allowlist = PROD_ORIGIN_ALLOWLIST;
 
     // ── allowed cases ──────────────────────────────────────────────────────────
-    it("allows https://abc-budget-2d379.web.app with no Sec-Fetch-Site", () => {
-        const result = checkOrigin("https://abc-budget-2d379.web.app", undefined, allowlist);
+    it("allows https://abcbudget.web.app with no Sec-Fetch-Site", () => {
+        const result = checkOrigin("https://abcbudget.web.app", undefined, allowlist);
         expect(result.allowed).toBe(true);
         expect(result.reason).toBeUndefined();
     });
 
-    it("allows https://abc-budget-2d379.firebaseapp.com with no Sec-Fetch-Site", () => {
-        const result = checkOrigin("https://abc-budget-2d379.firebaseapp.com", undefined, allowlist);
+    it("allows https://abcbudget.firebaseapp.com with no Sec-Fetch-Site", () => {
+        const result = checkOrigin("https://abcbudget.firebaseapp.com", undefined, allowlist);
         expect(result.allowed).toBe(true);
         expect(result.reason).toBeUndefined();
     });
 
     it("allows valid origin with Sec-Fetch-Site: same-origin", () => {
         const result = checkOrigin(
-            "https://abc-budget-2d379.web.app",
+            "https://abcbudget.web.app",
             "same-origin",
             allowlist
         );
@@ -36,7 +36,7 @@ describe("checkOrigin", () => {
 
     it("allows valid origin with Sec-Fetch-Site: same-site", () => {
         const result = checkOrigin(
-            "https://abc-budget-2d379.web.app",
+            "https://abcbudget.web.app",
             "same-site",
             allowlist
         );
@@ -78,7 +78,7 @@ describe("checkOrigin", () => {
     // ── Sec-Fetch-Site cross-site overrides valid Origin ───────────────────────
     it("rejects cross-site Sec-Fetch-Site even with valid Origin", () => {
         const result = checkOrigin(
-            "https://abc-budget-2d379.web.app",
+            "https://abcbudget.web.app",
             "cross-site",
             allowlist
         );
@@ -88,7 +88,7 @@ describe("checkOrigin", () => {
 
     it("rejects 'none' Sec-Fetch-Site (no origin) even with valid Origin", () => {
         const result = checkOrigin(
-            "https://abc-budget-2d379.web.app",
+            "https://abcbudget.web.app",
             "none",
             allowlist
         );
@@ -99,7 +99,7 @@ describe("checkOrigin", () => {
     // ── absent Sec-Fetch-Site is tolerated (older agents) ─────────────────────
     it("tolerates absent Sec-Fetch-Site header for a valid Origin", () => {
         const result = checkOrigin(
-            "https://abc-budget-2d379.firebaseapp.com",
+            "https://abcbudget.firebaseapp.com",
             undefined,
             allowlist
         );
@@ -110,15 +110,15 @@ describe("checkOrigin", () => {
     it("works with a custom allowlist", () => {
         const custom = ["https://custom.example.com"];
         expect(checkOrigin("https://custom.example.com", undefined, custom).allowed).toBe(true);
-        expect(checkOrigin("https://abc-budget-2d379.web.app", undefined, custom).allowed).toBe(false);
+        expect(checkOrigin("https://abcbudget.web.app", undefined, custom).allowed).toBe(false);
     });
 
     // ── exact-match hardening: browser-canonical origins only ──────────────────
     it("rejects near-miss origin variants (trailing slash, case, port, null)", () => {
         for (const variant of [
-            "https://abc-budget-2d379.web.app/",
+            "https://abcbudget.web.app/",
             "https://ABC-BUDGET-2D379.WEB.APP",
-            "https://abc-budget-2d379.web.app:443",
+            "https://abcbudget.web.app:443",
             "null",
         ]) {
             expect(checkOrigin(variant, undefined, PROD_ORIGIN_ALLOWLIST).allowed, variant).toBe(false);

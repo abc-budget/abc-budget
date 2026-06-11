@@ -1,3 +1,15 @@
 {
-  "projects": { "default": "abc-budget-2d379" }
+  "projects": {
+    "default": "abc-budget-2d379"
+  },
+  "targets": {
+    "abc-budget-2d379": {
+      "hosting": {
+        "app": [
+          "abcbudget"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
