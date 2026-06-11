@@ -154,6 +154,57 @@ describe('Param interfaces — shape fixtures', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Lazy-luxon source discipline (mirrors the 2.1 xlsx pattern in decode.spec.ts)
+//
+// Asserts that no production source file imports luxon at the static-ESM level
+// (i.e. `import { ... } from 'luxon'` or `import * from 'luxon'`).
+// The only permitted runtime access to luxon is via the lazy seam:
+//   packages/engine/src/internal/utils/date/luxon-lazy.ts  — uses import('luxon')
+//   packages/engine/src/internal/utils/date/format-detector.ts — calls getLuxon()
+// Spec files may import luxon directly (test-time bundle, no prod impact).
+// ---------------------------------------------------------------------------
+
+describe('lazy-luxon source discipline', () => {
+  it('column.ts has no static runtime `from "luxon"` import (only `import type` allowed)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(dir, 'stage2', 'column.ts'), 'utf-8');
+    // Must NOT have a static value import of luxon (no `import { X } from 'luxon'`)
+    // `import type` is fine — this regex matches only non-type static imports
+    expect(src).not.toMatch(/^import\s+(?!type\s)\{[^}]*\}\s+from\s+['"]luxon['"]/m);
+    // Must NOT have a static default import
+    expect(src).not.toMatch(/^import\s+(?!type\s)\w+\s+from\s+['"]luxon['"]/m);
+    // MUST use the lazy seam helper
+    expect(src).toMatch(/getLuxon/);
+  });
+
+  it('format-detector.ts has no static `from "luxon"` import — uses dynamic import()', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(dir, '..', 'utils', 'date', 'format-detector.ts'), 'utf-8');
+    expect(src).not.toMatch(/^import\s+(?!type\s)\{[^}]*\}\s+from\s+['"]luxon['"]/m);
+    // MUST use dynamic import of luxon
+    expect(src).toMatch(/import\(['"]luxon['"]\)/);
+  });
+
+  it('luxon-lazy.ts uses only dynamic import (the seam itself is never statically loaded)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(dir, '..', 'utils', 'date', 'luxon-lazy.ts'), 'utf-8');
+    // The seam MUST NOT have a static value import — it IS the lazy seam
+    expect(src).not.toMatch(/^import\s+(?!type\s)\{[^}]*\}\s+from\s+['"]luxon['"]/m);
+    // MUST have the dynamic import
+    expect(src).toMatch(/import\(['"]luxon['"]\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // SupportedDataType — stage2/types sanity check
 // ---------------------------------------------------------------------------
 
