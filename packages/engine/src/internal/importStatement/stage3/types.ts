@@ -1,29 +1,37 @@
 /**
- * Stage 3 types — minimal stub for Task 3.
+ * Stage 3 types — Task 4 full implementation.
  *
- * PORT of `webapp/libs/engine/src/importStatement/stage3/types.ts` (minimal subset).
- *
- * This file provides the types needed by service.ts and stage2/types.ts so that
- * the stage orchestration compiles.  The full implementation of stage3 is ported
- * in Task 4 (row-generator rebuild).
- *
- * Adaptations (diff-audit):
- *   1. `Category` type removed — it lives in the categories module not yet ported;
- *      replaced with `unknown` (category field is opaque at this boundary).
- *   2. `DecisionTreeDebugger` and `Rule` types replaced with `unknown` stubs — those
- *      modules (decision-tree) are not part of Task 3/4 scope.
- *   3. Import of `ImportStatementColumnHeader` from '../types' kept verbatim.
- *   4. `ImportStatementStage4` referenced from '../types' (already ported).
+ * PORT of `webapp/libs/engine/src/importStatement/stage3/types.ts` with:
+ *   1. `Category` type replaced with `unknown` — categories module not yet ported.
+ *   2. `DecisionTreeDebugger` and `Rule` replaced with `unknown` — out of Task 4 scope.
+ *   3. EXTEND: `counterparty: string | null` added to `ImportStatementStage3Row` (ENT-006).
+ *   4. NEW (FEAT-022): `RowError`, `SkippedRow`, `TransactionRow`, and
+ *      `GenerateRowsResult` — the collect-don't-throw row-generator output shape.
  *   5. verbatimModuleSyntax — type-only imports use `import type`.
  *
- * Task 4 will replace this stub with the full implementation.
+ * Diff-audit vs Task 3 stub:
+ *   - `counterparty` field added to `ImportStatementStage3Row`
+ *   - `ImportStatementStage3RowField` Exclude updated to also exclude 'counterparty'
+ *     from the field-name type (counterparty is a distinct output field, not a
+ *     stage-column-header field — mirrors how 'source' is not a column-header field).
+ *   - New types: `RowError`, `SkippedRow`, `TransactionRow`, `GenerateRowsResult`
+ *   - Stage3 interfaces unchanged from stub.
  */
 
+import type { Message } from '../../utils/messages/message';
 import type { ImportStatementColumnHeader, ImportStatementStage, ImportStatementStage4 } from '../types';
 
+// ---------------------------------------------------------------------------
+// Core row shape (FEAT-022 extended)
+// ---------------------------------------------------------------------------
+
 /**
- * Represents a row in Stage 3 of the import statement process.
- * Stub for Task 3 — full shape in Task 4.
+ * Represents a fully-generated transaction row from Stage 3.
+ *
+ * EXTEND vs prior art (ENT-006): `counterparty` field added — distinct from
+ * `description`.  TIME column outputs NO field (ENT-001 privacy).
+ *
+ * Category fields are present but opaque until the categories module is ported.
  */
 export interface ImportStatementStage3Row {
   /** Index of the row in the original data */
@@ -40,6 +48,11 @@ export interface ImportStatementStage3Row {
   currency: string;
   /** Transaction description */
   description: string | null;
+  /**
+   * Counterparty of the transaction — distinct from `description` (ENT-006).
+   * Populated when the statement has a COUNTERPARTY-mapped column.
+   */
+  counterparty: string | null;
   /** Account identifier */
   account: string | null;
   /** Bank's category for the transaction */
@@ -56,13 +69,64 @@ export interface ImportStatementStage3Row {
   isManuallySetCategory: boolean;
 }
 
+/** Convenience alias — the public name used by the row-generator and tests. */
+export type TransactionRow = ImportStatementStage3Row;
+
+// ---------------------------------------------------------------------------
+// FEAT-022: collect-don't-throw output types
+// ---------------------------------------------------------------------------
+
+/**
+ * A per-row error entry.  When row generation fails for a specific row, the
+ * error is collected here and generation continues with the next row.
+ *
+ * FEAT-022 contract: `generateRows()` NEVER throws; it collects.
+ */
+export interface RowError {
+  /** Index of the row that failed (matches `ImportStatementRowData.rowIndex`) */
+  readonly rowIndex: number;
+  /** One or more error messages describing why this row could not be generated */
+  readonly errors: readonly Message[];
+}
+
+/**
+ * A per-row skip entry.  Income rows (VIS-011) and other label-and-discard
+ * cells produce skip entries — DISTINCT from errors (the row is valid data, just
+ * not a spend transaction).
+ */
+export interface SkippedRow {
+  /** Index of the skipped row */
+  readonly rowIndex: number;
+  /** Reason the row was skipped (e.g. "income value ignored") */
+  readonly reason: Message;
+}
+
+/**
+ * Full output of `generateRows()`.
+ *
+ * FEAT-022 contract:
+ *  - `rows`      — successfully generated transaction rows (good rows always generated).
+ *  - `rowErrors` — rows that could not be generated; one entry per bad row.
+ *  - `skipped`   — rows discarded for non-error reasons (income / mixed-positive, etc.).
+ */
+export interface GenerateRowsResult {
+  readonly rows: TransactionRow[];
+  readonly rowErrors: RowError[];
+  readonly skipped: SkippedRow[];
+}
+
+// ---------------------------------------------------------------------------
+// Stage 3 column / stage interfaces (unchanged from Task 3 stub)
+// ---------------------------------------------------------------------------
+
 /**
  * Type representing the field names from ImportStatementStage3Row,
- * excluding 'rowIndex', 'hash', 'category' and 'isManuallySetCategory' fields.
+ * excluding 'rowIndex', 'hash', 'category', 'isManuallySetCategory', and
+ * 'counterparty' (counterparty is a distinct output field, not a column-header field).
  */
 export type ImportStatementStage3RowField = Exclude<
   keyof ImportStatementStage3Row,
-  'rowIndex' | 'hash' | 'category' | 'isManuallySetCategory'
+  'rowIndex' | 'hash' | 'category' | 'isManuallySetCategory' | 'counterparty'
 >;
 
 /**
@@ -75,7 +139,6 @@ export interface ImportStatementColumnHeaderStage3 extends ImportStatementColumn
 
 /**
  * Third stage of the import statement process.
- * Stub for Task 3 — full implementation in Task 4.
  */
 export interface ImportStatementStage3
   extends ImportStatementStage<
@@ -96,12 +159,12 @@ export interface ImportStatementStage3
 
   /**
    * Runs debug categorization asynchronously
-   * @returns Promise that resolves with the debugger object (opaque until Task 4)
+   * @returns Promise that resolves with the debugger object (opaque until categorization module)
    */
   runDebugCategorization(): Promise<unknown>;
 
   /**
-   * Applies filtering rules to the data (opaque rule type until Task 4)
+   * Applies filtering rules to the data (opaque rule type until categorization module)
    */
   applyFilters(rules: unknown[], hideCategorisedRows?: boolean): Promise<void>;
 
