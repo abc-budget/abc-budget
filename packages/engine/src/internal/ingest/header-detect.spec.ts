@@ -488,3 +488,78 @@ describe('determinism', () => {
     expect(k1).toEqual(k2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 11. detectHeader — empty header cells (FINDING-1 regression cases)
+// ---------------------------------------------------------------------------
+
+describe('detectHeader — empty header cells', () => {
+  /** Fixture mirror: empty-header-cells.csv
+   *  Row 0: header with one empty cell  → should WIN
+   *  Rows 1-3: all-string data rows     → should LOSE
+   */
+  const EMPTY_HDR_MATRIX: string[][] = [
+    ['Дата', '', 'Опис', 'Контрагент'],
+    ['01.02.2024', 'x', 'Кава в кафе', 'ТОВ КАВА ПЛЮС'],
+    ['02.02.2024', 'y', 'Чай та десерт', 'ФОП ЧАЙ СЕРВІС'],
+    ['03.02.2024', 'z', 'Обід бізнес-ланч', 'РЕСТОРАН СМАК'],
+  ];
+
+  it('headerRow is 0 (header row wins despite empty cell)', () => {
+    // BUG: current scorer gives row 0 a fill penalty making data rows win.
+    // Expected: row 0 is recognized as the header.
+    expect(detectHeader(EMPTY_HDR_MATRIX).headerRow).toBe(0);
+  });
+
+  it('keys are [Дата, col_2, Опис, Контрагент] (empty cell → col_2 placeholder)', () => {
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    expect(d.keys).toEqual(['Дата', 'col_2', 'Опис', 'Контрагент']);
+  });
+
+  it('emits exactly 1 renamed-column issue for the empty header cell', () => {
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    const renamed = d.issues.filter(i => i.action === 'renamed-column');
+    expect(renamed).toHaveLength(1);
+  });
+
+  it('renamed-column issue has what=empty-header-cell', () => {
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    const issue = d.issues.find(i => i.action === 'renamed-column');
+    expect(issue?.what).toBe('empty-header-cell');
+  });
+
+  it('renamed-column issue mentions the position (col_2) in why', () => {
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    const issue = d.issues.find(i => i.action === 'renamed-column');
+    expect(issue?.why).toContain('col_2');
+  });
+
+  it('keyRows produces 3 data rows when header is row 0', () => {
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    const k = keyRows(EMPTY_HDR_MATRIX, d);
+    expect(k.rows).toHaveLength(3);
+  });
+
+  it('data rows have col_2 key with the x/y/z values', () => {
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    const k = keyRows(EMPTY_HDR_MATRIX, d);
+    expect(k.rows[0]['col_2']).toBe('x');
+    expect(k.rows[1]['col_2']).toBe('y');
+    expect(k.rows[2]['col_2']).toBe('z');
+  });
+
+  it('data rows have date-like values in Дата column (not treated as header)', () => {
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    const k = keyRows(EMPTY_HDR_MATRIX, d);
+    expect(k.rows[0]['Дата']).toBe('01.02.2024');
+    expect(k.rows[1]['Дата']).toBe('02.02.2024');
+    expect(k.rows[2]['Дата']).toBe('03.02.2024');
+  });
+
+  it('scoring: data rows with date-shaped cells score LOWER than the header row', () => {
+    // This is the mechanism test: the date-likeness penalty must ensure header wins.
+    // We just verify the observable outcome (headerRow=0) rather than internal scores.
+    const d = detectHeader(EMPTY_HDR_MATRIX);
+    expect(d.headerRow).toBe(0);
+  });
+});

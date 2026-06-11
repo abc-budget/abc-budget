@@ -63,6 +63,50 @@ exports[`decode() — CSV path > empty.csv > full result matches snapshot 1`] = 
 }
 `;
 
+exports[`decode() — CSV path > empty-header-cells.csv > full result matches snapshot 1`] = `
+{
+  "issues": [
+    {
+      "action": "renamed-column",
+      "column": 1,
+      "raw": "",
+      "row": 0,
+      "what": "empty-header-cell",
+      "why": "Column at index 1 (1-based position 2) has an empty or whitespace-only header cell; assigned stable placeholder name 'col_2'. The 2.3 recall pool keys on columnName — empty-string keys would break recall.",
+    },
+  ],
+  "meta": {
+    "bom": false,
+    "decodedRows": 3,
+    "delimiter": ",",
+    "encoding": "utf-8",
+    "format": "csv",
+    "headerRow": 0,
+    "totalRows": 3,
+  },
+  "rows": [
+    {
+      "col_2": "x",
+      "Дата": "01.02.2024",
+      "Контрагент": "ТОВ КАВА ПЛЮС",
+      "Опис": "Кава в кафе",
+    },
+    {
+      "col_2": "y",
+      "Дата": "02.02.2024",
+      "Контрагент": "ФОП ЧАЙ СЕРВІС",
+      "Опис": "Чай та десерт",
+    },
+    {
+      "col_2": "z",
+      "Дата": "03.02.2024",
+      "Контрагент": "РЕСТОРАН СМАК",
+      "Опис": "Обід бізнес-ланч",
+    },
+  ],
+}
+`;
+
 exports[`decode() — CSV path > mono-like-utf8.csv > full result matches snapshot 1`] = `
 {
   "issues": [

@@ -11,18 +11,28 @@
  * ── Scoring ────────────────────────────────────────────────────────────────────
  *
  *   score(row i) =
- *     F1 × F2 × F3
+ *     F1 × F2 × F3 × F4
  *
- *   F1 = (non-empty distinct string cells in row i) / max(width(row i), 1)
+ *   F1 = (non-empty distinct string cells in row i) / max(NON-EMPTY cells, 1)
  *        where "string cell" means the value is non-numeric (the trim is non-empty
  *        AND parseFloat(trim) is NaN).
+ *        Then apply a mild emptiness multiplier: × (1 − 0.05 × emptyRatio).
+ *        This means empty cells no longer incur a hard fill penalty; they contribute
+ *        only a small discount proportional to how many cells are empty.
  *
  *   F2 = consistency(next 3 rows, width(row i))
  *        = proportion of the next up-to-3 rows whose width is ≥ width(row i).
  *        (Measuring whether the following rows look like data with the same schema.)
  *
  *   F3 = non-numeric-majority bonus
- *        = 1.5 if F1 ≥ 0.5 (majority of cells are non-numeric strings), else 1.0.
+ *        = 1.5 if F1-raw (before emptiness discount) ≥ 0.5, else 1.0.
+ *
+ *   F4 = data-likeness penalty (per-cell cumulative)
+ *        Real header labels do not contain date-shaped values (DD.MM.YYYY or similar)
+ *        or amount-shaped values (leading digit / sign + digits / decimals).
+ *        For each cell matching DATE_RE or AMOUNT_RE subtract 0.15 (capped at 0.90
+ *        total discount so a row can never score negative from this factor alone).
+ *        F4 = max(0.10, 1 − 0.15 × dataLikeCellCount)
  *
  *   SCORE_FLOOR = 0.30 (empirically chosen; all-numeric rows score F1=0).
  *
@@ -282,13 +292,35 @@ export function keyRows(
 // ---------------------------------------------------------------------------
 
 /**
+ * DATE_RE: matches common date formats used in bank statements.
+ * Examples: 01.02.2024, 01/02/2024, 01-02-24
+ */
+const DATE_RE = /^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/;
+
+/**
+ * AMOUNT_RE: matches amount-shaped values including:
+ *   - plain numbers: 100, -50.25, +1 234.56
+ *   - comma-decimal: -120,50
+ *   - dual-currency prefix: "12.50 USD (...)"
+ */
+const AMOUNT_RE = /^[-+]?\d[\d\s.,]*/;
+
+/**
  * Score row `i` of `matrix` as a candidate header.
  * Returns a value in [0, ∞); rows that score below SCORE_FLOOR are rejected.
+ *
+ * Formula: F1 × F2 × F3 × F4 + widthBonus
+ *
+ * F1: fill factor using NON-EMPTY count as denominator (empty cells no longer
+ *     incur a hard fill penalty), with mild emptiness discount.
+ * F2: consistency of following rows (width ≥ this row's width).
+ * F3: non-numeric-majority bonus (1.5 if majority of non-empty cells are strings).
+ * F4: data-likeness penalty — real headers don't have dates or amounts.
  *
  * Tie-breaking: when two rows produce the same primary score, a wider row wins.
  * A tiny width bonus `width * 0.001` is added to the primary score so that
  * a header with 6 columns always beats a preamble title row with 1 column when
- * both achieve the same F1×F2×F3.  The bonus is small enough not to lift a
+ * both achieve the same F1×F2×F3×F4.  The bonus is small enough not to lift a
  * truly bad row past a clearly better one.
  */
 function scoreRow(matrix: string[][], i: number): number {
@@ -296,17 +328,36 @@ function scoreRow(matrix: string[][], i: number): number {
   const width = row.length;
   if (width === 0) return 0;
 
-  // F1: non-empty distinct string (non-numeric) cells / width
+  // Count empty vs non-empty cells
+  let emptyCount = 0;
+  let dataLikeCount = 0;
   const distinctStrings = new Set<string>();
+
   for (const cell of row) {
     const t = cell.trim();
-    if (t === '') continue;
+    if (t === '') {
+      emptyCount++;
+      continue;
+    }
     const asNum = Number(t.replace(',', '.'));
     if (isNaN(asNum)) {
       distinctStrings.add(t);
+      // Check for data-likeness: date-shaped or amount-shaped
+      if (DATE_RE.test(t) || AMOUNT_RE.test(t)) {
+        dataLikeCount++;
+      }
     }
+    // Pure numeric cells are not "string cells" but also not data-like
+    // for header purposes (a header like "2023" is unusual but not banned here)
   }
-  const f1 = distinctStrings.size / width;
+
+  const nonEmptyCount = width - emptyCount;
+  const emptyRatio = emptyCount / width;
+
+  // F1: distinct non-numeric strings / non-empty cells (soft fill)
+  //     × mild emptiness discount (empty cells = soft penalty only)
+  const f1Raw = nonEmptyCount === 0 ? 0 : distinctStrings.size / nonEmptyCount;
+  const f1 = f1Raw * (1 - 0.05 * emptyRatio);
 
   // F2: consistency — proportion of next up-to-3 rows with width ≥ this width
   let consistentCount = 0;
@@ -317,20 +368,42 @@ function scoreRow(matrix: string[][], i: number): number {
   }
   const f2 = nextRows === 0 ? 1.0 : consistentCount / nextRows;
 
-  // F3: non-numeric majority bonus
-  const f3 = f1 >= 0.5 ? 1.5 : 1.0;
+  // F3: non-numeric majority bonus (based on f1Raw before emptiness discount)
+  const f3 = f1Raw >= 0.5 ? 1.5 : 1.0;
+
+  // F4: data-likeness penalty — penalize each date/amount cell by 0.15
+  //     (real header labels are not date or amount shaped)
+  const f4 = Math.max(0.10, 1 - 0.15 * dataLikeCount);
 
   // Width tie-breaker: add a tiny per-column bonus so wider headers beat
   // narrower preamble rows that happen to tie on the primary score.
   const widthBonus = width * 0.001;
 
-  return f1 * f2 * f3 + widthBonus;
+  return f1 * f2 * f3 * f4 + widthBonus;
 }
 
 // ---------------------------------------------------------------------------
 // Key deduplication
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve raw header keys into final deduplicated keys.
+ *
+ * Two policies applied in order:
+ *
+ * 1. EMPTY / WHITESPACE-ONLY CELL POLICY (FINDING-1, resolves deferred 1.6):
+ *    Empty or whitespace-only header cells get a deterministic stable placeholder
+ *    name: `col_{index+1}` (1-based). A `renamed-column` issue with
+ *    `what: 'empty-header-cell'` is emitted for each such cell.
+ *    If a literal `col_N` already exists in the header, the dedup suffix
+ *    (_2, _3, …) logic below handles the collision.
+ *
+ * 2. DUPLICATE KEY DEDUP:
+ *    Duplicate keys (after empty-cell substitution) are resolved by appending
+ *    `_2`, `_3`, … suffixes in left-to-right order (first occurrence keeps the
+ *    original name). A `renamed-column` issue with `what: 'duplicate-column'`
+ *    is emitted for each renamed duplicate.
+ */
 function deduplicateKeys(
   rawKeys: string[],
   headerRow: number,
@@ -340,7 +413,26 @@ function deduplicateKeys(
   const renameIssues: DecodeIssue[] = [];
 
   for (let col = 0; col < rawKeys.length; col++) {
-    const base = rawKeys[col];
+    const raw = rawKeys[col];
+    const trimmed = raw.trim();
+
+    // ── Step 1: empty/whitespace-only → positional placeholder ──────────────
+    let base: string;
+    if (trimmed === '') {
+      base = `col_${col + 1}`;
+      renameIssues.push({
+        row: headerRow,
+        column: col,
+        what: 'empty-header-cell',
+        why: `Column at index ${col} (1-based position ${col + 1}) has an empty or whitespace-only header cell; assigned stable placeholder name '${base}'. The 2.3 recall pool keys on columnName — empty-string keys would break recall.`,
+        raw: raw,
+        action: 'renamed-column',
+      });
+    } else {
+      base = raw;
+    }
+
+    // ── Step 2: dedup ────────────────────────────────────────────────────────
     const count = seen.get(base) ?? 0;
 
     if (count === 0) {

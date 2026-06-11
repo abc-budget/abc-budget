@@ -376,6 +376,65 @@ describe('decode() — CSV path', () => {
       expect(result.rows).toHaveLength(ROWS);
     }, 30_000); // 30 s hard timeout — should complete much faster
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 7. empty-header-cells.csv (FINDING-1: header with empty cell wins)
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('empty-header-cells.csv', () => {
+    it('full result matches snapshot', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      expect(result).toMatchSnapshot();
+    });
+
+    it('HEADLINE: headerRow=0 (row 0 is recognized as header despite empty cell)', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      expect(result.meta.headerRow).toBe(0);
+    });
+
+    it('HEADLINE: decodedRows=3 (all 3 data rows decoded)', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      expect(result.meta.decodedRows).toBe(3);
+    });
+
+    it('HEADLINE: keys include Дата, col_2 placeholder, Опис, Контрагент', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      expect(result.rows.length).toBeGreaterThan(0);
+      const keys = Object.keys(result.rows[0]);
+      expect(keys).toEqual(['Дата', 'col_2', 'Опис', 'Контрагент']);
+    });
+
+    it('EXACT-COUNT: exactly 1 renamed-column issue (the empty header cell)', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      const renamed = result.issues.filter(i => i.action === 'renamed-column');
+      expect(renamed).toHaveLength(1);
+    });
+
+    it('EXACT-COUNT: exactly 0 preamble issues (header at row 0)', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      const preamble = result.issues.filter(
+        i => i.action === 'skipped-row' && i.what === 'preamble-row',
+      );
+      expect(preamble).toHaveLength(0);
+    });
+
+    it('renamed-column issue has what=empty-header-cell', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      const issue = result.issues.find(i => i.action === 'renamed-column');
+      expect(issue?.what).toBe('empty-header-cell');
+    });
+
+    it('HEADLINE: first data row has date 01.02.2024 in Дата column', async () => {
+      const result = await decode(readFixture('empty-header-cells.csv'));
+      expect(result.rows[0]['Дата']).toBe('01.02.2024');
+    });
+
+    it('determinism: decode twice → deep-equal', async () => {
+      const r1 = await decode(readFixture('empty-header-cells.csv'));
+      const r2 = await decode(readFixture('empty-header-cells.csv'));
+      expect(deepEqual(r1, r2)).toBe(true);
+    });
+  });
+
 });
 
 // =============================================================================

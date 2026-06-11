@@ -15,6 +15,9 @@ No real bank data — all amounts, names, and account numbers are fabricated.
 | `dual-currency.csv` | UTF-8 | `,` | 0 | Cells like `12.50 USD (461.00 UAH)` — raw dual-currency value must be preserved exactly; `—` empties |
 | `utf8-bom.csv` | UTF-8 + BOM | `,` | 0 | EF BB BF prefix; BOM stripped transparently; `meta.bom === true` |
 | `empty.csv` | UTF-8 | `,` | 0 | Header row only, zero data rows; `meta.decodedRows === 0` |
+| `empty-header-cells.csv` | UTF-8 | `,` | 0 | Messiness ⑦ — header row has one empty cell (column 2); exercises the empty-header-cell placeholder policy (`col_2`); data rows contain date-shaped values that the scoring penalty must discount so the header row wins over data rows |
+
+Messiness items exercised across CSV fixtures: ① encoding (cp1251 + BOM) ② delimiter sniffing ③ preamble rows ④ summary rows ⑤ placeholder rows ⑥ ragged rows (short + long) ⑦ merged/empty columns at the HEADER level (empty-header-cells.csv).
 
 ### Spreadsheet fixtures (Task 5)
 

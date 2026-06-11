@@ -88,6 +88,28 @@ Dependency entry in `packages/engine/package.json`:
 - **Upgrade path.** Change the tarball URL + run `pnpm install`; review the
   lockfile integrity hash change. Pin the new hash in the PR description.
 
+## Empty/duplicate header names — why stable placeholders
+
+When a header cell is empty or whitespace-only, `header-detect.ts` assigns it a
+deterministic, stable placeholder name: `col_{index+1}` (1-based). For example,
+column index 1 (the second column) becomes `col_2`. A `renamed-column` issue with
+`what: 'empty-header-cell'` is emitted for each such column.
+
+**Why stable placeholder names instead of silent empty-string keys?**
+
+The 2.3 recall pool keys on `columnName`. An empty-string key (`''`) would:
+- Break recall lookup — every empty-header column maps to the same empty key.
+- Produce collisions across files that each have different unnamed columns.
+- Make it impossible to reference a specific unnamed column in recall rules.
+
+Using `col_N` (positional, 1-based) gives each unnamed column a unique, human-readable
+identity that survives the recall pool's key-based lookup. If a literal `col_N`
+already exists in the same header, the standard `_2`, `_3`, … dedup suffix applies.
+
+**Policy also resolves the deferred 1.6 whitespace-column policy:** whitespace-only
+header cells (e.g. `"   "`) are treated identically to empty cells — trimmed to `''`,
+then assigned a `col_N` placeholder.
+
 ## Fixtures
 
 See `fixtures/README.md` for the full fixture → messiness table (CSV, spreadsheet,
