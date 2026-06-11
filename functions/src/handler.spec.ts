@@ -4,9 +4,10 @@
  * Strategy: inject spy deps so that any I/O call (Firestore, OER fetch, budget check) throws if reached
  * — proving that earlier guards produce short-circuit responses.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { handleRatesRequest } from "./handler.js";
 import type { HandlerDeps } from "./handler.js";
+import { checkOrigin, effectiveAllowlist } from "./origin.js";
 
 // ── tiny mock helpers ─────────────────────────────────────────────────────────
 
@@ -307,5 +308,124 @@ describe("handler order: OER failure → 500", () => {
         // Internal details must NOT be in the response body
         expect(JSON.stringify(body)).not.toContain("network failure");
         expect(JSON.stringify(body)).not.toContain("MUST NOT LEAK");
+    });
+});
+
+// ── Emulator-gated origin relaxation ──────────────────────────────────────────
+//
+// effectiveAllowlist() adds the two emulator-hosting origins only when
+// process.env.FUNCTIONS_EMULATOR === 'true'. The env var is set by the
+// emulator runtime itself — it is never present in deployed functions.
+//
+// These tests verify three properties:
+//   A. FUNCTIONS_EMULATOR=true  → emulator origin passes gate (gets to 400,
+//      proving it cleared the origin guard with an invalid date probe).
+//   B. FUNCTIONS_EMULATOR unset → same emulator origin rejected (403).
+//   C. Prod-stays-prod by construction: localhost origins reject without the
+//      env var even though the code path is identical (ENT-004 holds).
+
+describe("effectiveAllowlist — emulator-gated origin relaxation", () => {
+    afterEach(() => {
+        delete process.env.FUNCTIONS_EMULATOR;
+    });
+
+    // ── A. Emulator env set → emulator origins admitted ──────────────────────
+    it("FUNCTIONS_EMULATOR=true — http://localhost:5000 passes origin gate (invalid date → 400)", async () => {
+        process.env.FUNCTIONS_EMULATOR = "true";
+
+        const req = makeReq({
+            method: "POST",
+            origin: "http://localhost:5000",
+            secFetchSite: "same-origin",
+            // deliberately invalid date — if origin gate passes we reach 400
+            body: { date: "NOT-A-DATE" },
+        });
+        const res = makeRes();
+
+        const deps: HandlerDeps = {
+            now: () => new Date("2026-06-11T12:00:00Z"),
+            checkOrigin,
+            rateLimiterTake: () => true,
+            checkFirestore: () => { throw new Error("should not reach Firestore"); },
+            runBudgetTransaction: () => { throw new Error("should not reach budget"); },
+            fetchOER: () => { throw new Error("should not reach OER"); },
+            saveToFirestore: () => { throw new Error("should not reach save"); },
+        };
+
+        await handleRatesRequest(req as never, res as never, deps);
+
+        // Origin gate passed → reached date validation → 400
+        expect(res._status).toBe(400);
+        expect((res._json as { error: string }).error).toBe("invalid-argument");
+    });
+
+    it("FUNCTIONS_EMULATOR=true — http://127.0.0.1:5000 passes origin gate (invalid date → 400)", async () => {
+        process.env.FUNCTIONS_EMULATOR = "true";
+
+        const req = makeReq({
+            method: "POST",
+            origin: "http://127.0.0.1:5000",
+            secFetchSite: "same-origin",
+            body: { date: "NOT-A-DATE" },
+        });
+        const res = makeRes();
+
+        const deps: HandlerDeps = {
+            now: () => new Date("2026-06-11T12:00:00Z"),
+            checkOrigin,
+            rateLimiterTake: () => true,
+            checkFirestore: () => { throw new Error("should not reach Firestore"); },
+            runBudgetTransaction: () => { throw new Error("should not reach budget"); },
+            fetchOER: () => { throw new Error("should not reach OER"); },
+            saveToFirestore: () => { throw new Error("should not reach save"); },
+        };
+
+        await handleRatesRequest(req as never, res as never, deps);
+
+        expect(res._status).toBe(400);
+        expect((res._json as { error: string }).error).toBe("invalid-argument");
+    });
+
+    // ── B. Emulator env unset → same emulator origin rejected (403) ───────────
+    it("FUNCTIONS_EMULATOR unset — http://localhost:5000 rejected (403 origin-forbidden)", async () => {
+        // env var deliberately absent (cleaned by afterEach)
+
+        const req = makeReq({
+            method: "POST",
+            origin: "http://localhost:5000",
+            secFetchSite: "same-origin",
+            body: { date: "NOT-A-DATE" },
+        });
+        const res = makeRes();
+
+        const deps: HandlerDeps = {
+            now: () => new Date("2026-06-11T12:00:00Z"),
+            checkOrigin,
+            rateLimiterTake: () => { throw new Error("should not reach rate-limiter"); },
+            checkFirestore: () => { throw new Error("should not reach Firestore"); },
+            runBudgetTransaction: () => { throw new Error("should not reach budget"); },
+            fetchOER: () => { throw new Error("should not reach OER"); },
+            saveToFirestore: () => { throw new Error("should not reach save"); },
+        };
+
+        await handleRatesRequest(req as never, res as never, deps);
+
+        expect(res._status).toBe(403);
+        expect((res._json as { error: string }).error).toBe("origin-forbidden");
+    });
+
+    // ── C. Prod-stays-prod by construction ────────────────────────────────────
+    //
+    // Without FUNCTIONS_EMULATOR, localhost origins are always rejected — even
+    // though code path is identical. Pins ENT-004: no localhost in prod.
+    it("prod-stays-prod: localhost origins always rejected when FUNCTIONS_EMULATOR unset", () => {
+        // env var deliberately absent
+        const list = effectiveAllowlist();
+
+        expect(list).not.toContain("http://localhost:5000");
+        expect(list).not.toContain("http://127.0.0.1:5000");
+        // Prod origins still present
+        expect(list).toContain("https://abc-budget-2d379.web.app");
+        expect(list).toContain("https://abc-budget-2d379.firebaseapp.com");
     });
 });

@@ -19,6 +19,12 @@ npx firebase-tools emulators:start --only hosting,functions
 The emulator hosting UI is at http://localhost:5000 by default.
 The function runs at http://localhost:5001.
 
+> **Note:** The emulator runtime sets `FUNCTIONS_EMULATOR=true` automatically. The function
+> uses this to admit `http://localhost:5000` and `http://127.0.0.1:5000` into the origin
+> allowlist — so the hosted app's same-origin requests pass the origin gate in dev without
+> any manual config. This env var is never present in deployed Cloud Functions, so the
+> prod allowlist stays prod-only by construction (ENT-004).
+
 ### OER secret in the emulator
 
 Create `functions/.secret.local` (already gitignored — see `.gitignore` below)

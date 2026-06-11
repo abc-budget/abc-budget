@@ -18,7 +18,7 @@
 
 import * as logger from "firebase-functions/logger";
 import { validateDate, isDateInRange } from "./validate.js";
-import { PROD_ORIGIN_ALLOWLIST } from "./origin.js";
+import { effectiveAllowlist } from "./origin.js";
 
 export interface HandlerDeps {
     /** Returns the current time (injected for testability). */
@@ -83,7 +83,7 @@ export async function handleRatesRequest(
     // ── 2. Origin hard-reject ────────────────────────────────────────────────
     const origin = getHeader(req, "origin");
     const secFetchSite = getHeader(req, "sec-fetch-site");
-    const originResult = deps.checkOrigin(origin, secFetchSite, PROD_ORIGIN_ALLOWLIST);
+    const originResult = deps.checkOrigin(origin, secFetchSite, effectiveAllowlist());
     if (!originResult.allowed) {
         logger.warn("Origin rejected", { reason: originResult.reason });
         res.status(403).json({ error: originResult.reason ?? "origin-forbidden" });

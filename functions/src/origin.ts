@@ -11,6 +11,30 @@ export const PROD_ORIGIN_ALLOWLIST: readonly string[] = [
     "https://abc-budget-2d379.firebaseapp.com",
 ];
 
+/**
+ * Emulator-hosting origins added only when running inside the Firebase Emulator Suite.
+ * process.env.FUNCTIONS_EMULATOR is set to "true" automatically by the emulator runtime
+ * itself — it is never present in deployed (production) Cloud Functions.
+ * This keeps the prod allowlist prod-only by construction (ENT-004).
+ */
+const EMULATOR_ORIGIN_ALLOWLIST: readonly string[] = [
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+];
+
+/**
+ * Returns the effective origin allowlist for the current runtime environment.
+ * In production (FUNCTIONS_EMULATOR absent) this is identical to PROD_ORIGIN_ALLOWLIST.
+ * In the emulator (FUNCTIONS_EMULATOR === 'true') the two emulator-hosting origins are
+ * appended, enabling the browser dev path described in functions/README.md.
+ */
+export function effectiveAllowlist(): readonly string[] {
+    if (process.env.FUNCTIONS_EMULATOR === "true") {
+        return [...PROD_ORIGIN_ALLOWLIST, ...EMULATOR_ORIGIN_ALLOWLIST];
+    }
+    return PROD_ORIGIN_ALLOWLIST;
+}
+
 export interface OriginCheckResult {
     allowed: boolean;
     reason?: string;
