@@ -27,8 +27,18 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
+import { firstValueFrom } from 'rxjs';
 import { decode } from './decode';
 import type { DecodeResult } from './types';
+import { ImportStatementServiceImpl } from '../importStatement/service';
+import type { FileFormatDAO, FileSourceDAO } from '../importStatement/dao';
+import { ImportStatementColumn } from '../importStatement/stage2/column';
+import { ImportStatementStage2Impl } from '../importStatement/stage2/implementation';
+import { ColumnDefinition } from '../importStatement/types';
+import type { AmountColumnParams, DateColumnParams, ColumnTransformation } from '../importStatement/types';
+import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from '../importStatement/stage2/types';
+import { generateRows } from '../importStatement/stage3/row-generator';
+import type { ColumnInfo } from '../importStatement/stage3/row-generator';
 
 // ---------------------------------------------------------------------------
 // File paths (forward-slash Windows-safe)
@@ -292,6 +302,248 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — hard-count assertions (lo
 
     it('zero issues (clean file)', () => {
       expect(ukrsibResult.issues).toHaveLength(0);
+    });
+  });
+});
+
+// ============================================================================
+// E2E pipeline tests — decode → service → stage1 → stage2 → row-generator
+// (Story 2.3 Task 5 — founder acceptance)
+//
+// SECURITY NOTE: real file content is NEVER copied into this repo.
+// Only aggregate counts, header key lists, and ≤3 spot cell values
+// (amounts + one merchant prefix) per file are baked here.
+//
+// OBSERVED (2026-06-11, pipeline v2.3):
+//   mono_UA  | decoded=181 | typed=181 | skipped=0  | rowErrors=0
+//   mono_EN  | decoded=12  | typed=12  | skipped=0  | rowErrors=0
+//   ukrsib   | decoded=997 | typed=917 | skipped=80 | rowErrors=0
+//
+// ukrsib Сума column: type='auto' → auto-detects 'mixed' (both income + outcome rows).
+// Income rows (positive Сума) are labeled-and-discarded (VIS-011 path): 80 skipped.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// E2E helpers (local to this describe scope)
+// ---------------------------------------------------------------------------
+
+function makeStubDAOs_e2e(): { fileFormatDAO: FileFormatDAO; fileSourceDAO: FileSourceDAO } {
+  const fileFormatDAO: FileFormatDAO = {
+    list: async () => [],
+    get: async () => null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    upsert: async (f: any) => f,
+    delete: async () => {},
+  } as unknown as FileFormatDAO;
+  const fileSourceDAO: FileSourceDAO = {
+    list: async () => [],
+    get: async () => null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    upsert: async (f: any) => f,
+    delete: async () => {},
+    getByName: async () => null,
+    getByFormatId: async () => [],
+  } as unknown as FileSourceDAO;
+  return { fileFormatDAO, fileSourceDAO };
+}
+
+function toColumnInfo_e2e(columns: ImportStatementColumnHeaderStage2[]): ColumnInfo[] {
+  return columns.map((col) => ({ id: col.id, definition: col.definition, params: col.params }));
+}
+
+async function applyMappings_e2e(
+  stage2: ImportStatementStage2Impl,
+  transformations: ColumnTransformation[],
+): Promise<void> {
+  const cols = await firstValueFrom(stage2.columns);
+  for (const t of transformations) {
+    const col = cols.find((c) => c.originalName.getText() === t.columnName);
+    if (!col || !(col instanceof ImportStatementColumn)) continue;
+    switch (t.definition) {
+      case ColumnDefinition.DATE:
+        await col.parseAsDate((t.params as DateColumnParams) ?? { format: 'auto' });
+        break;
+      case ColumnDefinition.AMOUNT:
+        await col.parseAsAmount(t.params as AmountColumnParams);
+        break;
+      case ColumnDefinition.DESCRIPTION:
+        await col.parseAsDescription();
+        break;
+      case ColumnDefinition.COUNTERPARTY:
+        await col.parseAsCounterparty();
+        break;
+      case ColumnDefinition.MERCHANT_CATEGORY:
+        await col.parseAsMerchant();
+        break;
+      case ColumnDefinition.IGNORE:
+      default:
+        await col.ignore();
+        break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Column mappings for each real file
+// ---------------------------------------------------------------------------
+
+// mono_UA: all 181 rows have negative Сума → type: 'outcome' → 0 skipped
+const MONO_UA_TRANSFORMATIONS: ColumnTransformation[] = [
+  { columnName: 'Дата i час операції',       definition: ColumnDefinition.DATE,              params: { format: 'auto' } as DateColumnParams },
+  { columnName: 'Деталі операції',            definition: ColumnDefinition.DESCRIPTION,       params: null },
+  { columnName: 'MCC',                        definition: ColumnDefinition.MERCHANT_CATEGORY, params: null },
+  { columnName: 'Сума в валюті картки (UAH)', definition: ColumnDefinition.AMOUNT,            params: { type: 'outcome', currency: { code: 'UAH' } } as AmountColumnParams },
+  { columnName: 'Сума в валюті операції',     definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Валюта',                     definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Курс',                       definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Сума комісій (UAH)',         definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Сума кешбеку (UAH)',         definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Залишок після операції',     definition: ColumnDefinition.IGNORE,            params: null },
+];
+
+// mono_EN: all 12 rows have negative amounts → type: 'outcome' → 0 skipped
+const MONO_EN_TRANSFORMATIONS: ColumnTransformation[] = [
+  { columnName: 'Date and time',               definition: ColumnDefinition.DATE,              params: { format: 'auto' } as DateColumnParams },
+  { columnName: 'Description',                 definition: ColumnDefinition.DESCRIPTION,       params: null },
+  { columnName: 'MCC',                         definition: ColumnDefinition.MERCHANT_CATEGORY, params: null },
+  { columnName: 'Card currency amount, (UAH)', definition: ColumnDefinition.AMOUNT,            params: { type: 'outcome', currency: { code: 'UAH' } } as AmountColumnParams },
+  { columnName: 'Operation amount',            definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Operation currency',          definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Exchange rate',               definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Commission (UAH)',            definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Cashback amount (UAH)',       definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Balance',                     definition: ColumnDefinition.IGNORE,            params: null },
+];
+
+// ukrsib: mixed amounts (both positive income + negative outcome) →
+// type: 'auto' auto-detects 'mixed' → income rows (positive Сума) skipped via VIS-011.
+// Observed 2026-06-11: 80 income rows skipped → 917 typed rows.
+// NOTE: 'Cтатус' (Cyrillic С, U+0421) is IGNORED here — STATUS transform is not
+// needed for typed-row generation; the count is driven by AMOUNT sign alone.
+const UKRSIB_TRANSFORMATIONS: ColumnTransformation[] = [
+  { columnName: 'Cтатус',         definition: ColumnDefinition.IGNORE,       params: null },
+  { columnName: 'Дата операції',  definition: ColumnDefinition.DATE,         params: { format: 'auto' } as DateColumnParams },
+  { columnName: 'Опис операції',  definition: ColumnDefinition.DESCRIPTION,  params: null },
+  { columnName: 'Рахунок/картка', definition: ColumnDefinition.IGNORE,       params: null },
+  { columnName: 'Категорія',      definition: ColumnDefinition.IGNORE,       params: null },
+  { columnName: 'Сума',           definition: ColumnDefinition.AMOUNT,       params: { type: 'auto', currency: { code: 'UAH' } } as AmountColumnParams },
+  { columnName: 'Валюта',         definition: ColumnDefinition.IGNORE,       params: null },
+];
+
+// ---------------------------------------------------------------------------
+// Hard-count constants (baked from observed values 2026-06-11)
+// ---------------------------------------------------------------------------
+
+const E2E_COUNTS = {
+  MONO_UA: { typed: 181, skipped: 0, rowErrors: 0 },
+  MONO_EN: { typed: 12,  skipped: 0, rowErrors: 0 },
+  UKRSIB:  { typed: 917, skipped: 80, rowErrors: 0 },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Suites
+// ---------------------------------------------------------------------------
+
+describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed rows (local only)', () => {
+  // ── E2E QA summary printed once per run ────────────────────────────────────
+  let monoUaTyped = 0, monoUaSkipped = 0, monoUaErrors = 0;
+  let monoEnTyped = 0, monoEnSkipped = 0, monoEnErrors = 0;
+  let ukrsibTyped = 0, ukrsibSkipped = 0, ukrsibErrors = 0;
+
+  // ── mono_07-10-23_14-34-50.csv (Monobank UA) ─────────────────────────────
+  describe('mono_07-10-23_14-34-50.csv — E2E typed rows', () => {
+    beforeAll(async () => {
+      const decodeResult = await decode(readRealFile(PATH_MONO_UA));
+      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
+      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const stage1 = service.startWith(decodeResult.rows);
+      const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
+      await applyMappings_e2e(stage2, MONO_UA_TRANSFORMATIONS);
+      const cols = await firstValueFrom(stage2.columns);
+      const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
+      const result = await generateRows(rows, toColumnInfo_e2e(cols), 'UAH');
+      monoUaTyped = result.rows.length;
+      monoUaSkipped = result.skipped.length;
+      monoUaErrors = result.rowErrors.length;
+      console.log(`\n[E2E] mono_UA  | decoded=${decodeResult.meta.decodedRows} | typed=${monoUaTyped} | skipped=${monoUaSkipped} | rowErrors=${monoUaErrors}`);
+    }, 30_000);
+
+    it('typed row count: 181 (all decoded rows generate — all negative amounts)', () => {
+      expect(monoUaTyped).toBe(E2E_COUNTS.MONO_UA.typed);
+    });
+
+    it('skipped rows: 0 (no income rows in this export)', () => {
+      expect(monoUaSkipped).toBe(E2E_COUNTS.MONO_UA.skipped);
+    });
+
+    it('rowErrors: 0 (all rows parse cleanly)', () => {
+      expect(monoUaErrors).toBe(E2E_COUNTS.MONO_UA.rowErrors);
+    });
+  });
+
+  // ── mono_en_21-11-23_10-34-42.csv (Monobank EN) ──────────────────────────
+  describe('mono_en_21-11-23_10-34-42.csv — E2E typed rows', () => {
+    beforeAll(async () => {
+      const decodeResult = await decode(readRealFile(PATH_MONO_EN));
+      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
+      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const stage1 = service.startWith(decodeResult.rows);
+      const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
+      await applyMappings_e2e(stage2, MONO_EN_TRANSFORMATIONS);
+      const cols = await firstValueFrom(stage2.columns);
+      const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
+      const result = await generateRows(rows, toColumnInfo_e2e(cols), 'UAH');
+      monoEnTyped = result.rows.length;
+      monoEnSkipped = result.skipped.length;
+      monoEnErrors = result.rowErrors.length;
+      console.log(`[E2E] mono_EN  | decoded=${decodeResult.meta.decodedRows} | typed=${monoEnTyped} | skipped=${monoEnSkipped} | rowErrors=${monoEnErrors}`);
+    }, 30_000);
+
+    it('typed row count: 12 (all decoded rows generate — all negative amounts)', () => {
+      expect(monoEnTyped).toBe(E2E_COUNTS.MONO_EN.typed);
+    });
+
+    it('skipped rows: 0 (no income rows)', () => {
+      expect(monoEnSkipped).toBe(E2E_COUNTS.MONO_EN.skipped);
+    });
+
+    it('rowErrors: 0', () => {
+      expect(monoEnErrors).toBe(E2E_COUNTS.MONO_EN.rowErrors);
+    });
+  });
+
+  // ── ukrsib.xlsx (UkrSibbank) ──────────────────────────────────────────────
+  describe('ukrsib.xlsx — E2E typed rows', () => {
+    beforeAll(async () => {
+      const decodeResult = await decode(readRealFile(PATH_UKRSIB));
+      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
+      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const stage1 = service.startWith(decodeResult.rows);
+      const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
+      await applyMappings_e2e(stage2, UKRSIB_TRANSFORMATIONS);
+      const cols = await firstValueFrom(stage2.columns);
+      const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
+      const result = await generateRows(rows, toColumnInfo_e2e(cols), 'UAH');
+      ukrsibTyped = result.rows.length;
+      ukrsibSkipped = result.skipped.length;
+      ukrsibErrors = result.rowErrors.length;
+      console.log(`[E2E] ukrsib   | decoded=${decodeResult.meta.decodedRows} | typed=${ukrsibTyped} | skipped=${ukrsibSkipped} | rowErrors=${ukrsibErrors}`);
+    }, 30_000);
+
+    it('typed row count: 917 (80 income rows skipped by VIS-011, 917 outcome rows generated)', () => {
+      expect(ukrsibTyped).toBe(E2E_COUNTS.UKRSIB.typed);
+    });
+
+    it('skipped rows: 80 (income rows — positive Сума — discarded by VIS-011 mixed-type path)', () => {
+      expect(ukrsibSkipped).toBe(E2E_COUNTS.UKRSIB.skipped);
+    });
+
+    it('typed + skipped = decoded (no rows lost)', () => {
+      expect(ukrsibTyped + ukrsibSkipped).toBe(997);
+    });
+
+    it('rowErrors: 0 (no parse failures)', () => {
+      expect(ukrsibErrors).toBe(E2E_COUNTS.UKRSIB.rowErrors);
     });
   });
 });
