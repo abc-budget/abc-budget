@@ -13,10 +13,10 @@ const engine = createPingEngine();
 ctx.onmessage = async (event) => {
   const { id, method, args } = event.data;
   try {
-    const fn = engine[method] as (...a: unknown[]) => Promise<unknown>;
+    const fn = engine[method as keyof typeof engine] as (...a: unknown[]) => Promise<unknown>;
     const value = await fn(...args);
-    ctx.postMessage({ id, ok: true, value });
+    ctx.postMessage({ kind: 'res', id, ok: true, value });
   } catch (error) {
-    ctx.postMessage({ id, ok: false, error: String(error) });
+    ctx.postMessage({ kind: 'res', id, ok: false, error: String(error) });
   }
 };

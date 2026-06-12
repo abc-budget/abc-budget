@@ -1,8 +1,14 @@
 import type { EngineClient } from '../client/engine-client';
 import { CONTRACT_VERSION, ENGINE_VERSION } from './version';
 
-/** The in-process engine. In EP-2 this is replaced by the IoC-wired prior-art facade adapter. */
-export function createPingEngine(): EngineClient {
+/**
+ * Returns the minimal in-process ping+getVersion implementation.
+ * Used by the direct client (Task 2) and the spike worker (v1 proof).
+ *
+ * NOTE: this helper only provides `ping` and `getVersion`. The full
+ * EngineClient interface is implemented by createDirectEngineClient.
+ */
+export function createPingEngine(): Pick<EngineClient, 'ping' | 'getVersion'> {
   return {
     async ping(message) {
       return message;

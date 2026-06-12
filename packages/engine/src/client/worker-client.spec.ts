@@ -11,7 +11,7 @@ describe('worker transport seam (zero-UI-change proof)', () => {
 
     expect(await client.ping('hello')).toBe('hello');
     const version = await client.getVersion();
-    expect(version.contract).toBe(1);
+    expect(version.contract).toBe(2);
 
     worker.terminate();
   });
