@@ -31,7 +31,6 @@ import { firstValueFrom } from 'rxjs';
 import { decode } from './decode';
 import type { DecodeResult } from './types';
 import { ImportStatementServiceImpl } from '../importStatement/service';
-import type { FileFormatDAO, FileSourceDAO } from '../importStatement/dao';
 import { ImportStatementColumn } from '../importStatement/stage2/column';
 import { ImportStatementStage2Impl } from '../importStatement/stage2/implementation';
 import { ColumnDefinition } from '../importStatement/types';
@@ -39,9 +38,19 @@ import type {
   AmountColumnParams,
   BankCommissionColumnParams,
   CashbackColumnParams,
+  ColumnParams,
   DateColumnParams,
-  ColumnTransformation,
 } from '../importStatement/types';
+
+// EXCISED (2.6 decision 3): `ColumnTransformation` no longer exists in
+// ../importStatement/types — it died with the format entity (FEAT-005).
+// This LOCAL fixture shape is the mapping triple consumed by the
+// applyMappings_e2e() helper below; it is test plumbing, NOT an engine type.
+interface ColumnTransformation {
+  readonly columnName: string;
+  readonly definition: ColumnDefinition;
+  readonly params: ColumnParams | null;
+}
 import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from '../importStatement/stage2/types';
 import { generateRows } from '../importStatement/stage3/row-generator';
 import type { ColumnInfo } from '../importStatement/stage3/row-generator';
@@ -333,25 +342,10 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — hard-count assertions (lo
 // E2E helpers (local to this describe scope)
 // ---------------------------------------------------------------------------
 
-function makeStubDAOs_e2e(): { fileFormatDAO: FileFormatDAO; fileSourceDAO: FileSourceDAO } {
-  const fileFormatDAO: FileFormatDAO = {
-    list: async () => [],
-    get: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    upsert: async (f: any) => f,
-    delete: async () => {},
-  } as unknown as FileFormatDAO;
-  const fileSourceDAO: FileSourceDAO = {
-    list: async () => [],
-    get: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    upsert: async (f: any) => f,
-    delete: async () => {},
-    getByName: async () => null,
-    getByFormatId: async () => [],
-  } as unknown as FileSourceDAO;
-  return { fileFormatDAO, fileSourceDAO };
-}
+// EXCISED (2.6 decision 3): the makeStubDAOs_e2e() helper (empty
+// FileFormatDAO / FileSourceDAO stubs) died with the service constructor
+// params — the service no longer takes DAOs.  E2E hard counts are unchanged:
+// the recall-pool path was already the live prefill mechanism (FEAT-005).
 
 function toColumnInfo_e2e(columns: ImportStatementColumnHeaderStage2[]): ColumnInfo[] {
   return columns.map((col) => ({ id: col.id, definition: col.definition, params: col.params }));
@@ -466,8 +460,7 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed row
   describe('mono_07-10-23_14-34-50.csv — E2E typed rows', () => {
     beforeAll(async () => {
       const decodeResult = await decode(readRealFile(PATH_MONO_UA));
-      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const service = new ImportStatementServiceImpl();
       const stage1 = service.startWith(decodeResult.rows);
       const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
       await applyMappings_e2e(stage2, MONO_UA_TRANSFORMATIONS);
@@ -497,8 +490,7 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed row
   describe('mono_en_21-11-23_10-34-42.csv — E2E typed rows', () => {
     beforeAll(async () => {
       const decodeResult = await decode(readRealFile(PATH_MONO_EN));
-      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const service = new ImportStatementServiceImpl();
       const stage1 = service.startWith(decodeResult.rows);
       const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
       await applyMappings_e2e(stage2, MONO_EN_TRANSFORMATIONS);
@@ -528,8 +520,7 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed row
   describe('ukrsib.xlsx — E2E typed rows', () => {
     beforeAll(async () => {
       const decodeResult = await decode(readRealFile(PATH_UKRSIB));
-      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const service = new ImportStatementServiceImpl();
       const stage1 = service.startWith(decodeResult.rows);
       const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
       await applyMappings_e2e(stage2, UKRSIB_TRANSFORMATIONS);
@@ -641,8 +632,7 @@ async function runPseudoPipeline(
   transformations: ColumnTransformation[],
 ): Promise<PseudoRunSummary> {
   const decodeResult = await decode(readRealFile(path));
-  const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-  const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+  const service = new ImportStatementServiceImpl();
   const stage1 = service.startWith(decodeResult.rows);
   const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
   await applyMappings_e2e(stage2, transformations);

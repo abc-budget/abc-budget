@@ -32,7 +32,6 @@ import { openDatabase } from '../store/migrations/open-with-migrations';
 import { ENGINE_MIGRATIONS } from '../persistence/engine-db';
 import { decode } from '../ingest/decode';
 import { ImportStatementServiceImpl } from './service';
-import type { FileFormatDAO, FileSourceDAO } from './dao';
 import { ImportStatementColumn } from './stage2/column';
 import { ImportStatementStage2Impl } from './stage2/implementation';
 import { ColumnDefinition } from './types';
@@ -40,9 +39,19 @@ import type {
   AmountColumnParams,
   BankCommissionColumnParams,
   CashbackColumnParams,
+  ColumnParams,
   DateColumnParams,
-  ColumnTransformation,
 } from './types';
+
+// EXCISED (2.6 decision 3): `ColumnTransformation` no longer exists in
+// ../types — it died with the format entity (FEAT-005).  This LOCAL fixture
+// shape is the mapping triple consumed by the applyMappings() helper below;
+// it is test plumbing, NOT an engine type.
+interface ColumnTransformation {
+  readonly columnName: string;
+  readonly definition: ColumnDefinition;
+  readonly params: ColumnParams | null;
+}
 import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from './stage2/types';
 import { createRecallPool } from './recall/recall';
 import type { RecallResult } from './recall/recall';
@@ -73,30 +82,11 @@ function readFixture(name: string): { bytes: ArrayBuffer; fileName: string } {
 }
 
 // ---------------------------------------------------------------------------
-// Stub DAOs (empty — no transformation rules → service.stage2 returns plain stage2)
+// EXCISED (2.6 decision 3): the makeStubDAOs() helper (empty FileFormatDAO /
+// FileSourceDAO stubs) died with the service constructor params — the service
+// no longer takes DAOs.  The stubs only ever proved "empty format store →
+// service.stage2 returns plain stage2"; that is now the ONLY path.
 // ---------------------------------------------------------------------------
-
-function makeStubDAOs(): { fileFormatDAO: FileFormatDAO; fileSourceDAO: FileSourceDAO } {
-  const fileFormatDAO: FileFormatDAO = {
-    list: async () => [],
-    get: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    upsert: async (f: any) => f,
-    delete: async () => {},
-  } as unknown as FileFormatDAO;
-
-  const fileSourceDAO: FileSourceDAO = {
-    list: async () => [],
-    get: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    upsert: async (f: any) => f,
-    delete: async () => {},
-    getByName: async () => null,
-    getByFormatId: async () => [],
-  } as unknown as FileSourceDAO;
-
-  return { fileFormatDAO, fileSourceDAO };
-}
 
 // ---------------------------------------------------------------------------
 // Helper: extract ColumnInfo[] from stage2 columns (post-transformation)
@@ -241,8 +231,7 @@ describe('Fixture E2E — mono-like-utf8.csv', () => {
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
     expect(decodeResult.rows).toHaveLength(12);
 
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
 
     const stage1 = service.startWith(decodeResult.rows);
     const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
@@ -262,8 +251,7 @@ describe('Fixture E2E — mono-like-utf8.csv', () => {
 
   it('spot row[0]: date is a Date with ISO day 2024-01-15, amount=42, NO time key', async () => {
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
     const stage1 = service.startWith(decodeResult.rows);
     const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
     await applyMappings(stage2, MONO_CSV_TRANSFORMATIONS);
@@ -293,8 +281,7 @@ describe('Fixture E2E — mono-like-utf8.csv', () => {
 
   it('spot row[0]: counterparty is null (no COUNTERPARTY column mapped)', async () => {
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
     const stage1 = service.startWith(decodeResult.rows);
     const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
     await applyMappings(stage2, MONO_CSV_TRANSFORMATIONS);
@@ -311,9 +298,7 @@ describe('Fixture E2E — mono-like-utf8.csv', () => {
     // ── First run: map on empty pool, which seeds it ─────────────────────────
     const recallPool = createRecallPool(() => db);
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
     const stage1a = service.startWith(decodeResult.rows);
     const stage2aBase = (await service.stage2(stage1a)) as ImportStatementStage2Impl;
 
@@ -428,8 +413,7 @@ describe('Fixture E2E — bank-like.xlsx', () => {
     const decodeResult = await decode(readFixture('bank-like.xlsx'));
     expect(decodeResult.rows).toHaveLength(10);
 
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
 
     const stage1 = service.startWith(decodeResult.rows);
     const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
@@ -452,8 +436,7 @@ describe('Fixture E2E — bank-like.xlsx', () => {
 
   it('spot row[0] (METRO): date=2024-01-01, amount=1500, description present, no time', async () => {
     const decodeResult = await decode(readFixture('bank-like.xlsx'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
     const stage1 = service.startWith(decodeResult.rows);
     const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
     await applyMappings(stage2, BANK_XLSX_TRANSFORMATIONS);
@@ -476,8 +459,7 @@ describe('Fixture E2E — bank-like.xlsx', () => {
     // fixture rather than bank-like.xlsx (where '+' prefix prevents parsing).
     // The income rows use plain positive numbers that parseNumber CAN parse.
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
     const stage1 = service.startWith(decodeResult.rows);
     const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
 
@@ -513,8 +495,7 @@ describe('Fixture E2E — bank-like.xlsx', () => {
   it('N-of-M: recognized n>=3 after seeding pool from bank-like mapping', async () => {
     const recallPool = createRecallPool(() => db);
     const decodeResult = await decode(readFixture('bank-like.xlsx'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
 
     const stage1a = service.startWith(decodeResult.rows);
     const stage2aBase = (await service.stage2(stage1a)) as ImportStatementStage2Impl;
@@ -605,8 +586,7 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
   it('after first mapping, pool contains all non-IGNORE column names', async () => {
     const recallPool = createRecallPool(() => db);
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
 
     const stage1 = service.startWith(decodeResult.rows);
     const stage2base = (await service.stage2(stage1)) as ImportStatementStage2Impl;
@@ -641,8 +621,7 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
   it('re-import: all non-IGNORE columns prefilled GUESSED; IGNORE columns stay null', async () => {
     const recallPool = createRecallPool(() => db);
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
 
     // ── First import: seed the pool ──────────────────────────────────────────
     const stage1a = service.startWith(decodeResult.rows);
@@ -693,8 +672,7 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
   it('re-import: recognized.n === NON_IGNORE_COUNT, recognized.m === total columns (9)', async () => {
     const recallPool = createRecallPool(() => db);
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
 
     // Seed
     const stage1a = service.startWith(decodeResult.rows);
@@ -737,8 +715,7 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
   it('re-import pipeline: 12 typed rows generated from recalled prefills', async () => {
     const recallPool = createRecallPool(() => db);
     const decodeResult = await decode(readFixture('mono-like-utf8.csv'));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
 
     // Seed
     const stage1a = service.startWith(decodeResult.rows);
@@ -844,9 +821,8 @@ describe('Story 2.4 — thresholds, rejection, Q-009', () => {
 
   // Helper: creates a fresh service backed by the current test DB
   function makeService(db: IDBDatabase): ImportStatementServiceImpl {
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
     const settingsDao = new UserSettingsIDBDAO(() => db);
-    return new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO, null, null, settingsDao);
+    return new ImportStatementServiceImpl(null, null, settingsDao);
   }
 
   // ---------------------------------------------------------------------------
@@ -1006,12 +982,9 @@ describe('Story 2.4 — thresholds, rejection, Q-009', () => {
 
   it('D3: TRIPLE PIN — mid-session setEngineParam is session-frozen; re-hydrate bites', async () => {
     const settingsDao = new UserSettingsIDBDAO(() => db);
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
 
     // ── Session 1: start with default threshold (0.3) ────────────────────────
-    const service1 = new ImportStatementServiceImpl(
-      fileFormatDAO, fileSourceDAO, null, null, settingsDao
-    );
+    const service1 = new ImportStatementServiceImpl(null, null, settingsDao);
     const decodeResult = await decode(readFixture('bad-dates.csv'));
 
     const stage1a = service1.startWith(decodeResult.rows);
@@ -1191,8 +1164,7 @@ describe('Story 2.5 — pseudo-ops', () => {
   // Shared pipeline runner: decode → stage1 → stage2(map) → generateRows
   async function runPipeline(fixture: string, transformations: ColumnTransformation[]) {
     const decodeResult = await decode(readFixture(fixture));
-    const { fileFormatDAO, fileSourceDAO } = makeStubDAOs();
-    const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+    const service = new ImportStatementServiceImpl();
     const stage1 = service.startWith(decodeResult.rows);
     const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
     await applyMappings(stage2, transformations);

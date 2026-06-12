@@ -8,8 +8,8 @@
  * 1. **IoC removal** (Container → constructor-injection).
  *    Prior art: `constructor(private readonly _ioc: Container)` resolved four
  *    dependencies from the container in lazy getters / stage3 method:
- *      IoCKeys.FILE_FORMAT_DAO     → FileFormatDAO
- *      IoCKeys.FILE_SOURCE_DAO     → FileSourceDAO
+ *      IoCKeys.FILE_FORMAT_DAO     → FileFormatDAO   (EXCISED — see note 1.5)
+ *      IoCKeys.FILE_SOURCE_DAO     → FileSourceDAO   (EXCISED — see note 1.5)
  *      IoCKeys.CURRENCY_CACHE      → CurrencyCache (stage2: _createInitialColumns)
  *      IoCKeys.USER_SETTINGS_SERVICE → UserSettingsService (stage3)
  *      IoCKeys.DECISION_TREE_SERVICE → DecisionTreeService (stage3)
@@ -19,15 +19,26 @@
  *    `UserSettingsService`, `DecisionTreeService`, stage3 impl references are RETAINED
  *    (stage3 is ported in Task 4; they are type-only stubs for now).
  *
+ * 1.5 **Story 2.6 — FileFormat/FileSource EXCISED (locked decision 3).**
+ *    The prior-art format-level recall (`_applyTransformationRules`,
+ *    `_saveFileFormatAndSource`, `_loadFileFormatsAndSources`,
+ *    `_calculateInitialMatchPercentages`, `_findBestMatchingFormat`) is
+ *    superseded by the 2.3 columnName recall pool (FEAT-005 «no format entity»,
+ *    FEAT-011 revised; parity proven by the map-once-reimport E2E).
+ *    `fileFormatDAO` / `fileSourceDAO` constructor params are GONE; dao.ts is
+ *    DELETED (it was interface-only — nothing was ever persisted).  The
+ *    `lastUsed: Date.now()` residue died with `_saveFileFormatAndSource` — the
+ *    determinism grep is back to 2 classified sites (user-settings source-id,
+ *    id generator).  S3a (2.7) redefines a LEAN source notion from the design
+ *    bundle's actual needs.
+ *
  * 2.5 **Story 2.4 — settingsDao injection** (Task 4):
  *    `settingsDao: UserSettingsDAO | null` — injected for engine-config hydration at
  *    import-session start. Default null for backward-compat; production wiring is 2.6.
- *    DAOs (constructor injection table — all params):
- *      - fileFormatDAO      ← IoCKeys.FILE_FORMAT_DAO
- *      - fileSourceDAO      ← IoCKeys.FILE_SOURCE_DAO
- *      - settingsDao        ← UserSettingsDAO (2.4, default null; 2.6 wiring)
- *      - _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, Task 4)
- *      - _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, Task 4)
+ *    Constructor injection table — all params (renumbered after the 2.6 excision):
+ *      1. _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, Task 4)
+ *      2. _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, Task 4)
+ *      3. settingsDao          ← UserSettingsDAO (2.4, default null; 2.6 wiring)
  *
  * 2. **`cloneDeep` from lodash-es** → `structuredClone` (built-in; same semantics
  *    for plain-data transformation arrays).
@@ -52,24 +63,13 @@ import { $t, LocalizableException, NativeMessage } from '../utils/messages/index
 import { generateUniqueId } from '../utils/id/generator';
 import { hydrateEngineConfig } from '../settings/engine-config';
 import type { UserSettingsDAO } from '../settings/user-settings';
-import type { FileFormatDAO, FileSourceDAO } from './dao';
 import { ImportStatementStage1Impl } from './stage1';
 import type { ImportStatementStage1 } from './stage1';
 import { ImportStatementColumn } from './stage2/column';
 import { ImportStatementStage2Impl } from './stage2/implementation';
-import type {
-  CellData,
-  ImportStatementColumnHeaderStage2,
-  ImportStatementStage2,
-} from './stage2/types';
+import type { CellData, ImportStatementStage2 } from './stage2/types';
 import { SupportedDataType } from './stage2/types';
 import type { ImportStatementStage3 } from './stage3/types';
-import type {
-  ColumnTransformation,
-  FileFormat,
-  FileFormatMatch,
-  FileSource,
-} from './types';
 
 // ---------------------------------------------------------------------------
 // Stage3 dependencies — stubs until Task 4 ports the full implementation
@@ -110,12 +110,13 @@ export interface ImportStatementServiceInternal extends ImportStatementService {
 /**
  * Implementation of the import statement service.
  *
- * Constructor injection (IoC removal):
- *   - fileFormatDAO    ← IoCKeys.FILE_FORMAT_DAO
- *   - fileSourceDAO    ← IoCKeys.FILE_SOURCE_DAO
- *   - settingsDao      ← UserSettingsDAO (Story 2.4 — engine-config hydration; default null;
- *                         production wiring is 2.6 ⚠️ MUST-DO before shipping)
- *   - [Stage3 deps are Task 4 — DecisionTreeService, UserSettingsService]
+ * Constructor injection (IoC removal; renumbered after the 2.6 excision —
+ * fileFormatDAO / fileSourceDAO are GONE, decision 3):
+ *   1. _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, Task 4)
+ *   2. _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, Task 4)
+ *   3. settingsDao          ← UserSettingsDAO (Story 2.4 — engine-config hydration;
+ *                             default null; production wiring is 2.6 ⚠️ MUST-DO
+ *                             before shipping)
  *
  * Note: CurrencyCache is NOT injected. The 1.6 wiring removed it from
  * ImportStatementColumn; column.ts uses the static reference module directly.
@@ -134,8 +135,6 @@ export class ImportStatementServiceImpl
   private readonly _logger = getLogger('engine.importStatement.service');
 
   constructor(
-    private readonly _fileFormatDAO: FileFormatDAO,
-    private readonly _fileSourceDAO: FileSourceDAO,
     // Stage3 deps (Task 4) — optional for now; non-null in production wiring
     private readonly _decisionTreeService: DecisionTreeService = null,
     private readonly _userSettingsService: UserSettingsService = null,
@@ -166,9 +165,12 @@ export class ImportStatementServiceImpl
     }
 
     const initialColumns = await this._createInitialColumns(stage1);
-    const stage2 = new ImportStatementStage2Impl(stage1, this, initialColumns);
 
-    return await this._applyTransformationRules(stage2);
+    // EXCISED (2.6 decision 3): `_applyTransformationRules(stage2)` is gone —
+    // format-level recall is superseded by the 2.3 columnName pool (FEAT-005).
+    // Column prefill happens via the RecallResult/RecallPool constructor params
+    // of ImportStatementStage2Impl (the 2.3 mount), not via stored FileFormats.
+    return new ImportStatementStage2Impl(stage1, this, initialColumns);
   }
 
   private async _createInitialColumns(
@@ -207,176 +209,11 @@ export class ImportStatementServiceImpl
     });
   }
 
-  private async _applyTransformationRules(
-    originalState: ImportStatementStage2Impl
-  ): Promise<ImportStatementStage2Impl> {
-    const { fileFormats, fileSources } =
-      await this._loadFileFormatsAndSources();
-
-    if (fileFormats.length === 0) {
-      return originalState;
-    }
-
-    const matches = await this._calculateInitialMatchPercentages(
-      originalState,
-      fileFormats,
-      fileSources
-    );
-
-    if (matches.length === 0) {
-      return originalState;
-    }
-
-    const bestMatch = await this._findBestMatchingFormat(
-      originalState,
-      matches
-    );
-
-    if (!bestMatch) {
-      return originalState;
-    }
-
-    if (bestMatch.matchPercentage === 1.0) {
-      bestMatch.stage2.setTransformationMetadata(
-        bestMatch.match.fileFormat,
-        bestMatch.match.fileSources,
-        matches
-      );
-    } else {
-      const fileFormatWithoutId: FileFormat = {
-        transformations: structuredClone(bestMatch.match.fileFormat.transformations),
-      };
-      bestMatch.stage2.setTransformationMetadata(
-        fileFormatWithoutId,
-        [],
-        matches
-      );
-    }
-
-    return bestMatch.stage2;
-  }
-
-  private async _loadFileFormatsAndSources(): Promise<{
-    fileFormats: FileFormat[];
-    fileSources: FileSource[];
-  }> {
-    const [fileFormats, fileSources] = await Promise.all([
-      this._fileFormatDAO.list(),
-      this._fileSourceDAO.list(),
-    ]);
-
-    return { fileFormats, fileSources };
-  }
-
-  private async _calculateInitialMatchPercentages(
-    originalState: ImportStatementStage2Impl,
-    fileFormats: FileFormat[],
-    fileSources: FileSource[]
-  ): Promise<FileFormatMatch[]> {
-    const stage1 = originalState.stage1;
-    const stage1ColumnNames = await firstValueFrom(stage1.columns);
-
-    const matches: FileFormatMatch[] = [];
-
-    for (const format of fileFormats) {
-      const transformationColumnNames = format.transformations.map(
-        (t) => t.columnName
-      );
-
-      if (transformationColumnNames.length === 0) {
-        continue;
-      }
-
-      const matchedCount = transformationColumnNames.filter((colName) =>
-        stage1ColumnNames.includes(colName)
-      ).length;
-
-      const matchPercentage = matchedCount / transformationColumnNames.length;
-
-      let fileSourcesForFormat: FileSource[];
-      if (format.id !== undefined) {
-        fileSourcesForFormat = fileSources.filter(
-          (s) => s.fileFormatId === format.id
-        );
-      } else {
-        this._logger.error(
-          'Unexpected situation: File format ID is null, but it is impossible because it was loaded from the database'
-        );
-        fileSourcesForFormat = [];
-      }
-
-      matches.push({
-        fileFormat: format,
-        fileSources: fileSourcesForFormat,
-        matchPercentage,
-      });
-    }
-
-    matches.sort((a, b) => b.matchPercentage - a.matchPercentage);
-
-    return matches;
-  }
-
-  private async _findBestMatchingFormat(
-    stage2: ImportStatementStage2Impl,
-    matches: FileFormatMatch[]
-  ): Promise<{
-    stage2: ImportStatementStage2Impl;
-    match: FileFormatMatch;
-    matchPercentage: number;
-  } | null> {
-    let bestActualMatch: {
-      stage2: ImportStatementStage2Impl;
-      match: FileFormatMatch;
-      actualPercentage: number;
-    } | null = null;
-
-    for (let i = 0; i < matches.length; i++) {
-      const match = matches[i];
-      const currentColumns = await firstValueFrom(stage2.columns);
-      const stage2Copy = stage2.copy(currentColumns);
-
-      const actualMatchPercentage = await stage2Copy.applyTransformations(
-        match.fileFormat.transformations
-      );
-
-      const updatedMatch: FileFormatMatch = {
-        ...match,
-        matchPercentage: actualMatchPercentage,
-      };
-      matches[i] = updatedMatch;
-
-      if (
-        !bestActualMatch ||
-        actualMatchPercentage > bestActualMatch.actualPercentage
-      ) {
-        bestActualMatch = {
-          stage2: stage2Copy,
-          match: updatedMatch,
-          actualPercentage: actualMatchPercentage,
-        };
-      }
-
-      const nextMatch = matches[i + 1];
-      const shouldStop =
-        actualMatchPercentage >= (nextMatch?.matchPercentage ?? 0) ||
-        i === matches.length - 1;
-
-      if (shouldStop) {
-        break;
-      }
-    }
-
-    matches.sort((a, b) => b.matchPercentage - a.matchPercentage);
-
-    return bestActualMatch
-      ? {
-          stage2: bestActualMatch.stage2,
-          match: bestActualMatch.match,
-          matchPercentage: bestActualMatch.actualPercentage,
-        }
-      : null;
-  }
+  // EXCISED (2.6 decision 3): `_applyTransformationRules`,
+  // `_loadFileFormatsAndSources`, `_calculateInitialMatchPercentages`, and
+  // `_findBestMatchingFormat` deleted — format-level recall superseded by the
+  // 2.3 columnName recall pool (FEAT-005 «no format entity»; parity proven by
+  // the map-once-reimport E2E in pipeline-e2e.spec.ts).
   // endregion
 
   // region Stage 3
@@ -387,8 +224,9 @@ export class ImportStatementServiceImpl
   async stage3(stage2: ImportStatementStage2): Promise<ImportStatementStage3> {
     this._logger.debug('Starting stage3 processing');
 
-    // Save file format and source before proceeding
-    await this._saveFileFormatAndSource(stage2);
+    // EXCISED (2.6 decision 3): `_saveFileFormatAndSource(stage2)` call site
+    // deleted — nothing format-shaped is persisted anymore; the recall pool
+    // saves per-column at apply time (stage2.applyColumn, 2.3).
 
     const { userSettingsService } = this._resolveStage3Dependencies();
 
@@ -397,7 +235,10 @@ export class ImportStatementServiceImpl
 
     const decisionTree$ = this._loadDecisionTree();
 
-    const selectedSource = await firstValueFrom(stage2.selectedSource);
+    // S3a (2.7) redefines the lean source notion from the design bundle —
+    // the FileSource-backed `stage2.selectedSource` plumbing died with the
+    // 2.6 excision (decision 3), so stage3 receives null until then.
+    const selectedSource: string | null = null;
 
     return this._createAndInitializeStage3(
       stage2,
@@ -462,121 +303,14 @@ export class ImportStatementServiceImpl
     );
   }
 
-  /**
-   * Type guard for type narrowing: ensures all columns have non-null definitions.
-   */
-  private _hasAllColumnDefinitions(
-    columns: ImportStatementColumnHeaderStage2[]
-  ): columns is Array<
-    ImportStatementColumnHeaderStage2 & {
-      definition: NonNullable<ImportStatementColumnHeaderStage2['definition']>;
-    }
-  > {
-    return columns.every((col) => col.definition !== null);
-  }
-
-  /**
-   * Extracts column transformations from stage2 columns.
-   * @throws LocalizableException if any column has a null definition
-   */
-  private _extractTransformations(
-    columns: ImportStatementColumnHeaderStage2[]
-  ): ColumnTransformation[] {
-    if (!this._hasAllColumnDefinitions(columns)) {
-      const columnsWithNullDefinition = columns.filter(
-        (col) => col.definition === null
-      );
-      const columnNames = columnsWithNullDefinition
-        .map((col) => col.originalName.getText())
-        .join(', ');
-      throw new LocalizableException(
-        $t('engine.importStatement.stage3.columns-without-definition', {
-          columns: columnNames,
-        })
-      );
-    }
-
-    return columns.map((col) => ({
-      columnName: col.originalName.getText(),
-      definition: col.definition,
-      params: col.params,
-    }));
-  }
-
-  /**
-   * Saves the current file format and source from stage2.
-   * @throws LocalizableException if save operations fail
-   */
-  private async _saveFileFormatAndSource(
-    stage2: ImportStatementStage2
-  ): Promise<void> {
-    const currentFormat = stage2.currentFileFormat;
-    const columns = await firstValueFrom(stage2.columns);
-    const transformations = this._extractTransformations(columns);
-
-    const updatedFormat: FileFormat = {
-      ...(currentFormat?.id !== undefined ? { id: currentFormat.id } : {}),
-      transformations: transformations,
-      lastUsed: Date.now(),
-    };
-
-    let savedFormat: FileFormat;
-    try {
-      savedFormat = await this._fileFormatDAO.upsert(updatedFormat);
-      this._logger.debug('File format saved successfully', {
-        formatId: savedFormat.id,
-      });
-    } catch (error) {
-      this._logger.error('Failed to save file format:', error);
-      throw new LocalizableException(
-        $t('engine.importStatement.stage3.failed-to-save-format')
-      );
-    }
-
-    const selectedSourceName = await firstValueFrom(stage2.selectedSource);
-
-    if (selectedSourceName !== null) {
-      if (savedFormat.id === undefined) {
-        this._logger.error(
-          'Cannot save source: file format ID is undefined after upsert'
-        );
-        throw new LocalizableException(
-          $t(
-            'engine.importStatement.stage3.failed-to-save-source-format-id-missing'
-          )
-        );
-      }
-
-      const sourcesWithFullMatch = await firstValueFrom(
-        stage2.sourcesWithFullMatch
-      );
-
-      if (!sourcesWithFullMatch.includes(selectedSourceName)) {
-        try {
-          await this._fileSourceDAO.create({
-            name: selectedSourceName,
-            fileFormatId: savedFormat.id,
-          });
-          this._logger.debug('File source saved successfully', {
-            sourceName: selectedSourceName,
-            formatId: savedFormat.id,
-          });
-        } catch (error) {
-          this._logger.error('Failed to save file source:', error);
-          throw new LocalizableException(
-            $t('engine.importStatement.stage3.failed-to-save-source')
-          );
-        }
-      } else {
-        this._logger.debug(
-          'File source already exists in full match list, skipping save',
-          {
-            sourceName: selectedSourceName,
-          }
-        );
-      }
-    }
-  }
+  // EXCISED (2.6 decision 3): `_hasAllColumnDefinitions`,
+  // `_extractTransformations`, and `_saveFileFormatAndSource` deleted —
+  // nothing FileFormat/FileSource-shaped is built or saved anymore.  The
+  // `lastUsed: Date.now()` residue died here (determinism: 2 classified sites
+  // remain — user-settings source-id, id generator).  The all-columns-mapped
+  // guard `_extractTransformations` provided is owned by `stage2.next()`
+  // (UnmappedColumnsError, Q-009 — the ⟺ pin).  Per-column learning is the
+  // 2.3 recall pool's job (savePool at applyColumn time).
 
   /**
    * @throws LocalizableException if categorization fails

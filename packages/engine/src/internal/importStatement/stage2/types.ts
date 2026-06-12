@@ -68,7 +68,6 @@ import type {
   ColumnDefinition,
   ColumnParams,
   DateColumnParams,
-  FileFormat,
   ImportStatementColumnHeader,
   ImportStatementStage,
   TransactionStatusColumnParams,
@@ -82,9 +81,13 @@ import type { ImportStatementStage3 } from '../stage3/types';
  *
  * PORT of `webapp/libs/engine/src/importStatement/stage2/types.ts` ImportStatementStage2.
  * 2.3 additions vs the 2.2 minimal: extends ImportStatementStage<...>, stage1 getter,
- * next(), canMoveForward, getOriginalColumn, getOriginalColumnData, currentFileFormat,
- * selectSource, selectedSource, availableSources, sourcesWithFullMatch.
+ * next(), canMoveForward, getOriginalColumn, getOriginalColumnData.
  * N-of-M recall: recognized, recallPrefilled added in 2.3.
+ *
+ * EXCISED (2.6 decision 3): currentFileFormat, selectSource, selectedSource,
+ * availableSources, sourcesWithFullMatch removed from this interface — all were
+ * FileFormat/FileSource-coupled (format entity abolished, FEAT-005).  S3a (2.7)
+ * redefines the lean source notion from the design bundle.
  */
 export interface ImportStatementStage2
   extends ImportStatementStage<
@@ -135,24 +138,6 @@ export interface ImportStatementStage2
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getOriginalColumnData(columnId: string): any[];
-
-  /** Gets the currently applied file format, or null if none */
-  get currentFileFormat(): FileFormat | null;
-
-  /**
-   * Selects a file source by name
-   * @param source The source name to select, or null to deselect
-   */
-  selectSource(source: string | null): void;
-
-  /** Gets the currently selected source name, or null if none selected */
-  get selectedSource(): Observable<string | null>;
-
-  /** Gets all known source names */
-  get availableSources(): Observable<string[]>;
-
-  /** Gets the source names that have a full match with the current statement file */
-  get sourcesWithFullMatch(): Observable<string[]>;
 
   /**
    * N-of-M recall count: how many column names were recognized from the pool
