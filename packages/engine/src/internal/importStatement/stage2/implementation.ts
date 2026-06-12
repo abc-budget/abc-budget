@@ -46,27 +46,12 @@
  * rxjs — INTERNAL only (1.1 rule: no Observables on the public surface).
  */
 
-import { BehaviorSubject, Observable, map, of } from 'rxjs'; // rxjs — INTERNAL only
+import { BehaviorSubject, Observable, map } from 'rxjs'; // rxjs — INTERNAL only
 import { getLogger } from '../../logging';
 import type { ImportStatementServiceInternal } from '../service';
 import type { ImportStatementStage1 } from '../stage1';
 import type { RecallPool, RecallResult } from '../recall/recall';
 import { normalizeKey } from '../recall/recall';
-import {
-  ColumnDefinition,
-} from '../types';
-import type {
-  AmountColumnParams,
-  BalanceColumnParams,
-  BankCommissionColumnParams,
-  CashbackColumnParams,
-  ColumnTransformation,
-  DateColumnParams,
-  FileFormat,
-  FileFormatMatch,
-  FileSource,
-  TransactionStatusColumnParams,
-} from '../types';
 import type {
   ImportStatementColumnHeaderStage2,
   ImportStatementRowData,
@@ -136,12 +121,11 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
   >([]);
   private readonly _data: Observable<ImportStatementRowData[]>;
   private readonly _canMoveForward: Observable<boolean>;
-  private _currentFileFormat: FileFormat | null = null;
-  private _fileSourcesWithFullMatch: FileSource[] = [];
-  private _availableFileFormats: FileFormatMatch[] = [];
-  private _cachedAvailableSources: string[] = [];
-  private _cachedSourcesWithFullMatch: string[] = [];
-  private readonly _selectedSource = new BehaviorSubject<string | null>(null);
+  // EXCISED (2.6 decision 3): the FileFormat/FileSource metadata fields
+  // (_currentFileFormat, _fileSourcesWithFullMatch, _availableFileFormats,
+  // the cached source-name lists, and the _selectedSource subject) died with
+  // the format entity (FEAT-005) — recall prefill state lives on the columns
+  // themselves (recallState) and in `recognized`/`lastSaveCollision` below.
 
   // Recall pool (2.3)
   private readonly _recallPool: RecallPool | null;
@@ -287,54 +271,12 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
     return this._canMoveForward;
   }
 
-  get currentFileFormat(): FileFormat | null {
-    return this._currentFileFormat;
-  }
-
-  get fileSourcesWithFullMatch(): FileSource[] {
-    return this._fileSourcesWithFullMatch;
-  }
-
-  get selectedSource(): Observable<string | null> {
-    return this._selectedSource.asObservable();
-  }
-
-  get availableSources(): Observable<string[]> {
-    return of(this._cachedAvailableSources);
-  }
-
-  get sourcesWithFullMatch(): Observable<string[]> {
-    return of(this._cachedSourcesWithFullMatch);
-  }
-
-  selectSource(source: string | null): void {
-    this._selectedSource.next(source);
-  }
-
-  setTransformationMetadata(
-    fileFormat: FileFormat | null,
-    fileSourcesWithFullMatch: FileSource[],
-    availableFileFormats: FileFormatMatch[]
-  ): void {
-    this._currentFileFormat = fileFormat;
-    this._fileSourcesWithFullMatch = fileSourcesWithFullMatch;
-    this._availableFileFormats = availableFileFormats; // stored for external inspection
-
-    const uniqueNames = new Set<string>();
-    // Use the stored field (not the parameter) so TS sees it as read
-    this._availableFileFormats.forEach((match) => {
-      match.fileSources.forEach((source) => {
-        uniqueNames.add(source.name);
-      });
-    });
-    this._cachedAvailableSources = Array.from(uniqueNames);
-
-    const uniqueFullMatchNames = new Set<string>();
-    fileSourcesWithFullMatch.forEach((source) => {
-      uniqueFullMatchNames.add(source.name);
-    });
-    this._cachedSourcesWithFullMatch = Array.from(uniqueFullMatchNames);
-  }
+  // EXCISED (2.6 decision 3): currentFileFormat / fileSourcesWithFullMatch /
+  // selectedSource / availableSources / sourcesWithFullMatch getters,
+  // selectSource(), and setTransformationMetadata() are deleted — all were
+  // FileFormat/FileSource-coupled (format-level recall + the source picker
+  // backed by stored FileSources).  Superseded by the 2.3 columnName pool;
+  // S3a (2.7) redefines the lean source notion from the design bundle.
 
   async next(): Promise<ImportStatementStage3> {
     const currentColumns = this._columns.getValue();
@@ -506,103 +448,10 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
     );
   }
 
-  async applyTransformations(
-    transformations: ColumnTransformation[]
-  ): Promise<number> {
-    if (transformations.length === 0) {
-      return 0;
-    }
-
-    const currentColumns = this._columns.getValue();
-    let successfulCount = 0;
-    const totalCount = transformations.length;
-
-    for (const transformation of transformations) {
-      const column = currentColumns.find(
-        (col) => col.originalName.getText() === transformation.columnName
-      );
-
-      if (!column || !(column instanceof ImportStatementColumn)) {
-        continue;
-      }
-
-      try {
-        await this.applyTransformationToColumn(column, transformation);
-        successfulCount++;
-      } catch {
-        // Transformation failed, count as failed but continue
-      }
-    }
-
-    return totalCount > 0 ? successfulCount / totalCount : 0;
-  }
-
-  private async applyTransformationToColumn(
-    column: ImportStatementColumn,
-    transformation: ColumnTransformation
-  ): Promise<void> {
-    switch (transformation.definition) {
-      case ColumnDefinition.DATE:
-        await column.parseAsDate(
-          (transformation.params as DateColumnParams) ?? { format: 'auto' }
-        );
-        break;
-      case ColumnDefinition.AMOUNT:
-        await column.parseAsAmount(
-          (transformation.params as AmountColumnParams) ?? { currency: 'auto' }
-        );
-        break;
-      case ColumnDefinition.CURRENCY:
-        await column.parseAsCurrency();
-        break;
-      case ColumnDefinition.DESCRIPTION:
-        await column.parseAsDescription();
-        break;
-      case ColumnDefinition.CATEGORY:
-        await column.parseAsBankCategory();
-        break;
-      case ColumnDefinition.BALANCE:
-        await column.parseAsBalance(
-          (transformation.params as BalanceColumnParams) ?? { currency: 'auto' }
-        );
-        break;
-      case ColumnDefinition.BANK_ACCOUNT:
-        await column.parseAsBankAccount();
-        break;
-      case ColumnDefinition.STATUS:
-        await column.parseAsTransactionStatus(
-          (transformation.params as TransactionStatusColumnParams) ?? {
-            successValue: 'auto',
-          }
-        );
-        break;
-      case ColumnDefinition.EXCHANGE_RATE:
-        await column.parseAsExchangeRate();
-        break;
-      case ColumnDefinition.BANK_COMMISSION:
-        await column.parseAsBankCommission(
-          (transformation.params as BankCommissionColumnParams) ?? {
-            currency: 'auto',
-          }
-        );
-        break;
-      case ColumnDefinition.CASHBACK:
-        await column.parseAsCashback(
-          (transformation.params as CashbackColumnParams) ?? {
-            currency: 'auto',
-          }
-        );
-        break;
-      case ColumnDefinition.MERCHANT_CATEGORY:
-        await column.parseAsMerchant();
-        break;
-      case ColumnDefinition.IGNORE:
-        await column.ignore();
-        break;
-      default:
-        throw new Error(
-          `Unknown column definition: ${transformation.definition}`
-        );
-    }
-  }
+  // EXCISED (2.6 decision 3): applyTransformations() and
+  // applyTransformationToColumn() are deleted — they existed solely to replay
+  // a stored FileFormat's transformation list during format-level recall
+  // (`service._findBestMatchingFormat`).  Per-column parsing is driven
+  // directly via the ImportStatementColumn parseAs* methods; column-name
+  // recall prefill is the 2.3 pool's job (constructor recallResult param).
 }

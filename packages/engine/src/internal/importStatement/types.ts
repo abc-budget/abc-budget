@@ -1,5 +1,6 @@
 /**
- * Import statement types — catalog + params + file-format shapes + stage interfaces.
+ * Import statement types — catalog + params + stage interfaces.
+ * (2.6 decision 3: the prior-art file-format shapes are EXCISED — see below.)
  *
  * PORT of `webapp/libs/engine/src/importStatement/types.ts` with:
  *   1. EXTEND: TIME = 'time', COUNTERPARTY = 'counterparty'  (ENT-009 → 16 entries)
@@ -194,8 +195,7 @@ export interface CashbackColumnParams extends ColumnParams {
 }
 
 // ---------------------------------------------------------------------------
-// Column Transformation and File Format Interfaces
-// (needed by column.ts / row.ts in 2.2)
+// Column header interface (needed by column.ts / row.ts in 2.2)
 // ---------------------------------------------------------------------------
 
 /**
@@ -208,57 +208,11 @@ export interface ImportStatementColumnHeader {
   readonly name: Message;
 }
 
-/**
- * Represents a column transformation rule for import statements.
- * Defines how a specific column should be parsed.
- */
-export interface ColumnTransformation<T extends ColumnParams = ColumnParams> {
-  /** The index or name of the column in the source file */
-  readonly columnName: string;
-  /** The type of column this represents */
-  readonly definition: ColumnDefinition;
-  /** Additional parameters for processing this column */
-  readonly params: T | null;
-}
-
-/**
- * Represents a file format configuration for import statements.
- * Defines how a specific file format should be parsed.
- */
-export interface FileFormat {
-  /** Unique identifier for the file format */
-  readonly id?: number;
-  /** The set of column transformations to apply */
-  readonly transformations: ColumnTransformation[];
-  /** Timestamp when this format was last used (milliseconds since epoch, GMT-0) */
-  readonly lastUsed?: number;
-}
-
-/**
- * Represents a file source configuration for import statements.
- * Associates a file source with a file format.
- */
-export interface FileSource {
-  /** Unique identifier for the file source */
-  readonly id?: number;
-  /** User-defined name for the file source */
-  readonly name: string;
-  /** Optional description of the file source */
-  readonly description?: string;
-  /** Identifier of the associated file format */
-  readonly fileFormatId: number;
-}
-
-/**
- * Represents a file format match result with its associated sources and match percentage.
- */
-export interface FileFormatMatch {
-  /** The file format being matched */
-  readonly fileFormat: FileFormat;
-  /** The associated file sources for this format */
-  readonly fileSources: FileSource[];
-  /** The match percentage (0.0 to 1.0) indicating how well the format matches */
-  readonly matchPercentage: number;
-}
+// EXCISED (2.6 decision 3): the prior-art format-entity types
+// (`ColumnTransformation`, the file-format/-source shapes, and the
+// format-match shape) are DELETED — the format entity is abolished
+// (FEAT-005 «no format entity», FEAT-011 revised).  Column-name recall is
+// the 2.3 pool's job (./recall/recall.ts: PrefillEntry over
+// definition+params, keyed by normalized column name).
 
 // (2.3) stage orchestration interfaces and re-exports are now complete above.

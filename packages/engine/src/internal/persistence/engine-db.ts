@@ -60,6 +60,39 @@ export interface PersistenceInitResult {
 let dbPromise: Promise<IDBDatabase> | null = null;
 let initPromise: Promise<PersistenceInitResult> | null = null;
 
+// ── onblocked hook (Story 2.6 — the 1.2 multi-tab carry-in) ─────────────────────
+//
+// Multi-tab model: "loud, not coordinated" (2.6 decision 1).  When the engine-DB
+// open fires `blocked` (another tab holds an older version), every registered
+// listener is notified — the worker host forwards this as the out-of-band
+// `blocked` event so the UI can render the loud close-other-tabs state.
+//
+// Shape (additive — nothing existing changes):
+//   onEngineDbBlocked(listener: () => void): () => void   // returns unsubscribe
+
+const blockedListeners = new Set<() => void>();
+
+/**
+ * Subscribe to engine-DB `blocked` notifications (version-change blocked by
+ * another open connection).  Returns an unsubscribe function.
+ */
+export function onEngineDbBlocked(listener: () => void): () => void {
+  blockedListeners.add(listener);
+  return () => {
+    blockedListeners.delete(listener);
+  };
+}
+
+function notifyEngineDbBlocked(): void {
+  for (const listener of blockedListeners) {
+    try {
+      listener();
+    } catch {
+      // listener errors are non-fatal — the open rejection stays the loud signal
+    }
+  }
+}
+
 /**
  * Lazy, memoized engine-DB open.
  *
@@ -69,7 +102,9 @@ let initPromise: Promise<PersistenceInitResult> | null = null;
  */
 export function openEngineDb(): Promise<IDBDatabase> {
   if (!dbPromise) {
-    dbPromise = openDatabase(ENGINE_DB_NAME, ENGINE_MIGRATIONS).catch((err) => {
+    dbPromise = openDatabase(ENGINE_DB_NAME, ENGINE_MIGRATIONS, {
+      onBlocked: notifyEngineDbBlocked,
+    }).catch((err) => {
       // Clear memoization so the next call retries
       dbPromise = null;
       return Promise.reject(err);

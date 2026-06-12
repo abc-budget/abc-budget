@@ -25,13 +25,15 @@
  *   per file are baked here — per the founder's instruction.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import '@vitest/web-worker';
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { firstValueFrom } from 'rxjs';
 import { decode } from './decode';
 import type { DecodeResult } from './types';
 import { ImportStatementServiceImpl } from '../importStatement/service';
-import type { FileFormatDAO, FileSourceDAO } from '../importStatement/dao';
 import { ImportStatementColumn } from '../importStatement/stage2/column';
 import { ImportStatementStage2Impl } from '../importStatement/stage2/implementation';
 import { ColumnDefinition } from '../importStatement/types';
@@ -39,12 +41,34 @@ import type {
   AmountColumnParams,
   BankCommissionColumnParams,
   CashbackColumnParams,
+  ColumnParams,
   DateColumnParams,
-  ColumnTransformation,
 } from '../importStatement/types';
+
+// EXCISED (2.6 decision 3): `ColumnTransformation` no longer exists in
+// ../importStatement/types — it died with the format entity (FEAT-005).
+// This LOCAL fixture shape is the mapping triple consumed by the
+// applyMappings_e2e() helper below; it is test plumbing, NOT an engine type.
+interface ColumnTransformation {
+  readonly columnName: string;
+  readonly definition: ColumnDefinition;
+  readonly params: ColumnParams | null;
+}
 import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from '../importStatement/stage2/types';
 import { generateRows } from '../importStatement/stage3/row-generator';
 import type { ColumnInfo } from '../importStatement/stage3/row-generator';
+
+// ── Worker-E2E infrastructure ─────────────────────────────────────────────────
+// (reused from engine-worker-host.spec.ts pattern)
+import { createWorkerEngineClient } from '../../client/worker-client';
+import type { WorkerLike } from '../../client/worker-client';
+import type { EngineClient, EngineEventPayload, ProgressEventPayload } from '../../client/engine-client';
+import type { Stage2SnapshotDTO, Stage2ColumnDTO } from '../../client/dto';
+import { UserSettingsIDBDAO } from '../settings/user-settings-idb';
+import { setBaseCurrency } from '../settings/base-currency';
+import { openDatabase } from '../store/migrations/open-with-migrations';
+import { ENGINE_DB_NAME, ENGINE_MIGRATIONS, resetPersistenceForTests } from '../persistence/engine-db';
+import { resetEngineConfigForTests } from '../settings/engine-config';
 
 // ---------------------------------------------------------------------------
 // File paths (forward-slash Windows-safe)
@@ -333,25 +357,10 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — hard-count assertions (lo
 // E2E helpers (local to this describe scope)
 // ---------------------------------------------------------------------------
 
-function makeStubDAOs_e2e(): { fileFormatDAO: FileFormatDAO; fileSourceDAO: FileSourceDAO } {
-  const fileFormatDAO: FileFormatDAO = {
-    list: async () => [],
-    get: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    upsert: async (f: any) => f,
-    delete: async () => {},
-  } as unknown as FileFormatDAO;
-  const fileSourceDAO: FileSourceDAO = {
-    list: async () => [],
-    get: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    upsert: async (f: any) => f,
-    delete: async () => {},
-    getByName: async () => null,
-    getByFormatId: async () => [],
-  } as unknown as FileSourceDAO;
-  return { fileFormatDAO, fileSourceDAO };
-}
+// EXCISED (2.6 decision 3): the makeStubDAOs_e2e() helper (empty
+// FileFormatDAO / FileSourceDAO stubs) died with the service constructor
+// params — the service no longer takes DAOs.  E2E hard counts are unchanged:
+// the recall-pool path was already the live prefill mechanism (FEAT-005).
 
 function toColumnInfo_e2e(columns: ImportStatementColumnHeaderStage2[]): ColumnInfo[] {
   return columns.map((col) => ({ id: col.id, definition: col.definition, params: col.params }));
@@ -466,8 +475,7 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed row
   describe('mono_07-10-23_14-34-50.csv — E2E typed rows', () => {
     beforeAll(async () => {
       const decodeResult = await decode(readRealFile(PATH_MONO_UA));
-      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const service = new ImportStatementServiceImpl();
       const stage1 = service.startWith(decodeResult.rows);
       const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
       await applyMappings_e2e(stage2, MONO_UA_TRANSFORMATIONS);
@@ -497,8 +505,7 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed row
   describe('mono_en_21-11-23_10-34-42.csv — E2E typed rows', () => {
     beforeAll(async () => {
       const decodeResult = await decode(readRealFile(PATH_MONO_EN));
-      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const service = new ImportStatementServiceImpl();
       const stage1 = service.startWith(decodeResult.rows);
       const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
       await applyMappings_e2e(stage2, MONO_EN_TRANSFORMATIONS);
@@ -528,8 +535,7 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed row
   describe('ukrsib.xlsx — E2E typed rows', () => {
     beforeAll(async () => {
       const decodeResult = await decode(readRealFile(PATH_UKRSIB));
-      const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-      const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+      const service = new ImportStatementServiceImpl();
       const stage1 = service.startWith(decodeResult.rows);
       const stage2 = await service.stage2(stage1) as ImportStatementStage2Impl;
       await applyMappings_e2e(stage2, UKRSIB_TRANSFORMATIONS);
@@ -641,8 +647,7 @@ async function runPseudoPipeline(
   transformations: ColumnTransformation[],
 ): Promise<PseudoRunSummary> {
   const decodeResult = await decode(readRealFile(path));
-  const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
-  const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+  const service = new ImportStatementServiceImpl();
   const stage1 = service.startWith(decodeResult.rows);
   const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
   await applyMappings_e2e(stage2, transformations);
@@ -774,4 +779,419 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — Story 2.5 pseudo-ops E2E 
       expect(s.rowErrors).toBe(PSEUDO_E2E_COUNTS.UKRSIB.rowErrors);
     });
   });
+});
+
+// ============================================================================
+// Story 2.6 — Worker-backed E2E (checkpoint-(c))
+//
+// ONE variant per real file runs the FULL flow over the WORKER-BACKED client
+// (real thread hop via @vitest/web-worker + the production engine-worker entry).
+//
+// Flow per file: decode → importStart → importApplyColumn × N → importNext
+// Counts from GenerateResultDTO must equal the ESTABLISHED DIRECT-PATH HARD
+// COUNTS exactly — zero drift.
+//
+// A compact [checkpoint-c] per-file line is printed (direct vs worker counts
+// side by side) for the QA protocol.
+//
+// ESTABLISHED HARD COUNTS (from 2.5 pseudo-ops section):
+//   mono_UA  | mains=181 | commission=0 | cashback=26 | skipped=0 | rowErrors=0
+//   mono_EN  | mains=12  | commission=0 | cashback=0  | skipped=0 | rowErrors=0
+//   ukrsib   | mains=917 | commission=0 | cashback=0  | skipped=80 | rowErrors=0
+//
+// SECURITY NOTE: real file content is NEVER copied into this repo.
+// ============================================================================
+
+// ── Worker infrastructure helpers ─────────────────────────────────────────────
+
+/** Track open workers for cleanup. */
+let _workerE2eRawWorkers: Worker[] = [];
+let _workerE2eTestDbs: IDBDatabase[] = [];
+
+/** Spawn the production worker entry (real hop, same pattern as engine-worker-host.spec.ts). */
+function workerE2eFactory(): WorkerLike {
+  const w = new Worker(new URL('../../engine-worker.ts', import.meta.url), { type: 'module' });
+  _workerE2eRawWorkers.push(w);
+  return w as unknown as WorkerLike;
+}
+
+function makeWorkerClient(): EngineClient {
+  return createWorkerEngineClient(workerE2eFactory);
+}
+
+function openWorkerTestDb(): Promise<IDBDatabase> {
+  return openDatabase(ENGINE_DB_NAME, ENGINE_MIGRATIONS);
+}
+
+async function trackedWorkerTestDb(): Promise<IDBDatabase> {
+  const db = await openWorkerTestDb();
+  _workerE2eTestDbs.push(db);
+  return db;
+}
+
+/** Name extractor for Stage2ColumnDTO (same pattern as host spec). */
+function workerColName(col: Stage2ColumnDTO): string {
+  return 'text' in col.originalName ? col.originalName.text : col.originalName.key;
+}
+
+function findWorkerColumn(snapshot: Stage2SnapshotDTO, name: string): Stage2ColumnDTO {
+  const col = snapshot.columns.find((c) => workerColName(c) === name);
+  if (!col) throw new Error(`column '${name}' not in snapshot`);
+  return col;
+}
+
+/** Apply all transformations in the worker-backed session; returns final snapshot. */
+async function applyAllWorker(
+  client: EngineClient,
+  sessionId: string,
+  snapshot: Stage2SnapshotDTO,
+  transformations: ColumnTransformation[],
+): Promise<Stage2SnapshotDTO> {
+  let snap = snapshot;
+  for (const t of transformations) {
+    const col = findWorkerColumn(snap, t.columnName);
+    const res = await client.importApplyColumn(
+      sessionId,
+      col.id,
+      t.definition,
+      t.params as Record<string, unknown> | null,
+    );
+    if (!res.ok) {
+      throw new Error(
+        `unexpected rejection for '${t.columnName}': ${JSON.stringify(res.rejection)}`,
+      );
+    }
+    snap = res.snapshot;
+  }
+  return snap;
+}
+
+/** Generate synthetic CSV bytes (worker-path honesty tests). */
+function makeWorkerSyntheticCsv(n: number): ArrayBuffer {
+  const lines = ['Date,Amount,Description'];
+  for (let i = 0; i < n; i++) {
+    lines.push(`2024-01-${String((i % 28) + 1).padStart(2, '0')},-${(i % 90) + 1}.50,row ${i}`);
+  }
+  const buf = new TextEncoder().encode(lines.join('\n'));
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
+// Per-test IDB isolation for worker tests
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
+  resetPersistenceForTests();
+  resetEngineConfigForTests();
+});
+
+afterEach(() => {
+  for (const w of _workerE2eRawWorkers) {
+    try { w.terminate(); } catch { /* already dead */ }
+  }
+  _workerE2eRawWorkers = [];
+  for (const db of _workerE2eTestDbs) {
+    try { db.close(); } catch { /* already closed */ }
+  }
+  _workerE2eTestDbs = [];
+});
+
+// ── checkpoint-c: full flow over the worker per real file ─────────────────────
+
+describe.skipIf(!HAVE_REAL_FILES)('real statements — worker-backed E2E checkpoint-(c) (local only)', () => {
+  // ── mono_07-10-23_14-34-50.csv ───────────────────────────────────────────────
+  describe('mono_07-10-23_14-34-50.csv — worker path', () => {
+    it(
+      '[checkpoint-c] full flow over the worker: counts == direct-path hard counts',
+      { timeout: 60_000 },
+      async () => {
+        const db = await trackedWorkerTestDb();
+        await setBaseCurrency(new UserSettingsIDBDAO(() => db), 'UAH');
+
+        const client = makeWorkerClient();
+        const { bytes, fileName } = readRealFile(PATH_MONO_UA);
+        const decodeResult = await client.decode(bytes, fileName);
+
+        const { sessionId, stage2 } = await client.importStart(decodeResult.rows);
+        await applyAllWorker(client, sessionId, stage2, MONO_UA_PSEUDO_TRANSFORMATIONS);
+
+        const next = await client.importNext(sessionId);
+        expect(next.ok, 'importNext should succeed — base currency set, all columns mapped').toBe(true);
+        if (!next.ok) throw new Error('unreachable');
+
+        const result = next.result;
+        const mains     = result.rows.filter((r) => !r.isBankCommission && !r.isCashback).length;
+        const commission = result.rows.filter((r) => r.isBankCommission).length;
+        const cashback  = result.rows.filter((r) => r.isCashback).length;
+        const skipped   = result.skipped.length;
+        const rowErrors  = result.rowErrors.length;
+
+        // Established direct-path hard counts (PSEUDO_E2E_COUNTS.MONO_UA)
+        const direct = PSEUDO_E2E_COUNTS.MONO_UA;
+        console.log(
+          `\n[checkpoint-c] mono_UA  | direct: mains=${direct.mains} commission=${direct.commission}` +
+          ` cashback=${direct.cashback} skipped=${direct.skipped} rowErrors=${direct.rowErrors}` +
+          ` | worker: mains=${mains} commission=${commission} cashback=${cashback}` +
+          ` skipped=${skipped} rowErrors=${rowErrors}`,
+        );
+
+        expect(mains,      'mains: zero drift from direct path').toBe(direct.mains);
+        expect(commission, 'commission: zero drift').toBe(direct.commission);
+        expect(cashback,   'cashback: zero drift').toBe(direct.cashback);
+        expect(skipped,    'skipped: zero drift').toBe(direct.skipped);
+        expect(rowErrors,  'rowErrors: zero drift').toBe(direct.rowErrors);
+      },
+    );
+  });
+
+  // ── mono_en_21-11-23_10-34-42.csv ────────────────────────────────────────────
+  describe('mono_en_21-11-23_10-34-42.csv — worker path', () => {
+    it(
+      '[checkpoint-c] full flow over the worker: counts == direct-path hard counts',
+      { timeout: 60_000 },
+      async () => {
+        const db = await trackedWorkerTestDb();
+        await setBaseCurrency(new UserSettingsIDBDAO(() => db), 'UAH');
+
+        const client = makeWorkerClient();
+        const { bytes, fileName } = readRealFile(PATH_MONO_EN);
+        const decodeResult = await client.decode(bytes, fileName);
+
+        const { sessionId, stage2 } = await client.importStart(decodeResult.rows);
+        await applyAllWorker(client, sessionId, stage2, MONO_EN_PSEUDO_TRANSFORMATIONS);
+
+        const next = await client.importNext(sessionId);
+        expect(next.ok, 'importNext should succeed').toBe(true);
+        if (!next.ok) throw new Error('unreachable');
+
+        const result = next.result;
+        const mains     = result.rows.filter((r) => !r.isBankCommission && !r.isCashback).length;
+        const commission = result.rows.filter((r) => r.isBankCommission).length;
+        const cashback  = result.rows.filter((r) => r.isCashback).length;
+        const skipped   = result.skipped.length;
+        const rowErrors  = result.rowErrors.length;
+
+        const direct = PSEUDO_E2E_COUNTS.MONO_EN;
+        console.log(
+          `[checkpoint-c] mono_EN  | direct: mains=${direct.mains} commission=${direct.commission}` +
+          ` cashback=${direct.cashback} skipped=${direct.skipped} rowErrors=${direct.rowErrors}` +
+          ` | worker: mains=${mains} commission=${commission} cashback=${cashback}` +
+          ` skipped=${skipped} rowErrors=${rowErrors}`,
+        );
+
+        expect(mains,      'mains: zero drift').toBe(direct.mains);
+        expect(commission, 'commission: zero drift').toBe(direct.commission);
+        expect(cashback,   'cashback: zero drift').toBe(direct.cashback);
+        expect(skipped,    'skipped: zero drift').toBe(direct.skipped);
+        expect(rowErrors,  'rowErrors: zero drift').toBe(direct.rowErrors);
+      },
+    );
+  });
+
+  // ── ukrsib.xlsx ───────────────────────────────────────────────────────────────
+  describe('ukrsib.xlsx — worker path', () => {
+    it(
+      '[checkpoint-c] full flow over the worker: counts == direct-path hard counts',
+      { timeout: 60_000 },
+      async () => {
+        const db = await trackedWorkerTestDb();
+        await setBaseCurrency(new UserSettingsIDBDAO(() => db), 'UAH');
+
+        const client = makeWorkerClient();
+        const { bytes, fileName } = readRealFile(PATH_UKRSIB);
+        const decodeResult = await client.decode(bytes, fileName);
+
+        const { sessionId, stage2 } = await client.importStart(decodeResult.rows);
+        await applyAllWorker(client, sessionId, stage2, UKRSIB_TRANSFORMATIONS);
+
+        const next = await client.importNext(sessionId);
+        expect(next.ok, 'importNext should succeed').toBe(true);
+        if (!next.ok) throw new Error('unreachable');
+
+        const result = next.result;
+        const mains     = result.rows.filter((r) => !r.isBankCommission && !r.isCashback).length;
+        const commission = result.rows.filter((r) => r.isBankCommission).length;
+        const cashback  = result.rows.filter((r) => r.isCashback).length;
+        const skipped   = result.skipped.length;
+        const rowErrors  = result.rowErrors.length;
+
+        const direct = PSEUDO_E2E_COUNTS.UKRSIB;
+        console.log(
+          `[checkpoint-c] ukrsib   | direct: mains=${direct.mains} commission=${direct.commission}` +
+          ` cashback=${direct.cashback} skipped=${direct.skipped} rowErrors=${direct.rowErrors}` +
+          ` | worker: mains=${mains} commission=${commission} cashback=${cashback}` +
+          ` skipped=${skipped} rowErrors=${rowErrors}`,
+        );
+
+        expect(mains,      'mains: zero drift').toBe(direct.mains);
+        expect(commission, 'commission: zero drift').toBe(direct.commission);
+        expect(cashback,   'cashback: zero drift').toBe(direct.cashback);
+        expect(skipped,    'skipped: zero drift').toBe(direct.skipped);
+        expect(rowErrors,  'rowErrors: zero drift').toBe(direct.rowErrors);
+      },
+    );
+  });
+});
+
+// ============================================================================
+// Story 2.6 — Large-file honesty (10k rows through the worker)
+//
+// Deliverables:
+//   1. Progress events: ≥2 intermediates (done < total), monotone, final done === total.
+//   2. UI-thread-freeness probe: while the worker job runs the test's event loop
+//      stays responsive — setInterval ticks ACCUMULATE during the await; we assert
+//      ≥ some floor.
+//
+// Design note on the UI-thread probe in a vitest context:
+//   In a browser/real-worker environment, the worker runs on a separate OS thread
+//   and the main thread stays fully responsive.  In vitest (Node.js), @vitest/web-worker
+//   shims the Worker API but runs everything in the same event loop — setInterval ticks
+//   CAN accumulate during `await` (microtask/macrotask interleaving), but they do NOT
+//   prove true multi-thread parallelism.  The probe is therefore an EVENT-LOOP LIVENESS
+//   check: it confirms that the await does not BLOCK the event loop synchronously
+//   (e.g., via a huge sync loop in the test code itself).  True off-thread freeness
+//   is proven by the @vitest/web-worker real-hop test pattern (separate Worker module
+//   graph), not by tick counting.  We document this limitation inline.
+// ============================================================================
+
+describe('real statements — 10k large-file worker honesty (synthetic fixture)', () => {
+  it(
+    '10k rows through the worker: progress ≥2 intermediates, monotone, final done===total; event-loop probe',
+    { timeout: 60_000 },
+    async () => {
+      const progress: ProgressEventPayload[] = [];
+      const client = makeWorkerClient();
+      client.onEvent((e: EngineEventPayload) => {
+        if (e.event === 'progress') progress.push(e);
+      });
+
+      // ── UI-thread-freeness probe ──────────────────────────────────────────
+      // A setInterval fires macrotasks during the await.  In a real browser
+      // the worker runs off-thread and ticks accumulate freely; in vitest/Node
+      // they accumulate via event-loop interleaving (macrotasks after microtask
+      // drains).  Either way, a tick count > 0 confirms the await yields the
+      // event loop (no synchronous block in the test body).
+      let intervalTicks = 0;
+      const intervalHandle = setInterval(() => { intervalTicks++; }, 20);
+
+      const csvBytes = makeWorkerSyntheticCsv(10_000);
+      const decodeResult = await client.decode(csvBytes, '10k-synthetic.csv');
+
+      clearInterval(intervalHandle);
+
+      expect(decodeResult.rows).toHaveLength(10_000);
+
+      // ── Progress honesty ─────────────────────────────────────────────────
+      const decodeEvents = progress.filter((e) => e.phase === 'decode');
+      const intermediates = decodeEvents.filter((e) => e.done < e.total);
+      expect(intermediates.length, '≥2 intermediate progress events').toBeGreaterThanOrEqual(2);
+
+      // Monotone: done never decreases; done ≤ total always
+      for (let i = 0; i < decodeEvents.length; i++) {
+        expect(decodeEvents[i].done).toBeLessThanOrEqual(decodeEvents[i].total);
+        if (i > 0) expect(decodeEvents[i].done).toBeGreaterThanOrEqual(decodeEvents[i - 1].done);
+      }
+
+      // Final event: done === total
+      const last = decodeEvents[decodeEvents.length - 1];
+      expect(last.done, 'final progress: done === total').toBe(last.total);
+
+      // All decode events share one jobId
+      expect(new Set(decodeEvents.map((e) => e.jobId)).size, 'all decode events share one jobId').toBe(1);
+
+      // ── UI-thread probe result ─────────────────────────────────────────────
+      // In vitest/Node the floor is low because the shim does NOT create a real
+      // OS thread — macrotasks fire only when the microtask queue is empty.
+      // We assert ≥ 1 tick to confirm the event loop was NOT synchronously
+      // blocked (a sync decode loop of 10k rows that never yields would give 0).
+      // Higher counts (dozens) are seen in practice — print the actual count.
+      console.log(
+        `[10k-probe] interval ticks during 10k decode: ${intervalTicks}` +
+        ` (note: in vitest/Node this probes event-loop LIVENESS, not true off-thread freeness)`,
+      );
+      expect(intervalTicks, 'event-loop liveness: ≥1 interval tick during the await').toBeGreaterThanOrEqual(1);
+    },
+  );
+});
+
+// ============================================================================
+// Story 2.6 — Determinism: same worker-path run twice → identical DTO outputs
+//
+// Uses the mono-like-utf8.csv fixture (committed test fixture — no real data).
+// Two back-to-back importNext calls with identical setup must produce:
+//   - identical row counts
+//   - identical hashes for every row (hash stability under COUNTERPARTY fix)
+//   - identical amounts, dates, currencies, descriptions
+// ============================================================================
+
+describe('real statements — worker-path determinism (fixture, two runs)', () => {
+  it(
+    'same worker-path run twice → identical GenerateResultDTO incl. hashes (mono-like-utf8.csv)',
+    { timeout: 60_000 },
+    async () => {
+      // MONO_MAPPINGS (from engine-worker-host.spec.ts — same fixture, same mapping)
+      // mono-like-utf8.csv uses a DIFFERENT column set than the real mono_UA file.
+      // Use the host-spec's MONO_MAPPINGS adapted for this fixture.
+      const FIXTURE_MAPPINGS: ColumnTransformation[] = [
+        { columnName: 'Дата i час операції',  definition: ColumnDefinition.DATE,              params: { format: 'auto' } },
+        { columnName: 'Деталі операції',      definition: ColumnDefinition.DESCRIPTION,       params: null },
+        { columnName: 'MCC',                  definition: ColumnDefinition.MERCHANT_CATEGORY, params: null },
+        { columnName: 'Сума в валюті картки', definition: ColumnDefinition.AMOUNT,            params: { type: 'outcome', currency: { code: 'UAH' } } },
+        { columnName: 'Валюта картки',        definition: ColumnDefinition.IGNORE,            params: null },
+        { columnName: 'Сума в USD',           definition: ColumnDefinition.IGNORE,            params: null },
+        { columnName: 'Комісія',              definition: ColumnDefinition.IGNORE,            params: null },
+        { columnName: 'Кешбек',              definition: ColumnDefinition.IGNORE,            params: null },
+        { columnName: 'Залишок',             definition: ColumnDefinition.IGNORE,            params: null },
+      ];
+
+      // Read the fixture file bytes (committed fixture — always present)
+      const { readFileSync: nodeReadFileSync } = await import('node:fs');
+      const { join: nodeJoin, dirname: nodeDirname } = await import('node:path');
+      const { fileURLToPath: nodeFileUrlToPath } = await import('node:url');
+      const __dirnameDet = nodeDirname(nodeFileUrlToPath(import.meta.url));
+      const fixturePath = nodeJoin(__dirnameDet, 'fixtures', 'mono-like-utf8.csv');
+      const nodeBuf = nodeReadFileSync(fixturePath);
+      const fixtureBytes: ArrayBuffer = nodeBuf.buffer.slice(nodeBuf.byteOffset, nodeBuf.byteOffset + nodeBuf.byteLength);
+
+      async function runOnce(): Promise<import('../../client/dto').GenerateResultDTO> {
+        // Fresh IDB universe per run — determinism does NOT rely on recall pool
+        globalThis.indexedDB = new IDBFactory();
+        resetPersistenceForTests();
+
+        const db = await openWorkerTestDb();
+        _workerE2eTestDbs.push(db);
+        await setBaseCurrency(new UserSettingsIDBDAO(() => db), 'UAH');
+
+        const client = makeWorkerClient();
+        const decodeResult = await client.decode(fixtureBytes.slice(0), 'mono-like-utf8.csv');
+        const { sessionId, stage2 } = await client.importStart(decodeResult.rows);
+        await applyAllWorker(client, sessionId, stage2, FIXTURE_MAPPINGS);
+        const next = await client.importNext(sessionId);
+        if (!next.ok) throw new Error('importNext failed: ' + JSON.stringify(next));
+        return next.result;
+      }
+
+      const run1 = await runOnce();
+      const run2 = await runOnce();
+
+      // Row counts must be identical
+      expect(run2.rows.length, 'row count identical across runs').toBe(run1.rows.length);
+      expect(run2.rowErrors.length, 'rowErrors count identical').toBe(run1.rowErrors.length);
+      expect(run2.skipped.length, 'skipped count identical').toBe(run1.skipped.length);
+
+      // Per-row: hash, amount, date, currency must be identical
+      for (let i = 0; i < run1.rows.length; i++) {
+        const r1 = run1.rows[i];
+        const r2 = run2.rows[i];
+        expect(r2.hash, `row[${i}] hash identical (determinism)`).toBe(r1.hash);
+        expect(r2.amount, `row[${i}] amount identical`).toBe(r1.amount);
+        expect(r2.date, `row[${i}] date identical`).toBe(r1.date);
+        expect(r2.currency, `row[${i}] currency identical`).toBe(r1.currency);
+        expect(r2.description, `row[${i}] description identical`).toBe(r1.description);
+      }
+
+      console.log(
+        `[determinism] mono-like-utf8.csv worker runs: rows=${run1.rows.length}, ` +
+        `all ${run1.rows.length} hashes identical across 2 runs`,
+      );
+    },
+  );
 });

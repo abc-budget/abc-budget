@@ -14,10 +14,18 @@ import { createMigrationContext } from './migration';
  *   request succeeded — never mid-upgrade, never with partially applied steps.
  * - Rejects if any step throws or any migration request fails; IndexedDB then rolls the
  *   entire version change back atomically and the database stays at its old version.
- * - Rejects on `blocked` (another connection holds an older version) — multi-tab
- *   coordination is a documented carry-forward.
+ * - Rejects on `blocked` (another connection holds an older version) — the multi-tab
+ *   model is "loud, not coordinated" (2.6 decision 1): the optional `onBlocked` hook
+ *   fires BEFORE the rejection so hosts can surface the loud close-other-tabs state.
+ *
+ * @param opts.onBlocked — additive hook (2.6): invoked when the open request fires
+ *   `blocked`. The promise still rejects afterwards — the hook is notification-only.
  */
-export function openDatabase(name: string, steps: MigrationStep[]): Promise<IDBDatabase> {
+export function openDatabase(
+  name: string,
+  steps: MigrationStep[],
+  opts?: { onBlocked?: () => void },
+): Promise<IDBDatabase> {
   return new Promise<IDBDatabase>((resolve, reject) => {
     try {
       validateSteps(steps);
@@ -36,6 +44,11 @@ export function openDatabase(name: string, steps: MigrationStep[]): Promise<IDBD
     const request = indexedDB.open(name, targetVersion);
 
     request.onblocked = () => {
+      try {
+        opts?.onBlocked?.();
+      } catch {
+        // notification hook failures must not mask the loud rejection below
+      }
       reject(
         new Error(
           `Database "${name}" upgrade blocked: another open connection holds an older version.`,

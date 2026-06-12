@@ -24,6 +24,10 @@ export default tseslint.config(
     },
   },
   {
+    // NFR-003 fence: UI imports ONLY the public engine surface — the barrel and
+    // the worker ENTRY subpath (`@abc-budget/engine/worker`, incl. Vite's
+    // `?worker` query form — `*` does not cross `/`, so deep paths stay banned).
+    // The 2.1 `engine/qa` exception SUNSET at 2.6 with the ./qa subpath itself.
     files: ['apps/web/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
@@ -31,30 +35,13 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@abc-budget/engine/*'],
+              group: [
+                '@abc-budget/engine/*',
+                '@abc-budget/engine/*/**',
+                '!@abc-budget/engine/worker*',
+              ],
               message:
-                'UI may import ONLY the public @abc-budget/engine client surface (NFR-003). No deep imports.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    // qa/ is allowed to import the UNSTABLE ./qa subpath only — all other deep engine imports
-    // are still banned (NFR-003). This block overrides the apps/web/** rule above.
-    // The two-pattern group covers both single-segment (@abc-budget/engine/internal) and
-    // multi-segment (@abc-budget/engine/internal/ingest/decode) deep imports.
-    files: ['apps/web/src/qa/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['@abc-budget/engine/!(qa)', '@abc-budget/engine/*/**'],
-              message:
-                'qa/ may only import the @abc-budget/engine/qa unstable subpath — no other deep engine imports (NFR-003).',
+                'UI may import ONLY the public @abc-budget/engine client surface or the /worker entry (NFR-003). No deep imports.',
             },
           ],
         },

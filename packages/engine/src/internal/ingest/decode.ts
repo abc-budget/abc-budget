@@ -81,7 +81,7 @@ function sortIssues(issues: DecodeIssue[]): DecodeIssue[] {
  * @returns      Promise<DecodeResult> — always resolves, never rejects.
  */
 export async function decode(input: DecodeInput): Promise<DecodeResult> {
-  const { bytes, fileName } = input;
+  const { bytes, fileName, onProgress } = input;
   const ext = getExtension(fileName);
 
   // ── Signature detection: check magic bytes regardless of extension ──────────
@@ -98,7 +98,7 @@ export async function decode(input: DecodeInput): Promise<DecodeResult> {
   }
 
   // ── CSV / text / unknown extension ─────────────────────────────────────────
-  return decodeCsv(bytes, fileName, ext as KnownExt | '');
+  return decodeCsv(bytes, fileName, ext as KnownExt | '', onProgress);
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +109,7 @@ async function decodeCsv(
   bytes: ArrayBuffer,
   fileName: string,
   _ext: string,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<DecodeResult> {
   const allIssues: DecodeIssue[] = [];
 
@@ -225,8 +226,8 @@ async function decodeCsv(
   // (We pushed headerResult.issues above — undo that and push remapped.)
   allIssues.splice(allIssues.length - headerResult.issues.length, headerResult.issues.length, ...remappedHeaderIssues);
 
-  // 5. Key rows
-  const keyResult = keyRows(matrix, headerResult);
+  // 5. Key rows (onProgress threads through — 2.6 HC-10 honest decode progress)
+  const keyResult = keyRows(matrix, headerResult, onProgress);
   // Remap keyRows issues (which also use matrix indices) to source rows.
   const remappedKeyIssues = keyResult.issues.map(issue => {
     if (issue.row >= 0 && issue.row < sourceRows.length) {

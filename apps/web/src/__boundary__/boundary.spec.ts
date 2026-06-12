@@ -23,20 +23,31 @@ function resolveInNode(specifier: string): { ok: boolean; stderr: string } {
 }
 
 describe('NFR-003 UI/Engine boundary (exports map)', () => {
-  it('public barrel exposes only the client factory at runtime (no internals leak)', () => {
-    expect(Object.keys(engineModule).sort()).toEqual(['createDirectEngineClient']);
+  it('public barrel exposes exactly the two client factories at runtime (2.6 declared change)', () => {
+    expect(Object.keys(engineModule).sort()).toEqual([
+      'createDirectEngineClient',
+      'createWorkerEngineClient',
+    ]);
+  });
+
+  it('./qa subpath no longer resolves (the 2.6 sunset)', () => {
+    const qa = resolveInNode('@abc-budget/engine/qa');
+    expect(qa.ok).toBe(false);
+    expect(qa.stderr).toContain('ERR_PACKAGE_PATH_NOT_EXPORTED');
   });
 
   it('blocks deep imports into engine internals (exports map, enforced by Node/Vite)', () => {
-    // package.json publishes exports for "." only, so the resolver must refuse any deep path.
-    // Same enforcement Vite applies to production builds.
+    // package.json publishes exports for "." and "./worker" only, so the resolver
+    // must refuse any deep path. Same enforcement Vite applies to production builds.
     const deep = resolveInNode('@abc-budget/engine/src/internal/ping-engine');
     expect(deep.stderr).toContain('ERR_PACKAGE_PATH_NOT_EXPORTED');
 
-    // Teeth / self-verification: the PUBLIC entry must NOT be rejected by the exports map.
-    // (It won't execute — Node can't run raw .ts — but it must get PAST the exports gate,
-    // i.e. it must not produce ERR_PACKAGE_PATH_NOT_EXPORTED.)
+    // Teeth / self-verification: the PUBLIC entries must NOT be rejected by the exports
+    // map. (They won't execute — Node can't run raw .ts — but they must get PAST the
+    // exports gate, i.e. not produce ERR_PACKAGE_PATH_NOT_EXPORTED.)
     const publicEntry = resolveInNode('@abc-budget/engine');
     expect(publicEntry.stderr).not.toContain('ERR_PACKAGE_PATH_NOT_EXPORTED');
+    const workerEntry = resolveInNode('@abc-budget/engine/worker');
+    expect(workerEntry.stderr).not.toContain('ERR_PACKAGE_PATH_NOT_EXPORTED');
   });
 });

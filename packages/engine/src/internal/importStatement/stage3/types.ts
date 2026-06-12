@@ -183,6 +183,10 @@ export interface ImportStatementStage3
    */
   clearFilters(): Promise<void>;
 
-  /** The selected file source name, or null if none selected */
+  /**
+   * The selected source name — ALWAYS null since the 2.6 excision (decision 3):
+   * the FileSource-backed stage2 source picker died with the format entity.
+   * S3a (2.7) redefines the lean source notion from the design bundle.
+   */
   readonly selectedSource: string | null;
 }

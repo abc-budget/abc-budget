@@ -1,8 +1,76 @@
-import type { EngineClient } from './engine-client';
+/**
+ * Direct (in-thread) EngineClient — implements the full EngineClient contract v2
+ * without a Worker.  This is the transport vitest and QA ride; the worker host
+ * (`internal/worker/engine-worker-host.ts`) is a wire shim over THIS client, so
+ * both transports run the identical session logic and the identical composed
+ * object graph.
+ *
+ * Composition (Story 2.6, Task 4): the production object graph comes from the
+ * ONE shared composition root — `composeEngine()` in
+ * `internal/worker/composition-root.ts` — which wires the real
+ * UserSettingsIDBDAO + recall pool + rates holder into
+ * ImportStatementServiceImpl.  Where indexedDB is absent the root composes
+ * with nulls (deterministic node baseline), never throws.
+ *
+ * Session semantics (founder refinement 1+2):
+ *   - ≤1 active session (SessionRegistry) — importStart while active throws
+ *     SessionAlreadyActiveError.
+ *   - importApplyColumn returns the COLUMN-STATE snapshot only (row economy);
+ *     full rows flow through windowed importGetRows.
+ *   - completed importNext / importAbort free the session graph.
+ *
+ * Progress events (HC-10 honest counts): decode and importNext emit
+ * `progress {jobId, phase, done, total}` via onEvent — done is monotone,
+ * the final event always reports done === total.
+ *
+ * rxjs — INTERNAL only (never on the public surface).
+ */
+
+import { firstValueFrom } from 'rxjs';
+import type {
+  EngineClient,
+  EngineVersion,
+  ImportStartResult,
+  ApplyColumnResult,
+  ImportNextResult,
+  EngineEventPayload,
+} from './engine-client';
+import type { Stage2SnapshotDTO, RowWindowDTO } from './dto';
+import {
+  serializeStage2Snapshot,
+  serializeColumnRejection,
+  serializeRowWindow,
+  serializeGenerateResult,
+  serializeUnmappedColumns,
+} from './dto';
+import { SessionUnknownError } from './errors';
+import { ColumnTransformRejection } from '../internal/importStatement/stage2/errors';
 import type { ExchangeRateApi } from '../internal/exchange-rate/api';
 import { createPingEngine } from '../internal/ping-engine';
-import { initEnginePersistence } from '../internal/persistence/engine-db';
-import { setRemoteRatesApi } from '../internal/exchange-rate/rates-holder';
+import { composeEngine } from '../internal/worker/composition-root';
+import type { ComposedEngine } from '../internal/worker/composition-root';
+import { decode } from '../internal/ingest/decode';
+import type { DecodeResult } from '../internal/ingest/types';
+import { ColumnDefinition } from '../internal/importStatement/types';
+import type {
+  AmountColumnParams,
+  BalanceColumnParams,
+  BankCommissionColumnParams,
+  CashbackColumnParams,
+  DateColumnParams,
+  TransactionStatusColumnParams,
+} from '../internal/importStatement/types';
+import { ImportStatementColumn } from '../internal/importStatement/stage2/column';
+import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from '../internal/importStatement/stage2/types';
+import type { ImportStatementStage2Impl } from '../internal/importStatement/stage2/implementation';
+import { generateRows } from '../internal/importStatement/stage3/row-generator';
+import type { ColumnInfo } from '../internal/importStatement/stage3/row-generator';
+import type { GenerateRowsResult } from '../internal/importStatement/stage3/types';
+import { getBaseCurrency } from '../internal/settings/base-currency';
+import { BaseCurrencyNotSetError } from '../internal/settings/base-currency';
+import { generateUniqueId } from '../internal/utils/id/generator';
+import { SessionRegistry } from '../internal/worker/sessions';
+import { CONTRACT_VERSION, ENGINE_VERSION } from '../internal/version';
 
 /** Options accepted by the direct engine client factory. */
 export interface EngineInitOptions {
@@ -14,13 +82,314 @@ export interface EngineInitOptions {
   exchangeRateApi?: ExchangeRateApi;
 }
 
+/** Internal shape we cast stage2 to for snapshot extraction. */
+type Stage2Internal = {
+  columns: import('rxjs').Observable<ImportStatementColumnHeaderStage2[]>;
+  recognized: { n: number; m: number };
+  lastSaveCollision: import('../internal/importStatement/recall/recall').CollisionDescriptor | null;
+  getUnmappedColumns: () => ReadonlyArray<{ id: string; name: string }>;
+};
+
 /** Builds an EngineClient that calls the engine directly, in the same thread. */
 export function createDirectEngineClient(options?: EngineInitOptions): EngineClient {
-  // Wire the remote rates api into the module-level holder before any lazy construction.
-  setRemoteRatesApi(options?.exchangeRateApi);
+  // ── Composition root (ONE shared root — Task 4) ───────────────────────────
+  // Async composition is memoized here; methods that need the composed graph
+  // await it.  ping/getVersion/decode do not block on it.
+  const composedPromise: Promise<ComposedEngine> = composeEngine({
+    exchangeRateApi: options?.exchangeRateApi,
+  });
 
-  // Fire-and-forget: opens the engine DB (v2 migrations) + requests durability. Memoized;
-  // no-throw where indexedDB is absent. Failure handling hardens in EP-3 (fail-loud).
-  void initEnginePersistence();
-  return createPingEngine();
+  const pingEngine = createPingEngine();
+
+  // Session registry — shared state for all session methods
+  const registry = new SessionRegistry();
+
+  // Event listeners (onEvent subscribers)
+  const listeners = new Set<(event: EngineEventPayload) => void>();
+
+  function emit(event: EngineEventPayload): void {
+    for (const cb of listeners) {
+      try { cb(event); } catch { /* listener errors are non-fatal */ }
+    }
+  }
+
+  function emitProgress(jobId: string, phase: string, done: number, total: number): void {
+    emit({ event: 'progress', jobId, phase, done, total });
+  }
+
+  /**
+   * Build a Stage2SnapshotDTO from a live stage2 instance.
+   * Reads the current column state via BehaviorSubject (emits synchronously).
+   * Row economy: the serializer caps per-column sample cells — snapshot size
+   * does NOT scale with row count.
+   */
+  async function snapshotStage2(stage2: ImportStatementStage2Impl): Promise<Stage2SnapshotDTO> {
+    const impl = stage2 as unknown as Stage2Internal;
+    const cols = await firstValueFrom(impl.columns);
+    return serializeStage2Snapshot({
+      columns: cols,
+      recognized: impl.recognized,
+      lastSaveCollision: impl.lastSaveCollision,
+      unmappedColumns: impl.getUnmappedColumns(),
+    });
+  }
+
+  /** Find a live column instance by id; throws when absent. */
+  async function findColumn(
+    stage2: ImportStatementStage2Impl,
+    sessionId: string,
+    columnId: string,
+  ): Promise<ImportStatementColumn> {
+    const impl = stage2 as unknown as Stage2Internal;
+    const cols = await firstValueFrom(impl.columns);
+    const col = cols.find((c) => c.id === columnId);
+    if (!col || !(col instanceof ImportStatementColumn)) {
+      // Unknown column id within a known session — surface as a loud error with
+      // the session context (the UI sends ids it got from the snapshot).
+      throw new SessionUnknownError(`${sessionId}:column:${columnId}`);
+    }
+    return col;
+  }
+
+  /**
+   * Dispatch a column definition to the real ImportStatementColumn transform.
+   * This is the SAME parse path the ported suites exercise (parseAs*), so the
+   * 2.4 threshold gate (ColumnTransformRejection) and the 2.3 recall learning
+   * loop (savePool at applyColumn time) both fire.
+   */
+  async function applyDefinition(
+    col: ImportStatementColumn,
+    definition: string,
+    params: Record<string, unknown> | null,
+  ): Promise<void> {
+    switch (definition as ColumnDefinition) {
+      case ColumnDefinition.DATE:
+        return col.parseAsDate((params as unknown as DateColumnParams) ?? { format: 'auto' });
+      case ColumnDefinition.AMOUNT:
+        return col.parseAsAmount(params as unknown as AmountColumnParams);
+      case ColumnDefinition.CURRENCY:
+        return col.parseAsCurrency();
+      case ColumnDefinition.DESCRIPTION:
+        return col.parseAsDescription();
+      case ColumnDefinition.COUNTERPARTY:
+        return col.parseAsCounterparty();
+      case ColumnDefinition.MERCHANT_CATEGORY:
+        return col.parseAsMerchant();
+      case ColumnDefinition.CATEGORY:
+        return col.parseAsBankCategory();
+      case ColumnDefinition.BALANCE:
+        return col.parseAsBalance(params as unknown as BalanceColumnParams);
+      case ColumnDefinition.BANK_ACCOUNT:
+        return col.parseAsBankAccount();
+      case ColumnDefinition.STATUS:
+        return col.parseAsTransactionStatus(params as unknown as TransactionStatusColumnParams);
+      case ColumnDefinition.EXCHANGE_RATE:
+        return col.parseAsExchangeRate();
+      case ColumnDefinition.BANK_COMMISSION:
+        return col.parseAsBankCommission(params as unknown as BankCommissionColumnParams);
+      case ColumnDefinition.CASHBACK:
+        return col.parseAsCashback(params as unknown as CashbackColumnParams);
+      case ColumnDefinition.TIME:
+        return col.parseAsTime();
+      case ColumnDefinition.IGNORE:
+        return col.ignore();
+      default:
+        throw new Error(`[abc-engine] Unknown column definition: '${definition}'`);
+    }
+  }
+
+  /**
+   * Generate (or reuse the cached) typed rows for a session.
+   *
+   * Used by BOTH importGetRows (windowed preview once all columns are mapped)
+   * and importNext (full result + session completion).  The cache is invalidated
+   * on every applyColumn/resetColumn (generatedRows = null).
+   *
+   * @throws BaseCurrencyNotSetError when no base currency is configured (the
+   *         2.7 gate sets it before any import begins — loud by design).
+   */
+  async function generateForSession(
+    entry: import('../internal/worker/sessions').SessionEntry,
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<GenerateRowsResult> {
+    if (entry.generatedRows) {
+      // Cache hit (e.g. importGetRows already generated for this column state):
+      // still report the honest final count — done === total, HC-10.
+      const total = entry.generatedSourceTotal ?? 0;
+      onProgress?.(total, total);
+      return entry.generatedRows;
+    }
+    const stage2 = entry.stage2 as ImportStatementStage2Impl;
+    const impl = stage2 as unknown as Stage2Internal;
+
+    const { settingsDao } = await composedPromise;
+    if (settingsDao === null) {
+      // No persistence → no base currency can exist. Loud, structured.
+      throw new BaseCurrencyNotSetError();
+    }
+    const baseCurrency = await getBaseCurrency(settingsDao); // throws BaseCurrencyNotSetError when unset
+
+    const cols = await firstValueFrom(impl.columns);
+    const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
+    const columnInfo: ColumnInfo[] = cols.map((c) => ({
+      id: c.id,
+      definition: c.definition,
+      params: c.params,
+    }));
+
+    const result = await generateRows(rows, columnInfo, baseCurrency, onProgress);
+    entry.generatedRows = result;
+    entry.generatedSourceTotal = rows.length;
+    return result;
+  }
+
+  return {
+    // ── Baseline ──────────────────────────────────────────────────────────────
+
+    ping: pingEngine.ping.bind(pingEngine),
+
+    async getVersion(): Promise<EngineVersion> {
+      return { engine: ENGINE_VERSION, contract: CONTRACT_VERSION };
+    },
+
+    // ── Decode ────────────────────────────────────────────────────────────────
+
+    async decode(bytes: ArrayBuffer, fileName: string): Promise<DecodeResult> {
+      const jobId = generateUniqueId('job');
+      return decode({
+        bytes,
+        fileName,
+        onProgress: (done, total) => emitProgress(jobId, 'decode', done, total),
+      });
+    },
+
+    // ── Import session ────────────────────────────────────────────────────────
+
+    async importStart(rows: Record<string, unknown>[]): Promise<ImportStartResult> {
+      // Registry enforces ≤1 active session BEFORE any graph is built.
+      registry.assertNoActiveSession();
+
+      const { service } = await composedPromise;
+
+      // stage2() hydrates engine config (2.4 session-entry hydration) and runs
+      // recallFor over the initial column names (2.3 recall mount) — both wired
+      // through the composition root.
+      const stage1 = service.startWith(rows);
+      const stage2 = await service.stage2(stage1);
+
+      const sessionId = generateUniqueId('session');
+      registry.register(sessionId, stage2);
+
+      const snapshot = await snapshotStage2(stage2 as unknown as ImportStatementStage2Impl);
+      return { sessionId, stage2: snapshot };
+    },
+
+    async importApplyColumn(
+      sessionId: string,
+      columnId: string,
+      definition: string,
+      params: Record<string, unknown> | null,
+    ): Promise<ApplyColumnResult> {
+      const entry = registry.get(sessionId); // throws SessionUnknownError if absent
+      const stage2 = entry.stage2 as ImportStatementStage2Impl;
+      const col = await findColumn(stage2, sessionId, columnId);
+
+      try {
+        await applyDefinition(col, definition, params);
+        entry.generatedRows = null; // column state changed — typed-row cache is stale
+        entry.generatedSourceTotal = null;
+        entry.lastAppliedColumnName = col.originalName.getText(); // collision key
+        const snapshot = await snapshotStage2(stage2);
+        return { ok: true, snapshot };
+      } catch (err) {
+        if (err instanceof ColumnTransformRejection) {
+          // The 2.4 gate: structured rejection DTO — the column stays UNKNOWN.
+          return { ok: false, rejection: serializeColumnRejection(err) };
+        }
+        throw err;
+      }
+    },
+
+    async importResetColumn(sessionId: string, columnId: string): Promise<Stage2SnapshotDTO> {
+      const entry = registry.get(sessionId);
+      await entry.stage2.resetColumn(columnId);
+      entry.generatedRows = null;
+      entry.generatedSourceTotal = null;
+      return snapshotStage2(entry.stage2 as unknown as ImportStatementStage2Impl);
+    },
+
+    async importConfirmRecall(sessionId: string, columnId: string): Promise<void> {
+      const entry = registry.get(sessionId);
+      const stage2 = entry.stage2 as ImportStatementStage2Impl;
+      const col = await findColumn(stage2, sessionId, columnId);
+      if (col.recallState === 'guessed') {
+        // GUESSED → confirmed; applyColumn runs the learning loop (savePool).
+        const confirmed = col.copy({ recallState: 'confirmed' });
+        entry.stage2.applyColumn(confirmed);
+      }
+    },
+
+    async importResolveCollision(sessionId: string, confirm: boolean): Promise<void> {
+      const entry = registry.get(sessionId);
+      const stage2 = entry.stage2 as ImportStatementStage2Impl;
+      const impl = stage2 as unknown as Stage2Internal;
+      const collision = impl.lastSaveCollision;
+      if (!collision) {
+        return; // nothing to resolve — idempotent no-op
+      }
+      if (confirm) {
+        // LWW overwrite via the REAL pool (composition root) — confirmSave path.
+        const { recallPool } = await composedPromise;
+        const name = entry.lastAppliedColumnName;
+        if (recallPool && name) {
+          await recallPool.confirmSave(name, collision.incoming.definition, collision.incoming.params);
+        }
+      }
+      impl.lastSaveCollision = null;
+    },
+
+    async importGetRows(sessionId: string, offset: number, count: number): Promise<RowWindowDTO> {
+      const entry = registry.get(sessionId);
+      // Row economy (founder refinement 2): full row data flows ONLY through
+      // these windows.  Generates once per column-state (cached on the entry).
+      const { rows } = await generateForSession(entry);
+      const total = rows.length;
+      const slice = rows.slice(offset, offset + count);
+      return serializeRowWindow(slice, offset, total);
+    },
+
+    async importNext(sessionId: string): Promise<ImportNextResult> {
+      const entry = registry.get(sessionId);
+      const stage2 = entry.stage2 as ImportStatementStage2Impl;
+      const impl = stage2 as unknown as Stage2Internal;
+
+      // Q-009 explicit stop: unmapped columns → structured DTO, session stays alive.
+      const unmapped = impl.getUnmappedColumns();
+      if (unmapped.length > 0) {
+        return { ok: false, unmapped: serializeUnmappedColumns(unmapped) };
+      }
+
+      const jobId = generateUniqueId('job');
+      const result = await generateForSession(entry, (done, total) =>
+        emitProgress(jobId, 'generate', done, total),
+      );
+
+      // Completed importNext frees the session graph (founder refinement 1).
+      registry.free(sessionId);
+
+      return { ok: true, result: serializeGenerateResult(result) };
+    },
+
+    async importAbort(sessionId: string): Promise<void> {
+      // Free the session; no-op if already gone (idempotent)
+      registry.free(sessionId);
+    },
+
+    // ── Out-of-band events ────────────────────────────────────────────────────
+
+    onEvent(cb: (event: EngineEventPayload) => void): () => void {
+      listeners.add(cb);
+      return () => { listeners.delete(cb); };
+    },
+  };
 }

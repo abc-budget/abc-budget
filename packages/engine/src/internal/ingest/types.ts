@@ -1,4 +1,15 @@
-export interface DecodeInput { bytes: ArrayBuffer; fileName: string }
+export interface DecodeInput {
+  bytes: ArrayBuffer;
+  fileName: string;
+  /**
+   * Optional progress hook (2.6, HC-10 honest counts): invoked with
+   * (done, total) while rows are keyed.  `done` is the number of source rows
+   * scanned so far; `total` is the physical row count.  Monotone; the final
+   * invocation always reports done === total.  CSV path only — the sheet
+   * decoder is a single SheetJS call with no honest intermediate counts.
+   */
+  onProgress?: (done: number, total: number) => void;
+}
 export type DecodeAction =
   | 'skipped-row' | 'kept-raw' | 'padded-row' | 'truncated-row'
   | 'recovered-quote' | 'renamed-column' | 'file-unreadable' | 'no-data';

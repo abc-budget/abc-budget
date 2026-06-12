@@ -11,6 +11,6 @@ describe('EngineClient contract (direct transport)', () => {
     const client = createDirectEngineClient();
     const version = await client.getVersion();
     expect(typeof version.engine).toBe('string');
-    expect(version.contract).toBe(1);
+    expect(version.contract).toBe(2);
   });
 });

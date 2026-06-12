@@ -19,6 +19,17 @@
  *   6. All assertions kept verbatim.
  *
  * Unportable cases: NONE. All 1,347 lines port intact.
+ *
+ * EXCISED (2.6 decision 3) — DECLARED suite adaptation (no silent deletions):
+ *   - `describe('applyTransformations')` (12 tests) — exercised the stored-
+ *     FileFormat replay machinery (`stage2.applyTransformations`), deleted with
+ *     the format entity.  See the callout block at its former location.
+ *   - `describe('new public APIs')` (12 tests) — exercised currentFileFormat /
+ *     fileSourcesWithFullMatch / selectedSource / availableSources /
+ *     sourcesWithFullMatch / setTransformationMetadata, all deleted with the
+ *     format entity.  See the callout block at its former location.
+ *   Everything else is UNTOUCHED — zero weakening beyond these declared
+ *   excisions.
  */
 
 import { describe, it, expect, beforeEach, vi, type Mocked } from 'vitest';
@@ -26,13 +37,6 @@ import { firstValueFrom } from 'rxjs';
 import { NativeMessage } from '../../utils/messages/message';
 import type { ImportStatementServiceInternal } from '../service';
 import type { ImportStatementStage1 } from '../stage1';
-import type {
-  AmountColumnParams,
-  DateColumnParams,
-  FileFormat,
-  FileFormatMatch,
-  FileSource,
-} from '../types';
 import {
   ColumnDefinition,
 } from '../types';
@@ -654,706 +658,73 @@ describe('ImportStatementStage2Impl', () => {
     });
   });
 
-  describe('applyTransformations', () => {
-    it('should return 0 when transformations array is empty', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const result = await stage2.applyTransformations([]);
-      expect(result).toBe(0);
-    });
-
-    it('should successfully apply DATE transformation', async () => {
-      // Create column with valid date data
-      const dateColumn = createMockColumn('col1', 'Column 1', [
-        '2024-01-01',
-        '2024-01-02',
-      ]);
-      const initialState = [dateColumn, mockInitialState[1]];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(1.0);
-
-      const columns = await firstValueFrom(stage2.columns);
-      const transformedColumn = columns.find((col) => col.id === 'col1');
-      expect(transformedColumn?.definition).toBe(ColumnDefinition.DATE);
-    });
-
-    it('should successfully apply AMOUNT transformation', async () => {
-      // Create column with valid amount data
-      const amountColumn = createMockColumn('col2', 'Column 2', [
-        '100.00',
-        '200.00',
-      ]);
-      const initialState = [mockInitialState[0], amountColumn];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'Column 2',
-          definition: ColumnDefinition.AMOUNT,
-          params: { type: 'mixed', currency: 'auto' } as AmountColumnParams,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(1.0);
-
-      const columns = await firstValueFrom(stage2.columns);
-      const transformedColumn = columns.find((col) => col.id === 'col2');
-      expect(transformedColumn?.definition).toBe(ColumnDefinition.AMOUNT);
-    });
-
-    it('should successfully apply CURRENCY transformation', async () => {
-      // Create column with valid currency data
-      // NOTE (1.6 wiring): the prior art passed a mock CurrencyCache as 4th arg.
-      // In the 1.6 port, column.ts uses the static reference module directly.
-      // USD and EUR are valid ISO codes in the real dataset.
-      const currencyColumn = createMockColumn(
-        'col1',
-        'Column 1',
-        ['USD', 'EUR']
-        // no currencyCache arg — static reference used instead
-      );
-      const initialState = [currencyColumn, mockInitialState[1]];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.CURRENCY,
-          params: null,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(1.0);
-
-      const columns = await firstValueFrom(stage2.columns);
-      const transformedColumn = columns.find((col) => col.id === 'col1');
-      expect(transformedColumn?.definition).toBe(ColumnDefinition.CURRENCY);
-    });
-
-    it('should successfully apply DESCRIPTION transformation', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.DESCRIPTION,
-          params: null,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(1.0);
-
-      const columns = await firstValueFrom(stage2.columns);
-      const transformedColumn = columns.find((col) => col.id === 'col1');
-      expect(transformedColumn?.definition).toBe(ColumnDefinition.DESCRIPTION);
-    });
-
-    it('should count missing columns as failed transformations', async () => {
-      // Create column with valid date data
-      const dateColumn = createMockColumn('col1', 'Column 1', [
-        '2024-01-01',
-        '2024-01-02',
-      ]);
-      const initialState = [dateColumn, mockInitialState[1]];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'NonExistent',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(0.5); // 1 successful / 2 total
-    });
-
-    it('should catch transformation exceptions and count as failed', async () => {
-      // Create column with valid date data for Column 1
-      const dateColumn = createMockColumn('col1', 'Column 1', [
-        '2024-01-01',
-        '2024-01-02',
-      ]);
-      const initialState = [dateColumn, mockInitialState[1]];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      // Create a column with invalid data that will cause transformation to fail
-      const invalidColumn = new ImportStatementColumn(
-        'col3',
-        new NativeMessage('Invalid Column'),
-        new NativeMessage('Invalid Column'),
-        null,
-        null,
-        [createCell('invalid-date-format')],
-        null
-      );
-      await stage2.applyColumn(invalidColumn);
-
-      const transformations = [
-        {
-          columnName: 'Invalid Column',
-          definition: ColumnDefinition.DATE,
-          params: {
-            format: { custom: 'YYYY-MM-DD' },
-          } as DateColumnParams, // Strict format that will fail
-        },
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      // At least one should succeed (Column 1), but Invalid Column might fail
-      expect(matchPercentage).toBeGreaterThanOrEqual(0.5);
-      expect(matchPercentage).toBeLessThanOrEqual(1.0);
-    });
-
-    it('should calculate match percentage as successful / total transformations', async () => {
-      // Create columns with valid data
-      const dateColumn = createMockColumn('col1', 'Column 1', [
-        '2024-01-01',
-        '2024-01-02',
-      ]);
-      const amountColumn = createMockColumn('col2', 'Column 2', [
-        '100.00',
-        '200.00',
-      ]);
-      const initialState = [dateColumn, amountColumn];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-        {
-          columnName: 'Column 2',
-          definition: ColumnDefinition.AMOUNT,
-          params: { type: 'mixed', currency: 'auto' } as AmountColumnParams,
-        },
-        {
-          columnName: 'NonExistent',
-          definition: ColumnDefinition.DESCRIPTION,
-          params: null,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBeCloseTo(2 / 3, 2); // 2 successful / 3 total
-    });
-
-    it('should continue transformations even if some fail', async () => {
-      // Create columns with valid data
-      const dateColumn = createMockColumn('col1', 'Column 1', [
-        '2024-01-01',
-        '2024-01-02',
-      ]);
-      const amountColumn = createMockColumn('col2', 'Column 2', [
-        '100.00',
-        '200.00',
-      ]);
-      const initialState = [dateColumn, amountColumn];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'NonExistent1',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-        {
-          columnName: 'NonExistent2',
-          definition: ColumnDefinition.AMOUNT,
-          params: { type: 'mixed', currency: 'auto' } as AmountColumnParams,
-        },
-        {
-          columnName: 'Column 2',
-          definition: ColumnDefinition.AMOUNT,
-          params: { type: 'mixed', currency: 'auto' } as AmountColumnParams,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(0.5); // 2 successful / 4 total
-
-      // Verify that successful transformations were applied
-      const columns = await firstValueFrom(stage2.columns);
-      const col1 = columns.find((col) => col.id === 'col1');
-      const col2 = columns.find((col) => col.id === 'col2');
-      expect(col1?.definition).toBe(ColumnDefinition.DATE);
-      expect(col2?.definition).toBe(ColumnDefinition.AMOUNT);
-    });
-
-    it('should match column names exactly (case-sensitive)', async () => {
-      // Create column with valid date data
-      const dateColumn = createMockColumn('col1', 'Column 1', [
-        '2024-01-01',
-        '2024-01-02',
-      ]);
-      const initialState = [dateColumn, mockInitialState[1]];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      // Try to match with different case
-      const transformations = [
-        {
-          columnName: 'column 1', // lowercase, should not match 'Column 1'
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-        {
-          columnName: 'Column 1', // correct case
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(0.5); // Only 1 matches (correct case)
-
-      const columns = await firstValueFrom(stage2.columns);
-      const col1 = columns.find((col) => col.id === 'col1');
-      expect(col1?.definition).toBe(ColumnDefinition.DATE);
-    });
-
-    it('should apply IGNORE transformation', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const transformations = [
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.IGNORE,
-          params: null,
-        },
-      ];
-
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(1.0);
-
-      const columns = await firstValueFrom(stage2.columns);
-      const transformedColumn = columns.find((col) => col.id === 'col1');
-      expect(transformedColumn?.definition).toBe(ColumnDefinition.IGNORE);
-    });
-
-    it('should skip columns that are not ImportStatementColumn instances', async () => {
-      // Create column with valid date data
-      const dateColumn = createMockColumn('col1', 'Column 1', [
-        '2024-01-01',
-        '2024-01-02',
-      ]);
-      const initialState = [dateColumn, mockInitialState[1]];
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        initialState
-      );
-
-      // This shouldn't happen in practice, but test the defensive code
-      const transformations = [
-        {
-          columnName: 'Column 1',
-          definition: ColumnDefinition.DATE,
-          params: { format: 'auto' } as DateColumnParams,
-        },
-      ];
-
-      // The method should work normally since all columns are ImportStatementColumn
-      const matchPercentage =
-        await stage2.applyTransformations(transformations);
-      expect(matchPercentage).toBe(1.0);
-    });
-  });
-
-  describe('new public APIs', () => {
-    it('should return null for currentFileFormat when not set', () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      expect(stage2.currentFileFormat).toBeNull();
-    });
-
-    it('should return correct file format when set', () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const fileFormat: FileFormat = {
-        id: 1,
-        transformations: [],
-      };
-
-      stage2.setTransformationMetadata(fileFormat, [], []);
-
-      expect(stage2.currentFileFormat).toBe(fileFormat);
-      expect(stage2.currentFileFormat?.id).toBe(1);
-    });
-
-    it('should return empty array for currentFileSources when not set', () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      expect(stage2.fileSourcesWithFullMatch).toEqual([]);
-    });
-
-    it('should return correct file source when set', () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const fileSource: FileSource = {
-        id: 1,
-        name: 'Test Bank',
-        fileFormatId: 1,
-      };
-
-      stage2.setTransformationMetadata(null, [fileSource], []);
-
-      expect(stage2.fileSourcesWithFullMatch).toEqual([fileSource]);
-      expect(stage2.fileSourcesWithFullMatch.length).toBe(1);
-      expect(stage2.fileSourcesWithFullMatch[0]?.id).toBe(1);
-      expect(stage2.fileSourcesWithFullMatch[0]?.name).toBe('Test Bank');
-    });
-
-    it('should initialize selectedSource observable with null', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const selectedSource = await firstValueFrom(stage2.selectedSource);
-      expect(selectedSource).toBeNull();
-    });
-
-    it('should update selectedSource when selectSource is called', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      stage2.selectSource('Test Bank');
-      const selectedSource1 = await firstValueFrom(stage2.selectedSource);
-      expect(selectedSource1).toBe('Test Bank');
-
-      stage2.selectSource('Another Bank');
-      const selectedSource2 = await firstValueFrom(stage2.selectedSource);
-      expect(selectedSource2).toBe('Another Bank');
-
-      stage2.selectSource(null);
-      const selectedSource3 = await firstValueFrom(stage2.selectedSource);
-      expect(selectedSource3).toBeNull();
-    });
-
-    it('should return empty array for availableSources when not set', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const availableSources = await firstValueFrom(stage2.availableSources);
-      expect(availableSources).toEqual([]);
-    });
-
-    it('should return unique source names from availableFileFormats', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const fileFormat1: FileFormat = {
-        id: 1,
-        transformations: [],
-      };
-      const fileFormat2: FileFormat = {
-        id: 2,
-        transformations: [],
-      };
-      const fileSource1: FileSource = {
-        id: 1,
-        name: 'Bank 1',
-        fileFormatId: 1,
-      };
-      const fileSource2: FileSource = {
-        id: 2,
-        name: 'Bank 2',
-        fileFormatId: 1,
-      };
-      const fileSource3: FileSource = {
-        id: 3,
-        name: 'Bank 1', // Duplicate name
-        fileFormatId: 2,
-      };
-
-      const matches: FileFormatMatch[] = [
-        {
-          fileFormat: fileFormat1,
-          fileSources: [fileSource1, fileSource2],
-          matchPercentage: 0.8,
-        },
-        {
-          fileFormat: fileFormat2,
-          fileSources: [fileSource3],
-          matchPercentage: 0.5,
-        },
-      ];
-
-      stage2.setTransformationMetadata(fileFormat1, [fileSource1], matches);
-
-      const availableSources = await firstValueFrom(stage2.availableSources);
-      expect(availableSources).toEqual(['Bank 1', 'Bank 2']); // Unique names only
-      expect(availableSources.length).toBe(2);
-    });
-
-    it('should return empty array for sourcesWithFullMatch when not set', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const sourcesWithFullMatch = await firstValueFrom(
-        stage2.sourcesWithFullMatch
-      );
-      expect(sourcesWithFullMatch).toEqual([]);
-    });
-
-    it('should return unique source names from fileSourcesWithFullMatch', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const fileSource1: FileSource = {
-        id: 1,
-        name: 'Bank 1',
-        fileFormatId: 1,
-      };
-      const fileSource2: FileSource = {
-        id: 2,
-        name: 'Bank 2',
-        fileFormatId: 1,
-      };
-      const fileSource3: FileSource = {
-        id: 3,
-        name: 'Bank 1', // Duplicate name
-        fileFormatId: 2,
-      };
-
-      stage2.setTransformationMetadata(
-        null,
-        [fileSource1, fileSource2, fileSource3],
-        []
-      );
-
-      const sourcesWithFullMatch = await firstValueFrom(
-        stage2.sourcesWithFullMatch
-      );
-      expect(sourcesWithFullMatch).toEqual(['Bank 1', 'Bank 2']); // Unique names only
-      expect(sourcesWithFullMatch.length).toBe(2);
-    });
-
-    it('should cache availableSources and sourcesWithFullMatch in setTransformationMetadata', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const fileFormat1: FileFormat = {
-        id: 1,
-        transformations: [],
-      };
-      const fileSource1: FileSource = {
-        id: 1,
-        name: 'Bank 1',
-        fileFormatId: 1,
-      };
-      const fileSource2: FileSource = {
-        id: 2,
-        name: 'Bank 2',
-        fileFormatId: 1,
-      };
-
-      const matches: FileFormatMatch[] = [
-        {
-          fileFormat: fileFormat1,
-          fileSources: [fileSource1],
-          matchPercentage: 0.8,
-        },
-      ];
-
-      stage2.setTransformationMetadata(fileFormat1, [fileSource2], matches);
-
-      // Get values multiple times - should be cached (same reference)
-      const availableSources1 = await firstValueFrom(stage2.availableSources);
-      const availableSources2 = await firstValueFrom(stage2.availableSources);
-      const sourcesWithFullMatch1 = await firstValueFrom(
-        stage2.sourcesWithFullMatch
-      );
-      const sourcesWithFullMatch2 = await firstValueFrom(
-        stage2.sourcesWithFullMatch
-      );
-
-      expect(availableSources1).toEqual(availableSources2);
-      expect(sourcesWithFullMatch1).toEqual(sourcesWithFullMatch2);
-      expect(availableSources1).toEqual(['Bank 1']);
-      expect(sourcesWithFullMatch1).toEqual(['Bank 2']);
-    });
-
-    it('should update cached values when setTransformationMetadata is called again', async () => {
-      const stage2 = new ImportStatementStage2Impl(
-        mockStage1,
-        mockService,
-        mockInitialState
-      );
-
-      const fileFormat1: FileFormat = {
-        id: 1,
-        transformations: [],
-      };
-      const fileSource1: FileSource = {
-        id: 1,
-        name: 'Bank 1',
-        fileFormatId: 1,
-      };
-
-      const matches1: FileFormatMatch[] = [
-        {
-          fileFormat: fileFormat1,
-          fileSources: [fileSource1],
-          matchPercentage: 0.8,
-        },
-      ];
-
-      stage2.setTransformationMetadata(fileFormat1, [fileSource1], matches1);
-
-      const availableSources1 = await firstValueFrom(stage2.availableSources);
-      const sourcesWithFullMatch1 = await firstValueFrom(
-        stage2.sourcesWithFullMatch
-      );
-
-      expect(availableSources1).toEqual(['Bank 1']);
-      expect(sourcesWithFullMatch1).toEqual(['Bank 1']);
-
-      // Update with different data
-      const fileSource2: FileSource = {
-        id: 2,
-        name: 'Bank 2',
-        fileFormatId: 1,
-      };
-      const matches2: FileFormatMatch[] = [
-        {
-          fileFormat: fileFormat1,
-          fileSources: [fileSource2],
-          matchPercentage: 0.9,
-        },
-      ];
-
-      stage2.setTransformationMetadata(fileFormat1, [fileSource2], matches2);
-
-      const availableSources2 = await firstValueFrom(stage2.availableSources);
-      const sourcesWithFullMatch2 = await firstValueFrom(
-        stage2.sourcesWithFullMatch
-      );
-
-      expect(availableSources2).toEqual(['Bank 2']);
-      expect(sourcesWithFullMatch2).toEqual(['Bank 2']);
-    });
-  });
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXCISED (2.6 decision 3): describe('applyTransformations') — 12 tests deleted.
+  // stage2.applyTransformations() existed solely to replay a stored FileFormat's
+  // transformation list during format-level recall; it died with the format
+  // entity (FEAT-005).  Per removed assertion:
+  //   - 'should return 0 when transformations array is empty' — proved the empty-
+  //     list guard of the replay loop — dead with the entity.
+  //   - 'should successfully apply DATE transformation' — proved replay maps DATE
+  //     via parseAsDate — superseded by the 2.3 pool prefill + direct parseAsDate
+  //     coverage (column.spec.ts; pipeline-e2e applyMappings path).
+  //   - 'should successfully apply AMOUNT transformation' — same, for
+  //     parseAsAmount — superseded by column.spec.ts + pipeline-e2e.
+  //   - 'should successfully apply CURRENCY transformation' — same, for
+  //     parseAsCurrency — superseded by column.spec.ts.
+  //   - 'should successfully apply DESCRIPTION transformation' — same, for
+  //     parseAsDescription — superseded by column.spec.ts + pipeline-e2e.
+  //   - 'should count missing columns as failed transformations' — proved the
+  //     match-percentage denominator counted absent columns — dead with the
+  //     entity (match percentage was format-recall-only arithmetic).
+  //   - 'should catch transformation exceptions and count as failed' — proved
+  //     replay continued past per-column failures — dead with the entity
+  //     (the live per-column boundary is ColumnTransformRejection, 2.4 suites).
+  //   - 'should calculate match percentage as successful / total transformations'
+  //     — format-match arithmetic — dead with the entity.
+  //   - 'should continue transformations even if some fail' — replay resilience
+  //     — dead with the entity.
+  //   - 'should match column names exactly (case-sensitive)' — proved replay
+  //     keyed on exact originalName — superseded by the 2.3 pool's normalizeKey
+  //     contract (recall.spec.ts pins the normalization semantics).
+  //   - 'should apply IGNORE transformation' — replay maps IGNORE via ignore()
+  //     — superseded by column.spec.ts + pipeline-e2e IGNORE mappings.
+  //   - 'should skip columns that are not ImportStatementColumn instances' —
+  //     replay's defensive instanceof guard — dead with the entity.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXCISED (2.6 decision 3): describe('new public APIs') — 12 tests deleted.
+  // All exercised the FileFormat/FileSource metadata surface of stage2
+  // (currentFileFormat, fileSourcesWithFullMatch, selectedSource/selectSource,
+  // availableSources, sourcesWithFullMatch, setTransformationMetadata), which
+  // died with the format entity (FEAT-005).  Per removed assertion:
+  //   - 'should return null for currentFileFormat when not set' /
+  //     'should return correct file format when set' — proved the
+  //     currentFileFormat getter round-trip via setTransformationMetadata —
+  //     dead with the entity (no format to expose).
+  //   - 'should return empty array for currentFileSources when not set' /
+  //     'should return correct file source when set' — proved the
+  //     fileSourcesWithFullMatch getter round-trip — dead with the entity.
+  //   - 'should initialize selectedSource observable with null' /
+  //     'should update selectedSource when selectSource is called' — proved the
+  //     source-picker BehaviorSubject plumbing — dead with the entity; S3a (2.7)
+  //     redefines the lean source notion from the design bundle.
+  //   - 'should return empty array for availableSources when not set' /
+  //     'should return unique source names from availableFileFormats' — proved
+  //     source-name derivation from FileFormatMatch.fileSources — dead with the
+  //     entity.
+  //   - 'should return empty array for sourcesWithFullMatch when not set' /
+  //     'should return unique source names from fileSourcesWithFullMatch' —
+  //     proved full-match source-name derivation — dead with the entity.
+  //   - 'should cache availableSources and sourcesWithFullMatch in
+  //     setTransformationMetadata' / 'should update cached values when
+  //     setTransformationMetadata is called again' — proved the metadata cache
+  //     refresh — dead with the entity.
+  // The 2.3 recall-pool equivalents of "stage2 remembers mappings" live in
+  // implementation.recall.spec.ts (prefill GUESSED, confirm, savePool,
+  // collision LWW) and the pipeline-e2e map-once-reimport E2E.
+  // ═══════════════════════════════════════════════════════════════════════════
 
   // ── assertType helper usage pin ──────────────────────────────────────────────
   // The assertType import is used in service.spec.ts but included here to confirm

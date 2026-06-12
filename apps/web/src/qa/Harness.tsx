@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
-import { decode } from '@abc-budget/engine/qa';
-import type { DecodeResult } from '@abc-budget/engine/qa';
+import type { DecodeResult } from '@abc-budget/engine';
+import { engine } from '../engine';
 
 // ---------------------------------------------------------------------------
-// Harness — QA-only file decoder surface
+// Harness — QA-only file decoder surface.
+// Rides the real worker-backed EngineClient (2.6: the ./qa subpath sunset —
+// decode() is a client method now, same path the app takes).
 // ---------------------------------------------------------------------------
 
 export function Harness() {
@@ -21,7 +23,7 @@ export function Harness() {
     setFileName(file.name);
     try {
       const bytes = await file.arrayBuffer();
-      const decoded = await decode({ bytes, fileName: file.name });
+      const decoded = await engine.decode(bytes, file.name);
       setResult(decoded);
     } catch (err) {
       setError(String(err));

@@ -39,6 +39,14 @@ export const CATALOG_UK = {
   keyNext: 'Далі',
   keyImportMore: 'Імпортувати ще',
   keyToBudget: 'До бюджету',
+  // engine status banner (2.6 — the three loud states; full matrix is 2.7/2.8)
+  engBlockedTitle: 'Сховище заблоковано',
+  engBlockedBody: 'Закрийте інші вкладки ABC Budget і перезавантажте сторінку.',
+  engMismatchTitle: 'Потрібне оновлення',
+  engMismatchBody: 'Версії застосунку розійшлися. Перезавантажте, щоб оновитися.',
+  engMismatchReload: 'Перезавантажити',
+  engDiedTitle: 'Обробник перезапускається',
+  engDiedBody: 'Фоновий обробник зупинився — поточну операцію перервано. Його буде перезапущено автоматично.',
 } as const;
 
 export type ChromeKey = keyof typeof CATALOG_UK;

@@ -59,6 +59,12 @@ import type {
 
 const logger = getLogger('engine.importStatement.stage3.row-generator');
 
+/**
+ * generateRows progress emission interval (2.6, HC-10).  Small imports emit only
+ * the final (total, total) call; a 10k-row import emits ~10 intermediate events.
+ */
+const GENERATE_PROGRESS_CHUNK = 1000;
+
 // ---------------------------------------------------------------------------
 // ColumnInfo — identical shape to prior art
 // ---------------------------------------------------------------------------
@@ -89,18 +95,29 @@ export interface ColumnInfo {
  * @param rows         Stage2 rows to process.
  * @param columns      Column definitions (AMOUNT, DATE, DESCRIPTION, COUNTERPARTY, etc.).
  * @param baseCurrency Resolved base currency ISO code (e.g. 'USD').
+ * @param onProgress   Optional additive hook (2.6, HC-10): invoked every
+ *                     GENERATE_PROGRESS_CHUNK source rows with (done, total) and
+ *                     once at the end with (total, total). done = source rows
+ *                     processed so far — honest counts, monotone.
  * @returns            `{ rows, rowErrors, skipped }` — never throws.
  */
 export async function generateRows(
   rows: ImportStatementRowData[],
   columns: ColumnInfo[],
   baseCurrency: string,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<GenerateRowsResult> {
   const resultRows: TransactionRow[] = [];
   const rowErrors: RowError[] = [];
   const skipped: SkippedRow[] = [];
+  const total = rows.length;
+  let processed = 0;
 
   for (const row of rows) {
+    if (onProgress && processed > 0 && processed % GENERATE_PROGRESS_CHUNK === 0) {
+      onProgress(processed, total);
+    }
+    processed++;
     try {
       // ── Check for income / ignored cells (VIS-011) ────────────────────────
       // A row is skipped (not errored) when the AMOUNT cell has an `ignore` message.
@@ -162,6 +179,9 @@ export async function generateRows(
   for (let i = 0; i < resultRows.length; i++) {
     resultRows[i].rowIndex = i;
   }
+
+  // Final honest count: done === total, always emitted exactly once (HC-10).
+  onProgress?.(total, total);
 
   return { rows: resultRows, rowErrors, skipped };
 }
