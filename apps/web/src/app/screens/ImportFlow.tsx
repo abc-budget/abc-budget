@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useBlocker, useNavigate } from 'react-router';
 import { Key, Lamp, Panel, PanelBody, PanelHeader } from '../../ui/altus/components';
 import { useEngineClient } from '../engine-client-context';
 import { FlowHeader } from '../headers';
 import { useT } from '../i18n/LangProvider';
 import { ImportSessionContext } from './import/import-session-context';
+import { BaseCurrencyDialog } from './import/s3a/BaseCurrencyDialog';
 import { S3aSource } from './import/s3a/S3aSource';
 import { useS3aSession } from './import/s3a/use-s3a-session';
 import './import/s3a/s3a.css';
@@ -29,6 +30,27 @@ export function ImportFlow() {
   const t = useT();
   const client = useEngineClient();
   const session = useS3aSession(client);
+
+  /**
+   * Cold-start base-currency gate (2.7 Task 4, ENT-019): probe on /import
+   * entry. null → BaseCurrencyDialog BEFORE any file work; non-null → straight
+   * to S3a. While the probe is in flight the S3a body is simply withheld (one
+   * IDB read — a single frame; no spinner, the step head/footer render as-is),
+   * so a file drop physically cannot precede the probe's verdict.
+   *
+   * A probe REJECTION also routes to the gate: a flow that cannot read the
+   * setting must not silently unlock; the subsequent setBaseCurrency then
+   * fails LOUD inline in the dialog (HC-7) instead of vanishing here.
+   */
+  const [baseGate, setBaseGate] = useState<'probing' | 'ready' | 'needed'>('probing');
+  useEffect(() => {
+    let active = true;
+    client.getBaseCurrency().then(
+      (iso) => { if (active) setBaseGate(iso === null ? 'needed' : 'ready'); },
+      () => { if (active) setBaseGate('needed'); },
+    );
+    return () => { active = false; };
+  }, [client]);
 
   const STEPS = [
     { id: 's3a', label: t('stepFile'), logchip: 'S3A', title: t('impSourceTitle'), note: t('impSourceNote') },
@@ -67,7 +89,7 @@ export function ImportFlow() {
                 <h1 className="f-disp s3-title">{t('s3aTitle')}</h1>
                 <p className="body-p s3-lead">{t('s3aLead')}</p>
               </div>
-              <S3aSource session={session} />
+              {baseGate !== 'probing' && <S3aSource session={session} />}
             </>
           ) : (
             <Panel screws>
@@ -103,6 +125,12 @@ export function ImportFlow() {
           )}
         </div>
       </main>
+      {baseGate === 'needed' && (
+        <BaseCurrencyDialog
+          onDone={() => setBaseGate('ready')}
+          onCancel={() => navigate('/')}
+        />
+      )}
       {blocker.state === 'blocked' && (
         <div className="modal-scrim" role="dialog" aria-modal="true" aria-label={t('s3aLeaveTitle')}>
           <div className="modal">

@@ -168,6 +168,9 @@
 .bc-select{ display:flex; align-items:center; padding:2px 10px; border-radius:var(--r-sm); border:1px solid rgba(0,0,0,.14); box-shadow:var(--shadow-inset); }
 .bc-select select{ width:100%; border:0; background:transparent; outline:none; font-family:var(--f-body); font-size:14px; color:var(--ebony); padding:10px 0; }
 .bc-autonote{ font-size:9px; letter-spacing:.06em; color:var(--gray-warm); margin-top:9px; }
+/* invalid-set loud error — NO bundle source: dev-designed (Task 4, HC-7) —
+   the orange of .errpanel's language, inline under the autonote */
+.bc-error{ margin-top:9px; font-size:10.5px; letter-spacing:.04em; color:var(--orange-deep); }
 .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
 
 /* ── responsive (~390px target via the 760px collapse) —

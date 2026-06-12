@@ -105,6 +105,12 @@ export const CATALOG_EN = {
   s3aBaseAuto: 'DETECTED BY REGION · YOU CAN CHANGE IT LATER IN SETTINGS',
   s3aCancel: 'Cancel',
   s3aCont: 'Continue ▸',
+  // dialog optgroup labels + the loud save-failure line (Task 4) — NO bundle
+  // source (the prototype select had only the curated 8): dev-designed copy,
+  // PM eyeballs at the pixel pass.
+  s3aBaseGroupCurated: 'Common',
+  s3aBaseGroupAll: 'All currencies',
+  s3aBaseError: 'Couldn’t save the currency',
   // multi-sheet neutral note (2.1 decision — flagged, not invented)
   s3aOtherSheets: 'The file has other sheets: {names} — only the first one was read.',
   // useBlocker exit-protection (1.5 carry-forward, lands at 2.7 Task 3)

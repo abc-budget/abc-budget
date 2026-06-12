@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import type { DecodeResult, EngineClient, Stage2SnapshotDTO } from '@abc-budget/engine';
+import { localeToCurrency } from '@abc-budget/engine';
 import { EngineClientProvider } from '../engine-client-context';
 import { LangProvider } from '../i18n/LangProvider';
 import { ImportFlow } from './ImportFlow';
@@ -59,6 +60,7 @@ function makeClient(over?: Record<string, unknown>): EngineClient {
 function renderFlow(client: EngineClient) {
   const router = createMemoryRouter(
     [
+      { path: '/', element: <div data-testid="screen-root" /> },
       { path: '/import', element: <ImportFlow /> },
       { path: '/dashboard', element: <div data-testid="screen-dashboard" /> },
     ],
@@ -76,8 +78,10 @@ function renderFlow(client: EngineClient) {
 
 const nextKey = () => screen.getByRole('button', { name: 'Далі' }) as HTMLButtonElement;
 
-function dropFile(name = 'statement.csv') {
-  fireEvent.change(screen.getByTestId('s3a-file-input'), {
+/** Async since Task 4: the base-currency probe gates the S3a body — the file
+ *  input only exists once getBaseCurrency() resolved (non-null here). */
+async function dropFile(name = 'statement.csv') {
+  fireEvent.change(await screen.findByTestId('s3a-file-input'), {
     target: { files: [new File(['a,b\n1,2'], name, { type: 'text/csv' })] },
   });
 }
@@ -107,14 +111,14 @@ describe('ImportFlow — the canAdvance matrix (gate #1, FEAT-009)', () => {
   it('decoding → Далі stays disabled (progress render included)', async () => {
     const dec = deferred<DecodeResult>();
     renderFlow(makeClient({ decode: vi.fn(() => dec.promise) }));
-    dropFile();
+    await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-decoding')).toBeTruthy());
     expect(nextKey().disabled).toBe(true);
   });
 
   it('error → Далі stays disabled; retry returns to idle (still disabled)', async () => {
     renderFlow(makeClient({ decode: vi.fn(async () => Promise.reject(new Error('boom'))) }));
-    dropFile();
+    await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-error')).toBeTruthy());
     expect(nextKey().disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Обрати інший файл' }));
@@ -124,7 +128,7 @@ describe('ImportFlow — the canAdvance matrix (gate #1, FEAT-009)', () => {
 
   it('recognized (n>0) → Далі enabled and advances to S3b', async () => {
     renderFlow(makeClient());
-    dropFile();
+    await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
     expect(nextKey().disabled).toBe(false);
     fireEvent.click(nextKey());
@@ -135,7 +139,7 @@ describe('ImportFlow — the canAdvance matrix (gate #1, FEAT-009)', () => {
     renderFlow(
       makeClient({ importStart: vi.fn(async () => ({ sessionId: 's0', stage2: makeSnapshot(0, 3) })) }),
     );
-    dropFile();
+    await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-unknown')).toBeTruthy());
     expect(nextKey().disabled).toBe(false);
     fireEvent.click(nextKey());
@@ -158,7 +162,7 @@ describe('ImportFlow — transitions through the real components', () => {
       }),
     });
     renderFlow(client);
-    dropFile('big.csv');
+    await dropFile('big.csv');
     await waitFor(() => expect(screen.getByTestId('s3a-decoding')).toBeTruthy());
     // PROGRESS-DURING-DECODE: an intermediate event renders honest numbers
     listener!({ event: 'progress', jobId: '5', phase: 'decode', done: 1200, total: 10000 });
@@ -170,7 +174,7 @@ describe('ImportFlow — transitions through the real components', () => {
   it('remove → importAbort(sessionId) → back to the drop zone', async () => {
     const client = makeClient();
     renderFlow(client);
-    dropFile();
+    await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'Прибрати' }));
     await waitFor(() => expect(screen.getByTestId('s3a-dropzone')).toBeTruthy());
@@ -182,7 +186,7 @@ describe('ImportFlow — transitions through the real components', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => bytes })));
     const client = makeClient();
     renderFlow(client);
-    fireEvent.click(screen.getByRole('button', { name: '↳ Спробувати на прикладі' }));
+    fireEvent.click(await screen.findByRole('button', { name: '↳ Спробувати на прикладі' }));
     await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
     expect(client.decode).toHaveBeenCalledWith(bytes, 'sample-statement.csv');
     vi.unstubAllGlobals();
@@ -192,7 +196,7 @@ describe('ImportFlow — transitions through the real components', () => {
 describe('ImportFlow — useBlocker exit-protection', () => {
   async function startSession(client: EngineClient) {
     const router = renderFlow(client);
-    dropFile();
+    await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
     return router;
   }
@@ -234,9 +238,73 @@ describe('ImportFlow — useBlocker exit-protection', () => {
 describe('ImportFlow — session context for S3b (2.8 seam)', () => {
   it('s3b placeholder still renders after advancing (the context provider wraps the steps)', async () => {
     renderFlow(makeClient());
-    dropFile();
+    await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
     fireEvent.click(nextKey());
     expect(screen.getByText('Колонки')).toBeTruthy();
+  });
+});
+
+describe('ImportFlow — cold-start base-currency gate (Task 4, ENT-019)', () => {
+  const unsetClient = (over?: Record<string, unknown>) =>
+    makeClient({ getBaseCurrency: vi.fn(async () => null), ...over });
+
+  it('unset → the dialog gates BEFORE any file work (no file input until the probe; then scrim over an inert S3a)', async () => {
+    renderFlow(unsetClient());
+    // probe in flight: the S3a body is withheld — no interactive DropZone yet
+    expect(screen.queryByTestId('s3a-file-input')).toBeNull();
+    const dialog = await screen.findByRole('dialog', { name: 'Базова валюта' });
+    // the dialog IS the scrim element — it covers the S3a rendered behind it
+    expect(dialog.classList.contains('modal-scrim')).toBe(true);
+    expect(screen.getByTestId('s3a-dropzone')).toBeTruthy();
+  });
+
+  it('set → no dialog, straight to S3a', async () => {
+    renderFlow(makeClient()); // getBaseCurrency → 'UAH'
+    await screen.findByTestId('s3a-dropzone');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('confirm → setBaseCurrency(selected iso) → dialog closes → S3a active', async () => {
+    const langSpy = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US');
+    const client = unsetClient();
+    renderFlow(client);
+    await screen.findByRole('dialog', { name: 'Базова валюта' });
+    fireEvent.click(screen.getByRole('button', { name: 'Далі ▸' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(client.setBaseCurrency).toHaveBeenCalledExactlyOnceWith('USD');
+    // S3a is live: a drop now walks the normal path
+    await dropFile();
+    await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
+    langSpy.mockRestore();
+  });
+
+  it("cancel → navigate('/') (Onboarding pre-data); nothing persisted", async () => {
+    const client = unsetClient();
+    const router = renderFlow(client);
+    await screen.findByRole('dialog', { name: 'Базова валюта' });
+    fireEvent.click(screen.getByRole('button', { name: 'Скасувати' }));
+    await waitFor(() => expect(screen.getByTestId('screen-root')).toBeTruthy());
+    expect(router.state.location.pathname).toBe('/');
+    expect(client.setBaseCurrency).not.toHaveBeenCalled();
+  });
+
+  it('LOCKOUT PIN (decision 3): sv-SE → SEK (REAL localeToCurrency, outside the curated 8) preselects in the LOWER optgroup and first-run completes end-to-end', async () => {
+    expect(localeToCurrency('sv-SE')).toBe('SEK'); // the real mapping, not a fixture
+    const langSpy = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('sv-SE');
+    const client = unsetClient();
+    renderFlow(client);
+    await screen.findByRole('dialog', { name: 'Базова валюта' });
+    const select = screen.getByTestId('s3a-basecur-select') as HTMLSelectElement;
+    expect(select.value).toBe('SEK');
+    const opt = select.querySelector('option[value="SEK"]')!;
+    expect((opt.closest('optgroup') as HTMLOptGroupElement).label).toBe('Усі валюти'); // the LOWER group
+    fireEvent.click(screen.getByRole('button', { name: 'Далі ▸' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(client.setBaseCurrency).toHaveBeenCalledExactlyOnceWith('SEK');
+    // no lockout: the flow completes — S3a accepts a file and reaches a proceed state
+    await dropFile();
+    await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
+    langSpy.mockRestore();
   });
 });

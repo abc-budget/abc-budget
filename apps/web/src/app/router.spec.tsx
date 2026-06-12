@@ -30,6 +30,10 @@ vi.mock('../engine', () => ({
       stage2: { columns: [], recognized: { n: 0, m: 2 }, lastSaveCollision: null, unmapped: [] },
     }),
     importAbort: async () => undefined,
+    // 2.7 Task 4: the cold-start gate probes on /import entry — set here, so
+    // the wizard walks never see the dialog (ImportFlow.spec owns the gate).
+    getBaseCurrency: async () => 'UAH',
+    setBaseCurrency: async () => undefined,
   },
   engineReady: Promise.resolve({ state: 'ready' }),
 }));
@@ -47,9 +51,10 @@ function renderAt(path: string) {
   );
 }
 
-/** Pass gate #1: drive a file through S3a → unknown (n=0) unlocks Далі. */
+/** Pass gate #1: drive a file through S3a → unknown (n=0) unlocks Далі.
+ *  find* because the S3a body waits for the base-currency probe (Task 4). */
 async function passS3aGate() {
-  fireEvent.change(screen.getByTestId('s3a-file-input'), {
+  fireEvent.change(await screen.findByTestId('s3a-file-input'), {
     target: { files: [new File(['a,b\n1,2'], 'statement.csv', { type: 'text/csv' })] },
   });
   await waitFor(() => expect(screen.getByTestId('s3a-unknown')).toBeTruthy());

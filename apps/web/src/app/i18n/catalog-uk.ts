@@ -110,6 +110,12 @@ export const CATALOG_UK = {
   s3aBaseAuto: 'ВИЗНАЧЕНО ЗА РЕГІОНОМ · ПОТІМ МОЖНА ЗМІНИТИ В НАЛАШТУВАННЯХ',
   s3aCancel: 'Скасувати',
   s3aCont: 'Далі ▸',
+  // dialog optgroup labels + the loud save-failure line (Task 4) — NO bundle
+  // source (the prototype select had only the curated 8): dev-designed copy,
+  // PM eyeballs at the pixel pass.
+  s3aBaseGroupCurated: 'Поширені',
+  s3aBaseGroupAll: 'Усі валюти',
+  s3aBaseError: 'Не вдалося зберегти валюту',
   // multi-sheet neutral note (2.1 decision — flagged, not invented)
   s3aOtherSheets: 'У файлі є інші аркуші: {names} — прочитано лише перший.',
   // useBlocker exit-protection (1.5 carry-forward, lands at 2.7 Task 3)
