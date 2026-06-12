@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173",
+    "build:check": "node build-checks/verify-build.mjs",
     "test": "vitest run"
   },
   "dependencies": {

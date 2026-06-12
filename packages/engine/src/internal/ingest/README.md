@@ -165,8 +165,8 @@ D:/abc-budget/ukrsib.xlsx                  (UkrSibbank, XLSX)
 These files are **never** committed to the repo. The spec asserts this
 programmatically via `git ls-files`.
 
-## QA subpath
+## Public surface
 
-`@abc-budget/engine/qa` (UNSTABLE) re-exports `decode` + types for the
-offline QA harness at `apps/web/qa-harness.html`. Sunsets at Story 2.6 when
-the real EngineClient grows a `decode()` method over the worker transport.
+`decode` is reached through `EngineClient.decode(bytes, fileName)` — the QA
+harness at `apps/web/qa-harness.html` rides the worker-backed client like the
+app does. (The interim `@abc-budget/engine/qa` subpath SUNSET at Story 2.6.)

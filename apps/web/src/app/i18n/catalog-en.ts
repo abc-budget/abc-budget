@@ -35,4 +35,11 @@ export const CATALOG_EN = {
   keyNext: 'Next',
   keyImportMore: 'Import another',
   keyToBudget: 'To the budget',
+  engBlockedTitle: 'Storage blocked',
+  engBlockedBody: 'Close other ABC Budget tabs and reload the page.',
+  engMismatchTitle: 'Update required',
+  engMismatchBody: 'App versions are out of sync. Reload to update.',
+  engMismatchReload: 'Reload',
+  engDiedTitle: 'Engine restarting',
+  engDiedBody: 'The background engine stopped — the current operation was interrupted. It will respawn automatically.',
 } satisfies Record<ChromeKey, string>;

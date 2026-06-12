@@ -27,7 +27,14 @@ export default defineConfig({
       workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,ttf,woff2}'] },
     }),
   ],
+  // The engine worker entry uses dynamic import (lazy luxon/xlsx — the 2.2
+  // discipline); classic-script workers cannot code-split, so the worker
+  // bundle must be ES modules.
+  worker: { format: 'es' },
   build: {
+    // .vite/manifest.json — consumed by build-checks/verify-build.mjs to assert
+    // the luxon/xlsx lazy-chunk + precache discipline (2.6 build check).
+    manifest: true,
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),

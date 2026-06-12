@@ -6,13 +6,15 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './ui/App';
 
-registerSW({ immediate: true });
+// Captured: EngineStatusBanner triggers the SW update check through THIS
+// function on contract-mismatch (2.6 decision 2 — never a bare location.reload).
+const updateSW = registerSW({ immediate: true });
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('#root not found');
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <App updateSW={updateSW} />
   </StrictMode>,
 );

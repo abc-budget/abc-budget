@@ -7,6 +7,17 @@ import { LangProvider } from './i18n/LangProvider';
 
 vi.mock('./has-data');
 
+// engine.ts spawns the real Worker at module init (2.6 always-worker) — jsdom has
+// no Worker, so screens that render the engine status line get a fake client.
+vi.mock('../engine', () => ({
+  engine: {
+    ping: async (message: string) => message,
+    getVersion: async () => ({ engine: '0.0.0', contract: 2 }),
+    onEvent: () => () => {},
+  },
+  engineReady: Promise.resolve({ state: 'ready' }),
+}));
+
 function renderAt(path: string) {
   return render(
     <LangProvider initialLang="uk">
@@ -47,7 +58,7 @@ describe('screen mounts', () => {
     renderAt('/dashboard');
     expect(screen.getByTestId('screen-dashboard')).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId('engine-status').textContent).toContain('PING OK'));
-    expect(screen.getByTestId('engine-status').textContent).toContain('CONTRACT 1');
+    expect(screen.getByTestId('engine-status').textContent).toContain('CONTRACT 2');
   });
   it('/settings mounts Settings with section tabs', () => {
     renderAt('/settings');
