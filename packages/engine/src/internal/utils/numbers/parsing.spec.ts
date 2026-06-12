@@ -151,4 +151,41 @@ describe('parseNumber', () => {
       expect(parseNumber("-1'234,56")).toBeCloseTo(-1234.56);
     });
   });
+
+  // ── Story 2.5, decision 1: leading '+' accepted (declared divergence) ─────────
+  // Prior art rejected any string containing '+'. ONE RULE, ALL NUMERIC PATHS:
+  // a single leading '+' is stripped before the existing pipeline. '+' anywhere
+  // else → NaN. Rationale: composed with the 2.4 error-%-gate, loud-NaN = column
+  // LOCKOUT for '+'-writing banks (not noise).
+  describe('leading + sign (Story 2.5 declared divergence)', () => {
+    it("parses '+5000,00' as 5000", () => {
+      expect(parseNumber('+5000,00')).toBeCloseTo(5000);
+    });
+
+    it("parses '+1 234.56' as 1234.56", () => {
+      expect(parseNumber('+1 234.56')).toBeCloseTo(1234.56);
+    });
+
+    it("returns NaN for '+' alone (sign with no digits)", () => {
+      expect(Number.isNaN(parseNumber('+'))).toBe(true);
+    });
+
+    it("returns NaN for '++5' (double leading sign)", () => {
+      expect(Number.isNaN(parseNumber('++5'))).toBe(true);
+    });
+
+    it("returns NaN for '5+' (trailing + sign)", () => {
+      expect(Number.isNaN(parseNumber('5+'))).toBe(true);
+    });
+
+    it("'+NaN' remains NaN-equivalent (already in NAN_STRING_VALUES — no regression)", () => {
+      // '+NaN' is in NAN_STRING_VALUES so isNan() returns true.
+      // parseNumber sees '+NaN': after stripping leading '+' → 'NaN', parseFloat('NaN') = NaN.
+      expect(Number.isNaN(parseNumber('+NaN'))).toBe(true);
+    });
+
+    it("'-' alone still NaN (regression guard)", () => {
+      expect(Number.isNaN(parseNumber('-'))).toBe(true);
+    });
+  });
 });

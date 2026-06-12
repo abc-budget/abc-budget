@@ -35,7 +35,13 @@ import type { FileFormatDAO, FileSourceDAO } from '../importStatement/dao';
 import { ImportStatementColumn } from '../importStatement/stage2/column';
 import { ImportStatementStage2Impl } from '../importStatement/stage2/implementation';
 import { ColumnDefinition } from '../importStatement/types';
-import type { AmountColumnParams, DateColumnParams, ColumnTransformation } from '../importStatement/types';
+import type {
+  AmountColumnParams,
+  BankCommissionColumnParams,
+  CashbackColumnParams,
+  DateColumnParams,
+  ColumnTransformation,
+} from '../importStatement/types';
 import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from '../importStatement/stage2/types';
 import { generateRows } from '../importStatement/stage3/row-generator';
 import type { ColumnInfo } from '../importStatement/stage3/row-generator';
@@ -375,6 +381,12 @@ async function applyMappings_e2e(
       case ColumnDefinition.MERCHANT_CATEGORY:
         await col.parseAsMerchant();
         break;
+      case ColumnDefinition.BANK_COMMISSION:
+        await col.parseAsBankCommission(t.params as BankCommissionColumnParams);
+        break;
+      case ColumnDefinition.CASHBACK:
+        await col.parseAsCashback(t.params as CashbackColumnParams);
+        break;
       case ColumnDefinition.IGNORE:
       default:
         await col.ignore();
@@ -544,6 +556,222 @@ describe.skipIf(!HAVE_REAL_FILES)('real statements — E2E pipeline to typed row
 
     it('rowErrors: 0 (no parse failures)', () => {
       expect(ukrsibErrors).toBe(E2E_COUNTS.UKRSIB.rowErrors);
+    });
+  });
+});
+
+// ============================================================================
+// Story 2.5 — pseudo-ops E2E (PM checkpoint-(b) evidence)
+//
+// Per real file, the BANK_COMMISSION / CASHBACK columns are MAPPED (where they
+// exist) with currency { code: 'UAH' } and the full pipeline runs to
+// generateRows. Hard counts are baked from OBSERVED local runs (2026-06-11):
+//
+//   mono_UA  | decoded=181 | mains=181 | commission=0 | cashback=26 | skipped=0 | rowErrors=0
+//   mono_EN  | decoded=12  | mains=12  | commission=0 | cashback=0  | skipped=0 | rowErrors=0
+//   ukrsib   | decoded=997 | mains=917 | commission=0 | cashback=0  | skipped=80 | rowErrors=0
+//
+// Column findings:
+//   mono UA: «Сума комісій (UAH)» → BANK_COMMISSION, «Сума кешбеку (UAH)» → CASHBACK.
+//            Raw-cell census: commission all «—»; cashback 26 non-empty cells →
+//            26 cashback ops. The design-doc figure of "27 cashback candidates"
+//            was an off-by-one estimate: the actual export carries exactly 26
+//            non-empty cashback cells (no income-skip interaction — all 181
+//            mains are outcome, skipped=0). OBSERVED COUNT WINS → 26 baked.
+//   mono EN: «Commission (UAH)» → BANK_COMMISSION, «Cashback amount (UAH)» → CASHBACK.
+//            Raw-cell census: BOTH columns are entirely «—» in this 12-row
+//            export → 0 commission ops, 0 cashback ops.
+//   ukrsib:  decoded headers are [Cтатус, Дата операції, Опис операції,
+//            Рахунок/картка, Категорія, Сума, Валюта] — NO commission or cashback
+//            column exists in this export → nothing to map → 0 pseudo-ops.
+//
+// SECURITY NOTE: only aggregate counts are baked here — no cell values from the
+// real files beyond the ≤3 spot cells already present above.
+// ============================================================================
+
+const PSEUDO_E2E_COUNTS = {
+  MONO_UA: { mains: 181, commission: 0, cashback: 26, skipped: 0, rowErrors: 0 },
+  MONO_EN: { mains: 12,  commission: 0, cashback: 0,  skipped: 0, rowErrors: 0 },
+  UKRSIB:  { mains: 917, commission: 0, cashback: 0,  skipped: 80, rowErrors: 0 },
+} as const;
+
+// mono_UA with pseudo columns mapped (was IGNORE in the 2.3 E2E above)
+const MONO_UA_PSEUDO_TRANSFORMATIONS: ColumnTransformation[] = [
+  { columnName: 'Дата i час операції',       definition: ColumnDefinition.DATE,              params: { format: 'auto' } as DateColumnParams },
+  { columnName: 'Деталі операції',            definition: ColumnDefinition.DESCRIPTION,       params: null },
+  { columnName: 'MCC',                        definition: ColumnDefinition.MERCHANT_CATEGORY, params: null },
+  { columnName: 'Сума в валюті картки (UAH)', definition: ColumnDefinition.AMOUNT,            params: { type: 'outcome', currency: { code: 'UAH' } } as AmountColumnParams },
+  { columnName: 'Сума в валюті операції',     definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Валюта',                     definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Курс',                       definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Сума комісій (UAH)',         definition: ColumnDefinition.BANK_COMMISSION,   params: { currency: { code: 'UAH' } } as BankCommissionColumnParams },
+  { columnName: 'Сума кешбеку (UAH)',         definition: ColumnDefinition.CASHBACK,          params: { currency: { code: 'UAH' } } as CashbackColumnParams },
+  { columnName: 'Залишок після операції',     definition: ColumnDefinition.IGNORE,            params: null },
+];
+
+// mono_EN with pseudo columns mapped
+const MONO_EN_PSEUDO_TRANSFORMATIONS: ColumnTransformation[] = [
+  { columnName: 'Date and time',               definition: ColumnDefinition.DATE,              params: { format: 'auto' } as DateColumnParams },
+  { columnName: 'Description',                 definition: ColumnDefinition.DESCRIPTION,       params: null },
+  { columnName: 'MCC',                         definition: ColumnDefinition.MERCHANT_CATEGORY, params: null },
+  { columnName: 'Card currency amount, (UAH)', definition: ColumnDefinition.AMOUNT,            params: { type: 'outcome', currency: { code: 'UAH' } } as AmountColumnParams },
+  { columnName: 'Operation amount',            definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Operation currency',          definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Exchange rate',               definition: ColumnDefinition.IGNORE,            params: null },
+  { columnName: 'Commission (UAH)',            definition: ColumnDefinition.BANK_COMMISSION,   params: { currency: { code: 'UAH' } } as BankCommissionColumnParams },
+  { columnName: 'Cashback amount (UAH)',       definition: ColumnDefinition.CASHBACK,          params: { currency: { code: 'UAH' } } as CashbackColumnParams },
+  { columnName: 'Balance',                     definition: ColumnDefinition.IGNORE,            params: null },
+];
+
+// ukrsib: NO commission/cashback columns exist (header inspection finding) —
+// same transformations as the 2.3 E2E; pseudo counts must be exactly 0.
+
+interface PseudoRunSummary {
+  decoded: number;
+  mains: number;
+  commission: number;
+  cashback: number;
+  skipped: number;
+  rowErrors: number;
+  cashbackOps: import('../importStatement/stage3/types').TransactionRow[];
+}
+
+async function runPseudoPipeline(
+  path: string,
+  transformations: ColumnTransformation[],
+): Promise<PseudoRunSummary> {
+  const decodeResult = await decode(readRealFile(path));
+  const { fileFormatDAO, fileSourceDAO } = makeStubDAOs_e2e();
+  const service = new ImportStatementServiceImpl(fileFormatDAO, fileSourceDAO);
+  const stage1 = service.startWith(decodeResult.rows);
+  const stage2 = (await service.stage2(stage1)) as ImportStatementStage2Impl;
+  await applyMappings_e2e(stage2, transformations);
+  const cols = await firstValueFrom(stage2.columns);
+  const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
+  const result = await generateRows(rows, toColumnInfo_e2e(cols), 'UAH');
+  const cashbackOps = result.rows.filter((r) => r.isCashback);
+  return {
+    decoded: decodeResult.meta.decodedRows,
+    mains: result.rows.filter((r) => !r.isBankCommission && !r.isCashback).length,
+    commission: result.rows.filter((r) => r.isBankCommission).length,
+    cashback: cashbackOps.length,
+    skipped: result.skipped.length,
+    rowErrors: result.rowErrors.length,
+    cashbackOps,
+  };
+}
+
+function printCheckpointB(label: string, s: PseudoRunSummary): void {
+  console.log(
+    `[checkpoint-b] ${label} | decoded=${s.decoded} → typed mains=${s.mains}` +
+    ` → pseudo-ops: commission=${s.commission}, cashback=${s.cashback}` +
+    ` | skipped=${s.skipped}, rowErrors=${s.rowErrors}`,
+  );
+}
+
+describe.skipIf(!HAVE_REAL_FILES)('real statements — Story 2.5 pseudo-ops E2E (checkpoint-b, local only)', () => {
+  // ── mono_07-10-23_14-34-50.csv ───────────────────────────────────────────
+  describe('mono_07-10-23_14-34-50.csv — pseudo-ops mapped', () => {
+    let s: PseudoRunSummary;
+
+    beforeAll(async () => {
+      s = await runPseudoPipeline(PATH_MONO_UA, MONO_UA_PSEUDO_TRANSFORMATIONS);
+      console.log('\n[checkpoint-b summary — Story 2.5 pseudo-ops]');
+      printCheckpointB('mono_UA ', s);
+    }, 30_000);
+
+    it('typed mains: 181 (unchanged by pseudo mapping)', () => {
+      expect(s.mains).toBe(PSEUDO_E2E_COUNTS.MONO_UA.mains);
+    });
+
+    it('commission ops: 0 (commission column present but all cells empty in this export)', () => {
+      expect(s.commission).toBe(PSEUDO_E2E_COUNTS.MONO_UA.commission);
+    });
+
+    it('cashback ops: 26 (raw census: exactly 26 non-empty cashback cells — the "27" design estimate was off by one; no income-skip interaction, all mains outcome)', () => {
+      expect(s.cashback).toBe(PSEUDO_E2E_COUNTS.MONO_UA.cashback);
+    });
+
+    it('skipped: 0, rowErrors: 0', () => {
+      expect(s.skipped).toBe(PSEUDO_E2E_COUNTS.MONO_UA.skipped);
+      expect(s.rowErrors).toBe(PSEUDO_E2E_COUNTS.MONO_UA.rowErrors);
+    });
+
+    it('total rows = mains + commission + cashback (no rows lost or invented)', () => {
+      expect(s.mains + s.commission + s.cashback).toBe(
+        PSEUDO_E2E_COUNTS.MONO_UA.mains +
+        PSEUDO_E2E_COUNTS.MONO_UA.commission +
+        PSEUDO_E2E_COUNTS.MONO_UA.cashback,
+      );
+    });
+
+    it('all cashback ops carry the synthetic description key, UAH, abs amounts > 0', () => {
+      for (const op of s.cashbackOps) {
+        expect(op.description).toBe('engine.importStatement.pseudo-op.cashback');
+        expect(op.currency).toBe('UAH');
+        expect(op.amount).toBeGreaterThan(0);
+        expect(op.isBankCommission).toBe(false);
+      }
+    });
+  });
+
+  // ── mono_en_21-11-23_10-34-42.csv ────────────────────────────────────────
+  describe('mono_en_21-11-23_10-34-42.csv — pseudo-ops mapped', () => {
+    let s: PseudoRunSummary;
+
+    beforeAll(async () => {
+      s = await runPseudoPipeline(PATH_MONO_EN, MONO_EN_PSEUDO_TRANSFORMATIONS);
+      printCheckpointB('mono_EN ', s);
+    }, 30_000);
+
+    it('typed mains: 12 (unchanged by pseudo mapping)', () => {
+      expect(s.mains).toBe(PSEUDO_E2E_COUNTS.MONO_EN.mains);
+    });
+
+    it('commission ops: 0 (commission column all empty)', () => {
+      expect(s.commission).toBe(PSEUDO_E2E_COUNTS.MONO_EN.commission);
+    });
+
+    it('cashback ops: 0 (cashback column entirely «—» in this export)', () => {
+      expect(s.cashback).toBe(PSEUDO_E2E_COUNTS.MONO_EN.cashback);
+    });
+
+    it('skipped: 0, rowErrors: 0', () => {
+      expect(s.skipped).toBe(PSEUDO_E2E_COUNTS.MONO_EN.skipped);
+      expect(s.rowErrors).toBe(PSEUDO_E2E_COUNTS.MONO_EN.rowErrors);
+    });
+  });
+
+  // ── ukrsib.xlsx ──────────────────────────────────────────────────────────
+  describe('ukrsib.xlsx — no commission/cashback columns exist', () => {
+    let s: PseudoRunSummary;
+
+    beforeAll(async () => {
+      s = await runPseudoPipeline(PATH_UKRSIB, UKRSIB_TRANSFORMATIONS);
+      printCheckpointB('ukrsib  ', s);
+    }, 30_000);
+
+    it('header inspection: decoded keys contain NO commission or cashback column', async () => {
+      const decodeResult = await decode(readRealFile(PATH_UKRSIB));
+      const keys = Object.keys(decodeResult.rows[0]);
+      expect(keys).toEqual([...UKRSIB.keys]);
+      // No header matches commission / cashback semantics in this export
+      expect(keys.some((k) => /коміс|commission/i.test(k))).toBe(false);
+      expect(keys.some((k) => /кешбек|cashback/i.test(k))).toBe(false);
+    });
+
+    it('typed mains: 917, skipped: 80 (unchanged — VIS-011 income skips)', () => {
+      expect(s.mains).toBe(PSEUDO_E2E_COUNTS.UKRSIB.mains);
+      expect(s.skipped).toBe(PSEUDO_E2E_COUNTS.UKRSIB.skipped);
+    });
+
+    it('pseudo-ops: 0 commission, 0 cashback (nothing to map)', () => {
+      expect(s.commission).toBe(PSEUDO_E2E_COUNTS.UKRSIB.commission);
+      expect(s.cashback).toBe(PSEUDO_E2E_COUNTS.UKRSIB.cashback);
+    });
+
+    it('rowErrors: 0', () => {
+      expect(s.rowErrors).toBe(PSEUDO_E2E_COUNTS.UKRSIB.rowErrors);
     });
   });
 });

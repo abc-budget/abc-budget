@@ -1839,6 +1839,59 @@ describe('ImportStatementColumn — TIME and COUNTERPARTY (2.2 extensions)', () 
   });
 });
 
+// ── Story 2.5, decision 1.2: composition pin ─────────────────────────────────
+// A MIXED/auto AMOUNT column where an income cell is '+5000,00' must be
+// labeled-and-discarded as INCOME (VIS-011) — NOT an error cell.
+// Sign semantics unchanged: '+' is positive notation → goes through the
+// mixed-type positive branch (ignore with reason), same as a bare '5000'.
+describe("Story 2.5 composition pin — mixed AMOUNT column with '+'-prefixed income cell", () => {
+  const cell = (
+    value: unknown,
+    type: SupportedDataType = SupportedDataType.TEXT,
+    extra: Partial<CellData> = {}
+  ): CellData => ({ value, type, ...extra }) as CellData;
+
+  it("'+5000,00' in a mixed AMOUNT column → labeled-and-discarded as INCOME (VIS-011), not an error", async () => {
+    // Build a mixed column: one outcome (negative) cell so auto-detect picks 'mixed',
+    // plus the '+'-prefixed income cell that exercised the declared divergence.
+    const data = [
+      cell('+5000,00'),              // income — positive; must be ignored with reason (VIS-011)
+      cell('-200,00'),               // outcome — negative; must produce abs value 200
+    ];
+
+    const colId = 'composition-pin-col';
+    const colName = new NativeMessage('Mixed Amount');
+    const mockS2 = createMock<Pick<ImportStatementStage2, 'applyColumn' | 'resetColumn'>>({
+      applyColumn: vi.fn(),
+      resetColumn: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const col = new ImportStatementColumn(colId, colName, colName, null, null, data);
+    col.associateWith(assertType<ImportStatementStage2>(mockS2));
+
+    const params: AmountColumnParams = { type: 'mixed', currency: 'auto' };
+    await col.parseAsAmount(params);
+
+    const applied = (mockS2.applyColumn as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )?.[0] as ImportStatementColumn;
+
+    expect(applied.definition).toBe(ColumnDefinition.AMOUNT);
+
+    // Cell 0: '+5000,00' → parsed as 5000 (positive) → mixed positive branch → ignored with reason
+    const incomeCell = applied.data[0];
+    expect(incomeCell.error).toBeFalsy();    // NOT an error cell
+    expect(incomeCell.ignore).toBeTruthy();  // labeled-and-discarded (VIS-011)
+    expect(incomeCell.value).toBeCloseTo(5000); // value is the parsed number, not the raw string
+
+    // Cell 1: '-200,00' → parsed as 200 (abs of negative) → outcome cell, no ignore
+    const outcomeCell = applied.data[1];
+    expect(outcomeCell.error).toBeFalsy();
+    expect(outcomeCell.ignore).toBeFalsy();
+    expect(outcomeCell.value).toBeCloseTo(200);
+  });
+});
+
 // Suppress unused-import warning for ImportStatementColumnHeaderStage2
 // (imported for type reference in mock typing)
 void (null as unknown as ImportStatementColumnHeaderStage2);

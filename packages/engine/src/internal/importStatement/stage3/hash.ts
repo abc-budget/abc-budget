@@ -16,11 +16,26 @@
  *   3. SHA-256 via `crypto.subtle`.
  *   4. Return hex string.
  *
- * All other logic (HASH_COLUMN_DEFINITIONS list, generateHashableObject) is verbatim.
+ * All other logic (HASH_COLUMN_DEFINITIONS list, generateHashableObject) is verbatim,
+ * except the following declared extensions:
+ *   - 2.3 QA FINDING-1 (ENT-009): COUNTERPARTY added to HASH_COLUMN_DEFINITIONS.
+ *   - 2.5 Q-011 (decision 2): `pseudoOp` discriminator key added to the canonical object.
+ *     Type-marker landed here; dup-counter (identical full rows → suffix 0,1,2…) → EP-3.
  */
 
 import type { ImportStatementRowData } from '../stage2/types';
 import { ColumnDefinition } from '../types';
+
+// ---------------------------------------------------------------------------
+// Q-011 — pseudo-op discriminator type (Story 2.5, decision 2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Identifies the pseudo-op kind for the row hash discriminator.
+ * 'main' = the original transaction row; 'commission' / 'cashback' = derived pseudo-ops.
+ * Dup-counter (identical full rows → suffix 0,1,2…) deferred to EP-3.
+ */
+export type PseudoOpKind = 'main' | 'commission' | 'cashback';
 
 // ---------------------------------------------------------------------------
 // WebCrypto objectHash (inlined from webapp/libs/utils/src/lib/objects/hash.ts)
@@ -94,11 +109,16 @@ const HASH_COLUMN_DEFINITIONS = [
  * The object uses ColumnDefinition values as keys and cell values as values.
  * If multiple columns have the same definition, their values are wrapped in a sorted array.
  *
- * Verbatim from prior art.
+ * 2.5 Q-011 (decision 2): `pseudoOp` discriminator key is always included so that
+ * main ops, commission pseudo-ops, and cashback pseudo-ops from the SAME source row
+ * produce distinct hashes. Defaults to `'main'`.
+ *
+ * Verbatim from prior art except: COUNTERPARTY extension (2.3) + pseudoOp key (2.5).
  */
 export function generateHashableObject(
   row: ImportStatementRowData,
-  columns: { id: string; definition: ColumnDefinition | null }[]
+  columns: { id: string; definition: ColumnDefinition | null }[],
+  discriminator: PseudoOpKind = 'main'
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -135,19 +155,27 @@ export function generateHashableObject(
     }
   });
 
+  // Q-011 type-marker: discriminates main ops from pseudo-ops of the same source row.
+  result['pseudoOp'] = discriminator;
+
   return result;
 }
 
 /**
  * Calculates a SHA-256 hash for a row based on its column values.
  *
+ * 2.5 Q-011 (decision 2): accepts an optional `discriminator` so that main ops,
+ * commission pseudo-ops, and cashback pseudo-ops from the same source row yield
+ * pairwise-distinct hashes. Defaults to `'main'` — existing callers are untouched.
+ *
  * Verbatim from prior art — `@abc-budget/utils` `objectHash` replaced with the
  * inlined WebCrypto implementation above (same algorithm).
  */
 export async function calculateRowHash(
   row: ImportStatementRowData,
-  columns: { id: string; definition: ColumnDefinition | null }[]
+  columns: { id: string; definition: ColumnDefinition | null }[],
+  discriminator: PseudoOpKind = 'main'
 ): Promise<string> {
-  const hashableObject = generateHashableObject(row, columns);
+  const hashableObject = generateHashableObject(row, columns, discriminator);
   return objectHash(hashableObject);
 }

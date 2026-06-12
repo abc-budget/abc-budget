@@ -2,8 +2,11 @@
  * Number parsing utilities
  * @module numbers/parsing
  *
- * Ported verbatim from prior-art `@abc-budget/utils` → `numbers/parsing.ts`.
- * Diff-audit: zero changes — pure port, no adaptation required.
+ * Ported from prior-art `@abc-budget/utils` → `numbers/parsing.ts`.
+ * Diff-audit: one declared divergence (Story 2.5, decision 1): leading '+' accepted —
+ * prior art rejected it (allowlist regex excluded '+'). Rationale: composed with the
+ * 2.4 error-%-gate, loud-NaN = column LOCKOUT for '+'-writing banks (not noise) —
+ * the wedge anti-pattern; the real set (mono) is unaffected either way.
  */
 
 /**
@@ -71,7 +74,16 @@ export function parseNumber(value: string): number {
   // Remove any whitespace
   let cleanValue = value.trim();
 
+  // Story 2.5, decision 1 (declared divergence): strip a single leading '+' before
+  // the existing pipeline. '+' anywhere else in the string → NaN (enforced by the
+  // allowlist check below after stripping). Prior art rejected all strings containing '+'.
+  if (cleanValue.startsWith('+')) {
+    cleanValue = cleanValue.slice(1);
+  }
+
   // Check if the string contains any non-numeric characters other than formatting characters
+  // ('+' has already been stripped above if it was a valid single leading sign;
+  // any remaining '+' falls through to this guard and returns NaN)
   if (/[^\d\s,.'-]/.test(cleanValue)) {
     return NaN;
   }

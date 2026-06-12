@@ -49,6 +49,7 @@ import { ColumnDefinition } from '../types';
 import type { AmountColumnParams, ColumnParams } from '../types';
 import { detectAmountAndCurrency } from './amount-currency-detector';
 import { calculateRowHash } from './hash';
+import { expandPseudoOps } from './pseudo-ops';
 import type {
   GenerateRowsResult,
   RowError,
@@ -110,13 +111,34 @@ export async function generateRows(
       if (amountIgnoreMessage !== null) {
         logger.debug(`Row ${row.rowIndex} skipped (income/ignored):`, amountIgnoreMessage);
         skipped.push({ rowIndex: row.rowIndex, reason: amountIgnoreMessage });
+        // ── SPAWN-SCOPE PIN 1 (decision 3): income-skipped main still spawns pseudo-ops ──
+        // An income transfer (+50 000) may carry a real commission/cashback expense.
+        // Dropping it would silently lose money (the worst failure class).
+        // Pseudo-ops are INDEPENDENT operations — their nature does not inherit the
+        // main's income direction (ENT-013).
+        const { ops: pseudoOps, errors: pseudoErrors } = await expandPseudoOps(
+          row, columns, baseCurrency,
+        );
+        resultRows.push(...pseudoOps);
+        rowErrors.push(...pseudoErrors);
         continue;
       }
 
       // ── Generate the row ───────────────────────────────────────────────────
       const transactionRow = await generateSingleRow(row, columns, baseCurrency);
       resultRows.push(transactionRow);
+
+      // ── SPAWN-SCOPE: expand pseudo-ops after successful main-op generation ──
+      // Ordered: main (already pushed), then commission, then cashback.
+      // The final re-index pass syncs rowIndex = array index for all.
+      const { ops: pseudoOps, errors: pseudoErrors } = await expandPseudoOps(
+        row, columns, baseCurrency,
+      );
+      resultRows.push(...pseudoOps);
+      rowErrors.push(...pseudoErrors);
     } catch (err) {
+      // ── SPAWN-SCOPE PIN 2 (decision 3): errored rows NEVER spawn pseudo-ops ──
+      // No reliable date/account to donate; the rowError already reports loudly.
       const errorMessage =
         err instanceof Error
           ? $t('engine.importStatement.stage3.row-generation-error', {

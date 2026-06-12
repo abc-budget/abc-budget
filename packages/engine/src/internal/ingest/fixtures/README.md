@@ -25,6 +25,12 @@ Messiness items exercised across CSV fixtures: ① encoding (cp1251 + BOM) ② d
 |---|---|---|---|---|
 | `bad-dates.csv` | UTF-8 | `,` | 0 | 12 data rows, 3 columns. `Date`: 7 valid ISO dates + 5 garbage strings (rows 2,4,6,8,10) → 41.7 % errors, trips the default 0.3 gate (`ColumnTransformRejection`). `Amount`: 11 valid negatives + 1 garbage at row 10 → 8.3 % errors — passes the default gate, REJECTED under a 0.05 store override (store-backing/E2E triple-pin fixture). `Description`: clean |
 
+### Pseudo-ops fixture (Story 2.5)
+
+| Fixture | Encoding | Delimiter | Preamble rows | Messiness / key traits |
+|---|---|---|---|---|
+| `income-commission.csv` | UTF-8 | `,` | 0 | 5 data rows, 5 columns (date, description, amount, commission, cashback) shaped like `mono-like-utf8.csv` (`—` empty pseudo cells, comma decimals). The spawn-scope QA matrix (decision 3 pin 3): (a) income main (`15000,00`, positive) WITH commission cell `-100,00` → main skipped (VIS-011) but commission pseudo-op spawns; (b) outcome with cashback `2,50`; (c) outcome with BOTH commission `-10,00` and cashback `10,00` → 3 ops, 3 distinct hashes (Q-011); (d) plain outcome, no pseudo cells; (e) outcome with `+`-prefixed cashback `+50,00` (decision 1 in fixture form — parses to 50). With AMOUNT mapped `type: 'mixed'`: 4 typed mains + 2 commission ops + 3 cashback ops = 9 rows, 1 skipped, 0 rowErrors |
+
 ### Spreadsheet fixtures (Task 5)
 
 | Fixture | Format | Messiness / key traits |
