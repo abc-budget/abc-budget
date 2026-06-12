@@ -35,6 +35,10 @@
  *     pool contains none-or-complete entries, never partial
  *   - PROGRESS HONESTY: 10k-row decode → monotone, ≥2 intermediates,
  *     final done === total; importNext emits final done === total
+ *   - CONTRACT V3 (2.7): getBaseCurrency null→set→value round trip;
+ *     InvalidBaseCurrencyError typed across the wire; LIVE-READ pin
+ *     (set→importStart→use_base resolves to the just-set currency);
+ *     structural-error channel serialized over the hop (decision 2)
  */
 
 import '@vitest/web-worker';
@@ -66,7 +70,7 @@ import {
 import { UserSettingsIDBDAO } from '../settings/user-settings-idb';
 import { SettingKeys } from '../settings/user-settings';
 import { setEngineParam, resetEngineConfigForTests } from '../settings/engine-config';
-import { setBaseCurrency } from '../settings/base-currency';
+import { setBaseCurrency, InvalidBaseCurrencyError } from '../settings/base-currency';
 import { ColumnDefinition } from '../importStatement/types';
 import { RECALL_POOL_STORE } from '../importStatement/recall/pool-dao';
 
@@ -249,7 +253,8 @@ describe('host unit (fake scope)', () => {
     attachEngineHost(scope);
     scope.onmessage!({ data: { kind: 'hello', contract: 999 } });
     expect(posted[0]).toEqual({ kind: 'helloAck', contract: CONTRACT_VERSION });
-    expect(CONTRACT_VERSION).toBe(2);
+    // DECLARED UPDATE (2.7): contract 2 → 3 (base-currency surface + structural channel)
+    expect(CONTRACT_VERSION).toBe(3);
   });
 
   it('rejects an unknown method loudly (name preserved over the codec)', async () => {
@@ -296,11 +301,12 @@ describe('engine-db blocked hook', () => {
 // ===========================================================================
 
 describe('real hop: handshake + baseline', () => {
-  it('ping and getVersion survive the real worker hop (contract 2 acked)', async () => {
+  it('ping and getVersion survive the real worker hop (contract 3 acked)', async () => {
     const client = makeClient();
     expect(await client.ping('over-the-hop')).toBe('over-the-hop');
     const version = await client.getVersion();
-    expect(version.contract).toBe(2);
+    // DECLARED UPDATE (2.7): contract 2 → 3
+    expect(version.contract).toBe(3);
     expect(typeof version.engine).toBe('string');
   });
 });
@@ -369,6 +375,7 @@ describe('real hop: full session flow (mono-like-utf8.csv)', () => {
     expect(next.result.rows).toHaveLength(12);
     expect(next.result.rowErrors).toHaveLength(0);
     expect(next.result.skipped).toHaveLength(0);
+    expect(next.result.structuralErrors).toEqual([]); // v3 channel present, empty on happy path
     const row0 = next.result.rows[0];
     expect(row0.date).toMatch(/^2024-01-15T/);
     expect(row0.amount).toBe(42);
@@ -479,6 +486,100 @@ describe('real hop: full session flow (mono-like-utf8.csv)', () => {
     expect(res.rejection.threshold).toBe(0.05);
     expect(res.rejection.errorCount).toBe(1);
     expect(res.rejection.totalCount).toBe(12);
+  });
+});
+
+// ===========================================================================
+// Contract v3 (Story 2.7, decision 1): base-currency surface over the real hop
+// ===========================================================================
+
+describe('real hop: base-currency surface (contract v3, decision 1)', () => {
+  it('getBaseCurrency null → setBaseCurrency → value round trip over the worker', { timeout: 20000 }, async () => {
+    const client = makeClient();
+
+    // Fresh IDB universe — nothing set yet. The probe returns null, NOT a throw.
+    expect(await client.getBaseCurrency()).toBeNull();
+
+    await client.setBaseCurrency('PLN');
+    expect(await client.getBaseCurrency()).toBe('PLN');
+  });
+
+  it('invalid ISO → InvalidBaseCurrencyError crosses the wire TYPED', { timeout: 20000 }, async () => {
+    const client = makeClient();
+
+    let caught: unknown = null;
+    try {
+      await client.setBaseCurrency('BOGUS');
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(InvalidBaseCurrencyError);
+    expect((caught as Error).name).toBe('InvalidBaseCurrencyError');
+    expect((caught as Error).message).toMatch(/BOGUS/);
+
+    // The failed set did not persist anything
+    expect(await client.getBaseCurrency()).toBeNull();
+  });
+
+  it('LIVE-READ PIN: setBaseCurrency(PLN) → IMMEDIATELY importStart → use_base AMOUNT resolves to PLN (no stale snapshot)', { timeout: 20000 }, async () => {
+    const client = makeClient();
+
+    // Set-then-import in one breath — the 2.7 gate's whole flow.
+    await client.setBaseCurrency('PLN');
+    const decodeResult = await client.decode(syntheticCsvBytes(5), 'live-read.csv');
+    const { sessionId, stage2 } = await client.importStart(decodeResult.rows);
+
+    const snap = await applyAll(client, sessionId, stage2, [
+      { columnName: 'Date',        definition: ColumnDefinition.DATE,        params: { format: 'auto' } },
+      { columnName: 'Amount',      definition: ColumnDefinition.AMOUNT,      params: { type: 'outcome', currency: 'use_base' } },
+      { columnName: 'Description', definition: ColumnDefinition.DESCRIPTION, params: null },
+    ]);
+    expect(snap.unmapped).toHaveLength(0);
+
+    const next = await client.importNext(sessionId);
+    expect(next.ok).toBe(true);
+    if (!next.ok) throw new Error('unreachable');
+    expect(next.result.rows).toHaveLength(5);
+    // Base currency is read LIVE from the DAO at resolution time — every row
+    // carries the just-set currency, not a pre-set snapshot's.
+    for (const row of next.result.rows) {
+      expect(row.currency).toBe('PLN');
+    }
+  });
+});
+
+// ===========================================================================
+// Contract v3 (Story 2.7, decision 2): structural channel over the real hop
+// ===========================================================================
+
+describe('real hop: structural-error channel (contract v3, decision 2)', () => {
+  it('DATE column IGNOREd → importNext returns ONE structural message, zero rows/rowErrors over the hop', { timeout: 20000 }, async () => {
+    const db = await trackedTestDb();
+    await setBaseCurrency(new UserSettingsIDBDAO(() => db), 'UAH');
+
+    const client = makeClient();
+    const decodeResult = await client.decode(syntheticCsvBytes(5), 'no-date.csv');
+    const { sessionId, stage2 } = await client.importStart(decodeResult.rows);
+
+    const snap = await applyAll(client, sessionId, stage2, [
+      { columnName: 'Date',        definition: ColumnDefinition.IGNORE,      params: null },
+      { columnName: 'Amount',      definition: ColumnDefinition.AMOUNT,      params: { type: 'outcome', currency: 'use_base' } },
+      { columnName: 'Description', definition: ColumnDefinition.DESCRIPTION, params: null },
+    ]);
+    expect(snap.unmapped).toHaveLength(0);
+
+    const next = await client.importNext(sessionId);
+    expect(next.ok).toBe(true);
+    if (!next.ok) throw new Error('unreachable');
+    // ONE structural message crosses serialized; zero row-error echoes (decision 2 pins)
+    expect(next.result.structuralErrors).toHaveLength(1);
+    expect(next.result.structuralErrors[0]).toEqual({
+      key: 'engine.importStatement.stage3.structural-no-date-column',
+      params: {},
+    });
+    expect(next.result.rowErrors).toHaveLength(0);
+    expect(next.result.rows).toHaveLength(0);
+    expect(next.result.skipped).toHaveLength(0);
   });
 });
 

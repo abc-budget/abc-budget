@@ -313,9 +313,29 @@ describe('serializeGenerateResult', () => {
       rows: [makeRow(0)],
       rowErrors: [],
       skipped: [],
+      structuralErrors: [],
     };
     const dto: GenerateResultDTO = serializeGenerateResult(result);
     expect(dto.rows[0].date).toBe('2024-03-01T00:00:00.000Z');
+    expect(dto.structuralErrors).toEqual([]);
+  });
+
+  // Decision 2 (2.7): the structural channel crosses the wire as SerializedMessage[]
+  it('serializes structuralErrors as SerializedMessage[] (decision 2, contract v3)', () => {
+    const result: GenerateRowsResult = {
+      rows: [],
+      rowErrors: [],
+      skipped: [],
+      structuralErrors: [
+        new LocalizableMessage('engine.importStatement.stage3.structural-no-date-column', {}),
+      ],
+    };
+    const dto = serializeGenerateResult(result);
+    expect(dto.structuralErrors).toEqual([
+      { key: 'engine.importStatement.stage3.structural-no-date-column', params: {} },
+    ]);
+    // zero row-error echoes (PIN b)
+    expect(dto.rowErrors).toHaveLength(0);
   });
 
   it('serializes rowErrors with serialized messages', () => {
@@ -324,7 +344,7 @@ describe('serializeGenerateResult', () => {
       errors: [new LocalizableMessage('engine.row.error', { field: 'amount' })],
       columnId: 'col-amount',
     };
-    const result: GenerateRowsResult = { rows: [], rowErrors: [rowError], skipped: [] };
+    const result: GenerateRowsResult = { rows: [], rowErrors: [rowError], skipped: [], structuralErrors: [] };
     const dto = serializeGenerateResult(result);
     expect(dto.rowErrors).toHaveLength(1);
     expect(dto.rowErrors[0].rowIndex).toBe(3);
@@ -339,13 +359,13 @@ describe('serializeGenerateResult', () => {
       rowIndex: 5,
       reason: new NativeMessage('income skipped'),
     };
-    const result: GenerateRowsResult = { rows: [], rowErrors: [], skipped: [skipped] };
+    const result: GenerateRowsResult = { rows: [], rowErrors: [], skipped: [skipped], structuralErrors: [] };
     const dto = serializeGenerateResult(result);
     expect(dto.skipped[0].reason).toEqual({ text: 'income skipped' });
   });
 
   it('is JSON-safe', () => {
-    const result: GenerateRowsResult = { rows: [makeRow(0)], rowErrors: [], skipped: [] };
+    const result: GenerateRowsResult = { rows: [makeRow(0)], rowErrors: [], skipped: [], structuralErrors: [] };
     const dto = serializeGenerateResult(result);
     expect(JSON.parse(JSON.stringify(dto))).toEqual(dto);
   });

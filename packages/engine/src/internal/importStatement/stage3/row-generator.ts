@@ -10,11 +10,15 @@
  *              generation CONTINUES with the next row. Good rows always generate.
  *
  * New output shape (GenerateRowsResult):
- *   { rows: TransactionRow[], rowErrors: RowError[], skipped: SkippedRow[] }
+ *   { rows: TransactionRow[], rowErrors: RowError[], skipped: SkippedRow[],
+ *     structuralErrors: Message[] }
  *   - `rows`      — successfully generated transaction rows.
  *   - `rowErrors` — per-row error entries for rows that could not be generated.
  *   - `skipped`   — income / mixed-positive rows discarded with a reason (VIS-011).
  *                   DISTINCT from errors — the row is valid data, not a spend.
+ *   - `structuralErrors` — 2.7 decision 2: column-SET-level failures (no-DATE /
+ *                   multiple-DATE) detected BEFORE the row loop. ONE message per
+ *                   condition, zero per-row echoes, zero pseudo-ops.
  *
  * COUNTERPARTY (ENT-006):
  *   Generated rows carry `counterparty: string | null` — distinct from `description`.
@@ -113,6 +117,36 @@ export async function generateRows(
   const total = rows.length;
   let processed = 0;
 
+  // ── STRUCTURAL CHANNEL (2.7 decision 2): pre-loop DATE-mapping checks ──────
+  // A missing or ambiguous DATE mapping is a property of the COLUMN SET, not of
+  // any row — it would fail EVERY row identically. Detect it ONCE, before the
+  // loop, and return a single structural message instead of N per-row echoes.
+  // Pseudo-ops do NOT spawn either: with the DATE mapping broken there is no
+  // reliable date for a commission/cashback op to inherit.
+  const dateColumnCount = columns.filter(
+    (col) => col.definition === ColumnDefinition.DATE,
+  ).length;
+  if (dateColumnCount === 0) {
+    // ДІЯ hint carried by the key: map a column as DATE.
+    logger.error('Structural: no DATE column mapped — row loop skipped');
+    return {
+      rows: [],
+      rowErrors: [],
+      skipped: [],
+      structuralErrors: [$t('engine.importStatement.stage3.structural-no-date-column')],
+    };
+  }
+  if (dateColumnCount > 1) {
+    // ДІЯ hint carried by the key: unmap one of the DATE columns.
+    logger.error(`Structural: ${dateColumnCount} DATE columns mapped — row loop skipped`);
+    return {
+      rows: [],
+      rowErrors: [],
+      skipped: [],
+      structuralErrors: [$t('engine.importStatement.stage3.structural-multiple-date-columns')],
+    };
+  }
+
   for (const row of rows) {
     if (onProgress && processed > 0 && processed % GENERATE_PROGRESS_CHUNK === 0) {
       onProgress(processed, total);
@@ -183,7 +217,7 @@ export async function generateRows(
   // Final honest count: done === total, always emitted exactly once (HC-10).
   onProgress?.(total, total);
 
-  return { rows: resultRows, rowErrors, skipped };
+  return { rows: resultRows, rowErrors, skipped, structuralErrors: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +302,12 @@ function getAmountIgnoreMessage(
 
 /**
  * Extracts the date from a row.
- * Verbatim from prior art — throws LocalizableException on missing or duplicate DATE column.
+ *
+ * DEFENSIVE (2.7 decision 2): the no-DATE / multiple-DATE throws below are
+ * UNREACHABLE via `generateRows` — the pre-loop structural check returns early
+ * for both conditions. They stay as guards against direct misuse of this
+ * function (a future caller bypassing the structural gate gets a loud throw,
+ * not a silent `undefined as Date`).
  */
 function extractDate(
   row: ImportStatementRowData,

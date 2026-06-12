@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { NativeMessage, LocalizableMessage } from '../internal/utils/messages/message';
 import { ColumnTransformRejection } from '../internal/importStatement/stage2/errors';
 import { UnmappedColumnsError } from '../internal/importStatement/stage2/errors';
-import { BaseCurrencyNotSetError } from '../internal/settings/base-currency';
+import { BaseCurrencyNotSetError, InvalidBaseCurrencyError } from '../internal/settings/base-currency';
 import {
   serializeEngineError,
   rehydrateEngineError,
@@ -105,6 +105,25 @@ describe('BaseCurrencyNotSetError round-trip', () => {
     const rehydrated = rehydrateEngineError(serializeEngineError(original));
     expect(rehydrated).toBeInstanceOf(BaseCurrencyNotSetError);
     expect(rehydrated.name).toBe('BaseCurrencyNotSetError');
+  });
+});
+
+// ── InvalidBaseCurrencyError (NEW at 2.7 — setBaseCurrency crosses the wire) ──
+
+describe('InvalidBaseCurrencyError round-trip', () => {
+  it('rehydrates as InvalidBaseCurrencyError preserving the rejected code in the message', () => {
+    const original = new InvalidBaseCurrencyError('BOGUS');
+    const rehydrated = rehydrateEngineError(serializeEngineError(original));
+    expect(rehydrated).toBeInstanceOf(InvalidBaseCurrencyError);
+    expect(rehydrated.name).toBe('InvalidBaseCurrencyError');
+    expect(rehydrated.message).toMatch(/BOGUS/);
+  });
+
+  it('survives JSON round-trip on the wire object', () => {
+    const wire = JSON.parse(JSON.stringify(serializeEngineError(new InvalidBaseCurrencyError('XYZ999'))));
+    const rehydrated = rehydrateEngineError(wire);
+    expect(rehydrated).toBeInstanceOf(InvalidBaseCurrencyError);
+    expect(rehydrated.message).toMatch(/XYZ999/);
   });
 });
 

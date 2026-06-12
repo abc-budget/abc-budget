@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDirectEngineClient } from './direct-client';
+import { InvalidBaseCurrencyError } from '../internal/settings/base-currency';
 
 describe('EngineClient contract (direct transport)', () => {
   it('ping echoes the message', async () => {
@@ -11,6 +12,26 @@ describe('EngineClient contract (direct transport)', () => {
     const client = createDirectEngineClient();
     const version = await client.getVersion();
     expect(typeof version.engine).toBe('string');
-    expect(version.contract).toBe(2);
+    // DECLARED UPDATE (2.7): contract 2 → 3 (base-currency surface + structural channel)
+    expect(version.contract).toBe(3);
+  });
+});
+
+// This spec file runs WITHOUT fake-indexeddb — the composition root composes with
+// settingsDao === null. These tests pin the no-DB semantics of the v3 methods.
+describe('base-currency surface — no-indexedDB semantics (decision 1)', () => {
+  it('getBaseCurrency returns null when persistence is unavailable (probe never throws)', async () => {
+    const client = createDirectEngineClient();
+    await expect(client.getBaseCurrency()).resolves.toBeNull();
+  });
+
+  it('setBaseCurrency throws LOUD when persistence is unavailable (valid ISO)', async () => {
+    const client = createDirectEngineClient();
+    await expect(client.setBaseCurrency('USD')).rejects.toThrow(/persistence/i);
+  });
+
+  it('setBaseCurrency validates the ISO code FIRST (pure reference — no DB needed)', async () => {
+    const client = createDirectEngineClient();
+    await expect(client.setBaseCurrency('BOGUS')).rejects.toBeInstanceOf(InvalidBaseCurrencyError);
   });
 });

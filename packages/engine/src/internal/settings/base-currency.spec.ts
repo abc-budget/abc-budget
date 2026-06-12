@@ -14,6 +14,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   getBaseCurrency,
+  getBaseCurrencyOrNull,
   setBaseCurrency,
   BaseCurrencyNotSetError,
   InvalidBaseCurrencyError,
@@ -82,6 +83,35 @@ describe('getBaseCurrency — unset → loud specific error', () => {
       getAllSettings: vi.fn().mockResolvedValue({}),
     } as UserSettingsDAO;
     await expect(getBaseCurrency(emptyDao)).rejects.toBeInstanceOf(BaseCurrencyNotSetError);
+  });
+});
+
+describe('getBaseCurrencyOrNull — the 2.7 gate probe (decision 1: no exception-driven control flow)', () => {
+  it('returns null when no value is stored (NOT a throw)', async () => {
+    const dao = makeDao(undefined);
+    await expect(getBaseCurrencyOrNull(dao)).resolves.toBeNull();
+  });
+
+  it('returns null when the stored value is an empty string', async () => {
+    const emptyDao: UserSettingsDAO = {
+      getSetting: vi.fn().mockResolvedValue(''),
+      setSetting: vi.fn().mockResolvedValue(undefined),
+      removeSetting: vi.fn().mockResolvedValue(false),
+      getAllSettings: vi.fn().mockResolvedValue({}),
+    } as UserSettingsDAO;
+    await expect(getBaseCurrencyOrNull(emptyDao)).resolves.toBeNull();
+  });
+
+  it('returns the stored ISO code after setBaseCurrency', async () => {
+    const dao = makeDao();
+    await setBaseCurrency(dao, 'PLN');
+    await expect(getBaseCurrencyOrNull(dao)).resolves.toBe('PLN');
+  });
+
+  it('the loud-throw variant STAYS for use_base resolution (both coexist)', async () => {
+    const dao = makeDao(undefined);
+    await expect(getBaseCurrency(dao)).rejects.toBeInstanceOf(BaseCurrencyNotSetError);
+    await expect(getBaseCurrencyOrNull(dao)).resolves.toBeNull();
   });
 });
 

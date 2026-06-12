@@ -1,5 +1,5 @@
 /**
- * Production WorkerTransport (Task 3, contract v2).
+ * Production WorkerTransport (Task 3, contract v3 since 2.7).
  *
  * Creates an EngineClient backed by a Web Worker over postMessage.
  * Implements: handshake gate, drain semantics, per-request timeouts with
@@ -456,6 +456,12 @@ export function createWorkerEngineClient(
 
     importAbort: (sessionId: string) =>
       call('importAbort', [sessionId]) as Promise<void>,
+
+    // ── Base currency (contract v3 — Story 2.7, decision 1) ──────────────────
+
+    getBaseCurrency: () => call('getBaseCurrency', []) as Promise<string | null>,
+
+    setBaseCurrency: (iso: string) => call('setBaseCurrency', [iso]) as Promise<void>,
 
     onEvent(cb: (event: EngineEventPayload) => void): () => void {
       listeners.add(cb);

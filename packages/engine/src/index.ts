@@ -4,6 +4,7 @@
  * RUNTIME surface (asserted EXACTLY by boundary.spec.ts):
  *   - createDirectEngineClient  — in-thread transport (vitest / QA rides this).
  *   - createWorkerEngineClient  — production Worker transport (Story 2.6).
+ *   - localeToCurrency          — pure locale→ISO mapping (Story 2.7, decision 1).
  *
  * Everything else is TYPE-ONLY: DTOs, event payloads, options, and the
  * rehydrated error classes (exported as types so callers can annotate —
@@ -16,6 +17,12 @@
 // ── Runtime: the two client factories ────────────────────────────────────────
 export { createDirectEngineClient } from './client/direct-client';
 export { createWorkerEngineClient } from './client/worker-client';
+
+// ── Runtime: pure helpers (DECLARED boundary change, 2.7 decision 1) ─────────
+// localeToCurrency is a PURE function (no DAO, no engine state) — the
+// cold-start base-currency gate preselects from navigator.language with it.
+// Runtime surface is now EXACTLY three keys (boundary.spec.ts asserts).
+export { localeToCurrency } from './internal/currency/reference';
 
 // ── Client surface types ──────────────────────────────────────────────────────
 export type {
@@ -61,6 +68,7 @@ export type {
   EngineError,
   WireError,
 } from './client/errors';
+export type { InvalidBaseCurrencyError } from './internal/settings/base-currency';
 
 // ── App-layer integration types ───────────────────────────────────────────────
 export type { ExchangeRateApi } from './internal/exchange-rate/api';

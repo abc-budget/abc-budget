@@ -12,7 +12,8 @@ vi.mock('./has-data');
 vi.mock('../engine', () => ({
   engine: {
     ping: async (message: string) => message,
-    getVersion: async () => ({ engine: '0.0.0', contract: 2 }),
+    // DECLARED UPDATE (2.7): contract 2 → 3 (base-currency surface + structural channel)
+    getVersion: async () => ({ engine: '0.0.0', contract: 3 }),
     onEvent: () => () => {},
   },
   engineReady: Promise.resolve({ state: 'ready' }),
@@ -58,7 +59,7 @@ describe('screen mounts', () => {
     renderAt('/dashboard');
     expect(screen.getByTestId('screen-dashboard')).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId('engine-status').textContent).toContain('PING OK'));
-    expect(screen.getByTestId('engine-status').textContent).toContain('CONTRACT 2');
+    expect(screen.getByTestId('engine-status').textContent).toContain('CONTRACT 3');
   });
   it('/settings mounts Settings with section tabs', () => {
     renderAt('/settings');

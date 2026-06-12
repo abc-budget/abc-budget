@@ -1,7 +1,8 @@
 /**
  * EngineClient — the public interface for interacting with the engine.
  *
- * Contract v2: explicit session protocol; out-of-band progress/blocked/dead events.
+ * Contract v3: explicit session protocol; out-of-band progress/blocked/dead
+ * events; base-currency surface (2.7 decision 1).
  * NO RxJS on this surface (NFR-003 boundary holds).
  * All types are DTO imports — no internal class instances cross this boundary.
  */
@@ -155,6 +156,32 @@ export interface EngineClient {
    * No-op if the session is already gone.
    */
   importAbort(sessionId: string): Promise<void>;
+
+  // ── Base currency (contract v3 — Story 2.7, decision 1) ───────────────────
+
+  /**
+   * The cold-start gate's PROBE: returns the stored base-currency ISO code,
+   * or null when unset (no exception-driven control flow — unset is an
+   * expected first-run state). Also null where persistence is unavailable.
+   *
+   * NFR-009 holds: raw settings stay internal — only this dedicated surface
+   * crosses the boundary.
+   */
+  getBaseCurrency(): Promise<string | null>;
+
+  /**
+   * Persist the base currency. Validates `iso` against the 1.6 currency
+   * reference; invalid codes throw InvalidBaseCurrencyError (typed across
+   * the wire).
+   *
+   * LIVE-READ pin (decision 1): the value is read live from the DAO at
+   * `use_base` resolution time — setBaseCurrency() → importStart in one
+   * breath resolves to the just-set currency, never a stale snapshot.
+   *
+   * Throws loud when persistence is unavailable (no indexedDB) — a set that
+   * cannot persist must never look successful.
+   */
+  setBaseCurrency(iso: string): Promise<void>;
 
   // ── Out-of-band events ─────────────────────────────────────────────────────
 

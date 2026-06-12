@@ -1,7 +1,7 @@
 /**
  * Engine worker host (Story 2.6, Task 4 — the worker side of the thread hop).
  *
- * `attachEngineHost(scope)` wires the contract-v2 message loop onto a worker
+ * `attachEngineHost(scope)` wires the contract-v3 message loop onto a worker
  * global scope:
  *
  *   - handshake: `hello {contract}` → `helloAck {contract: CONTRACT_VERSION}`
@@ -47,7 +47,7 @@ export interface WorkerScopeLike {
 
 // ── Method allowlist ──────────────────────────────────────────────────────────
 
-/** The exact contract-v2 method set — anything else is rejected loudly. */
+/** The exact contract-v3 method set — anything else is rejected loudly. */
 const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'ping',
   'getVersion',
@@ -60,6 +60,10 @@ const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'importGetRows',
   'importNext',
   'importAbort',
+  // v3 (2.7 decision 1): the base-currency surface — implemented by the direct
+  // client this host shims over; settingsDao comes from the shared composition root.
+  'getBaseCurrency',
+  'setBaseCurrency',
 ]);
 
 // ── attachEngineHost ──────────────────────────────────────────────────────────
