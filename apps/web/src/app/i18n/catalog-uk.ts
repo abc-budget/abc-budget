@@ -94,6 +94,9 @@ export const CATALOG_UK = {
   s3aErrWhatV: 'Файл не вдалося відкрити',
   s3aErrWhyV: 'Він порожній, пошкоджений або це не таблиця (CSV/XLS/XLSX).',
   s3aErrDoV: 'Перевірте, що це експорт виписки, і спробуйте інший файл.',
+  // issue-specific ЧОМУ (2.7 Task 3 — derived from the FATAL DecodeIssue kind)
+  s3aErrWhyNoData: 'У файлі не знайшлося жодного рядка з даними.',
+  s3aErrWhyUnreadable: 'Вміст не вдалося розібрати — файл пошкоджений або це не CSV/XLS/XLSX.',
   s3aTryAgain: 'Обрати інший файл',
   s3aBack: 'Назад',
   // decoding (DecodingPanel — NO bundle equivalent; dev-designed copy, PM pixel pass)
@@ -107,6 +110,13 @@ export const CATALOG_UK = {
   s3aBaseAuto: 'ВИЗНАЧЕНО ЗА РЕГІОНОМ · ПОТІМ МОЖНА ЗМІНИТИ В НАЛАШТУВАННЯХ',
   s3aCancel: 'Скасувати',
   s3aCont: 'Далі ▸',
+  // multi-sheet neutral note (2.1 decision — flagged, not invented)
+  s3aOtherSheets: 'У файлі є інші аркуші: {names} — прочитано лише перший.',
+  // useBlocker exit-protection (1.5 carry-forward, lands at 2.7 Task 3)
+  s3aLeaveTitle: 'Перервати імпорт?',
+  s3aLeaveBody: 'Якщо ви підете зараз, поточний імпорт буде скасовано. Файл доведеться завантажити знову.',
+  s3aLeaveStay: 'Залишитись',
+  s3aLeaveLeave: 'Перервати й вийти',
 } as const;
 
 export type ChromeKey = keyof typeof CATALOG_UK;

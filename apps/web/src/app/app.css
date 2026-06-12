@@ -7,3 +7,7 @@
 .topbar-right{ display:flex; align-items:center; gap:12px; } /* source: Dashboard.html .topbar-right */
 .screen-body{ display:grid; gap:var(--sp-l); }
 .flow-footer{ display:flex; justify-content:space-between; gap:var(--sp-m); margin-top:var(--sp-l); }
+/* Gate-blocked Next (2.7) — port of Import-Source.html:144 .s3-foot .key[disabled]
+   + the prototype's inline opacity:.4 on the blocked footer key (line 343). */
+.flow-footer .key[disabled]{ opacity:.4; cursor:not-allowed; transform:none;
+  box-shadow:0 2px 0 #8A8674,inset 0 1px 0 rgba(255,255,255,.3); }

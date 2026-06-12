@@ -10,9 +10,15 @@
      app UI (spec §3: "no fake statebar in the app").
    · EXCLUDED .ob-top/.ob-brand/.ob-wordmark/.langtog/.langbtn/.stepper/.stp*/
      .ob-step-m — already live in ui/altus/altus-components.css (1.5 chrome).
-   · EXCLUDED .s3-shell/.s3-head/.s3-title/.s3-lead/.s3-foot*/.foot-keys/
-     .ob-eyebrow — page scaffolding; lands with Task 3's wiring (S3aSource +
-     ImportFlow step bodies), not with the presentational atoms.
+   · .s3-head/.s3-title/.s3-lead/.ob-eyebrow LANDED with Task 3's wiring
+     (Import-Source.html:46-50) — the S3a step heading. Still excluded:
+     .s3-shell (the app's .shell owns page width), .s3-foot*/.foot-keys (the
+     1.5 .flow-footer owns the footer; its disabled-key delta lives in app.css
+     next to .flow-footer), .ob-step-m (FlowHeader's Stepper mobileLabel
+     already carries the step counter).
+   · ADDED .othersheets-note — NO bundle equivalent (the prototype has no
+     multi-sheet state); neutral f-mono line in the .dec-count/.dz-formats
+     gray-mono language. Dev-designed, flagged for the PM pixel pass.
    · RENAMED: the prototype's extra .err-h class on the error panel header
      folds into `.errpanel .panel-h` — PanelHeader renders a fixed class;
      scoping by the panel variant is selector-equivalent.
@@ -22,6 +28,12 @@
    · .modal-scrim/.modal/.basecur-modal/.bc-* ported NOW for Task 4's
      cold-start dialog (the bundle ships them on this page).
    ========================================================================= */
+
+/* ── step heading — source: Import-Source.html:46-50 ────────────────────── */
+.ob-eyebrow{ font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold); opacity:.9; }
+.s3-head{ margin:2px 0 16px; }
+.s3-title{ font-weight:800; font-size:28px; letter-spacing:.01em; color:var(--cream); margin:7px 0 0; }
+.s3-lead{ color:rgba(253,253,208,.78); font-size:13.5px; max-width:680px; margin:7px 0 0; }
 
 /* ── drop zone — source: Import-Source.html:53-71 ───────────────────────── */
 .dropzone{ background:var(--beige); border-radius:var(--r-xl); box-shadow:var(--shadow-panel);
@@ -135,6 +147,11 @@
 @keyframes dec-sweep{ to{ left:100%; } }
 @media (prefers-reduced-motion:reduce){ .dec-track.indet::after{ animation:none; } }
 .dec-count{ margin-top:10px; font-size:10.5px; letter-spacing:.1em; color:var(--gray-warm); text-transform:uppercase; }
+
+/* ── other-sheets note — NO bundle source: dev-designed (2.7, PM pixel pass).
+     Neutral by design (2.1 decision: flagged, not invented) — the gray f-mono
+     language of .dec-count/.dz-formats, no lamp, no panel. ──────────────────── */
+.othersheets-note{ margin-top:10px; font-size:10.5px; letter-spacing:.06em; color:rgba(253,253,208,.6); }
 
 /* ── base-currency first-run dialog — source: Import-Source.html:149-162
      (Task 4 mounts it; classes ported with the page per the plan) ────────── */

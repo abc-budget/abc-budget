@@ -89,6 +89,9 @@ export const CATALOG_EN = {
   s3aErrWhatV: 'The file could not be opened',
   s3aErrWhyV: 'It’s empty, corrupted, or not a spreadsheet (CSV/XLS/XLSX).',
   s3aErrDoV: 'Make sure it’s a statement export and try another file.',
+  // issue-specific ЧОМУ (2.7 Task 3 — derived from the FATAL DecodeIssue kind)
+  s3aErrWhyNoData: 'No data rows were found in the file.',
+  s3aErrWhyUnreadable: 'The content could not be parsed — the file is corrupted or not a CSV/XLS/XLSX.',
   s3aTryAgain: 'Choose another file',
   s3aBack: 'Back',
   // decoding (DecodingPanel — NO bundle equivalent; dev-designed copy, PM pixel pass)
@@ -102,4 +105,11 @@ export const CATALOG_EN = {
   s3aBaseAuto: 'DETECTED BY REGION · YOU CAN CHANGE IT LATER IN SETTINGS',
   s3aCancel: 'Cancel',
   s3aCont: 'Continue ▸',
+  // multi-sheet neutral note (2.1 decision — flagged, not invented)
+  s3aOtherSheets: 'The file has other sheets: {names} — only the first one was read.',
+  // useBlocker exit-protection (1.5 carry-forward, lands at 2.7 Task 3)
+  s3aLeaveTitle: 'Abandon this import?',
+  s3aLeaveBody: 'If you leave now, the current import is cancelled. You will need to load the file again.',
+  s3aLeaveStay: 'Stay',
+  s3aLeaveLeave: 'Abandon & leave',
 } satisfies Record<ChromeKey, string>;
