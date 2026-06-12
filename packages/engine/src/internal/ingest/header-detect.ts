@@ -112,6 +112,12 @@ const SUMMARY_RE = /^(Разом|Всього|Total|Итого)/i;
 /** Maximum fill ratio for a row to qualify as a summary (inclusive). */
 const SUMMARY_MAX_FILL = 0.40;
 
+/**
+ * keyRows progress emission interval (2.6, HC-10).  Small files emit only the
+ * final (total, total) call; a 10k-row file emits ~10 intermediate events.
+ */
+const PROGRESS_CHUNK = 1000;
+
 // ---------------------------------------------------------------------------
 // detectHeader
 // ---------------------------------------------------------------------------
@@ -190,16 +196,25 @@ export function detectHeader(matrix: string[][]): DetectHeaderResult {
  *   7. Normal row → keyed by header keys.
  *
  * When headerRow is -1, no rows are treated as preamble and all rows are keyed.
+ *
+ * @param onProgress — optional additive hook (2.6, HC-10): invoked every
+ *   PROGRESS_CHUNK scanned rows with (done, total) and once at the end with
+ *   (total, total). Counts are honest: done = source rows scanned so far.
  */
 export function keyRows(
   matrix: string[][],
   header: Pick<DetectHeaderResult, 'headerRow' | 'keys'>,
+  onProgress?: (done: number, total: number) => void,
 ): KeyRowsResult {
   const { headerRow, keys } = header;
   const rows: Record<string, unknown>[] = [];
   const issues: DecodeIssue[] = [];
+  const total = matrix.length;
 
   for (let i = 0; i < matrix.length; i++) {
+    if (onProgress && (i + 1) % PROGRESS_CHUNK === 0 && i + 1 < total) {
+      onProgress(i + 1, total);
+    }
     const raw = matrix[i];
 
     // 1. Pre-header preamble (sole emitter of preamble-row issues)
@@ -283,6 +298,9 @@ export function keyRows(
 
     rows.push(record);
   }
+
+  // Final honest count: done === total, always emitted exactly once (HC-10).
+  onProgress?.(total, total);
 
   return { rows, issues };
 }

@@ -27,7 +27,23 @@ import type { GenerateRowsResult } from '../importStatement/stage3/types';
 export interface SessionEntry {
   readonly sessionId: string;
   readonly stage2: ImportStatementStage2;
+  /**
+   * Typed-row cache: set by the first importGetRows/importNext generation,
+   * invalidated (null) on every applyColumn/resetColumn.
+   */
   generatedRows: GenerateRowsResult | null;
+  /**
+   * Source-row count of the cached generation (the honest progress `total`).
+   * Lets a cache-hit importNext still report the final done === total event
+   * (HC-10) without re-running stage3.  Null whenever generatedRows is null.
+   */
+  generatedSourceTotal: number | null;
+  /**
+   * Original name of the most recently applied column — the collision key for
+   * importResolveCollision's confirmSave (the CollisionDescriptor itself does
+   * not carry the column name).
+   */
+  lastAppliedColumnName: string | null;
 }
 
 // ── SessionRegistry ───────────────────────────────────────────────────────────
@@ -57,16 +73,32 @@ export class SessionRegistry {
   }
 
   /**
+   * Assert that no session is currently active.
+   *
+   * Throws SessionAlreadyActiveError otherwise.  Called by importStart BEFORE
+   * the stage graph is built so the rejection costs nothing (no leaked graph).
+   */
+  assertNoActiveSession(): void {
+    if (this._activeSessionId !== null) {
+      throw new SessionAlreadyActiveError(this._activeSessionId);
+    }
+  }
+
+  /**
    * Register a new session.
    *
    * Throws SessionAlreadyActiveError if another session is already active.
    * (The caller must importAbort the existing session first.)
    */
   register(sessionId: string, stage2: ImportStatementStage2): SessionEntry {
-    if (this._activeSessionId !== null) {
-      throw new SessionAlreadyActiveError(this._activeSessionId);
-    }
-    const entry: SessionEntry = { sessionId, stage2, generatedRows: null };
+    this.assertNoActiveSession();
+    const entry: SessionEntry = {
+      sessionId,
+      stage2,
+      generatedRows: null,
+      generatedSourceTotal: null,
+      lastAppliedColumnName: null,
+    };
     this._sessions.set(sessionId, entry);
     this._activeSessionId = sessionId;
     return entry;

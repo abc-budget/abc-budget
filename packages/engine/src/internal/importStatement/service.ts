@@ -32,13 +32,19 @@
  *    id generator).  S3a (2.7) redefines a LEAN source notion from the design
  *    bundle's actual needs.
  *
- * 2.5 **Story 2.4 — settingsDao injection** (Task 4):
+ * 2.5 **Story 2.4 — settingsDao injection** + **Story 2.6 — recallPool injection**:
  *    `settingsDao: UserSettingsDAO | null` — injected for engine-config hydration at
- *    import-session start. Default null for backward-compat; production wiring is 2.6.
+ *    import-session start. `recallPool: RecallPool | null` — injected for column-name
+ *    recall (FEAT-005/FEAT-013): `stage2()` runs `recallFor()` over the initial column
+ *    names and mounts the result + the pool into ImportStatementStage2Impl.
+ *    Both default null (deterministic node-without-idb baseline); the production
+ *    wiring happens in `internal/worker/composition-root.ts` (composeEngine), which
+ *    is used by BOTH the direct client and the worker host.
  *    Constructor injection table — all params (renumbered after the 2.6 excision):
- *      1. _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, Task 4)
- *      2. _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, Task 4)
- *      3. settingsDao          ← UserSettingsDAO (2.4, default null; 2.6 wiring)
+ *      1. _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, EP-4)
+ *      2. _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, EP-4)
+ *      3. settingsDao          ← UserSettingsDAO (2.4; wired by composeEngine)
+ *      4. recallPool           ← RecallPool (2.3/2.6; wired by composeEngine)
  *
  * 2. **`cloneDeep` from lodash-es** → `structuredClone` (built-in; same semantics
  *    for plain-data transformation arrays).
@@ -63,6 +69,7 @@ import { $t, LocalizableException, NativeMessage } from '../utils/messages/index
 import { generateUniqueId } from '../utils/id/generator';
 import { hydrateEngineConfig } from '../settings/engine-config';
 import type { UserSettingsDAO } from '../settings/user-settings';
+import type { RecallPool, RecallResult } from './recall/recall';
 import { ImportStatementStage1Impl } from './stage1';
 import type { ImportStatementStage1 } from './stage1';
 import { ImportStatementColumn } from './stage2/column';
@@ -112,11 +119,13 @@ export interface ImportStatementServiceInternal extends ImportStatementService {
  *
  * Constructor injection (IoC removal; renumbered after the 2.6 excision —
  * fileFormatDAO / fileSourceDAO are GONE, decision 3):
- *   1. _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, Task 4)
- *   2. _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, Task 4)
+ *   1. _decisionTreeService ← IoCKeys.DECISION_TREE_SERVICE (stage3, EP-4)
+ *   2. _userSettingsService ← IoCKeys.USER_SETTINGS_SERVICE (stage3, EP-4)
  *   3. settingsDao          ← UserSettingsDAO (Story 2.4 — engine-config hydration;
- *                             default null; production wiring is 2.6 ⚠️ MUST-DO
- *                             before shipping)
+ *                             default null; wired in production by composeEngine,
+ *                             internal/worker/composition-root.ts)
+ *   4. recallPool           ← RecallPool (Story 2.3/2.6 — column-name recall;
+ *                             default null; wired in production by composeEngine)
  *
  * Note: CurrencyCache is NOT injected. The 1.6 wiring removed it from
  * ImportStatementColumn; column.ts uses the static reference module directly.
@@ -135,11 +144,13 @@ export class ImportStatementServiceImpl
   private readonly _logger = getLogger('engine.importStatement.service');
 
   constructor(
-    // Stage3 deps (Task 4) — optional for now; non-null in production wiring
+    // Stage3 deps (EP-4 categorization) — optional; non-null when EP-4 wires them
     private readonly _decisionTreeService: DecisionTreeService = null,
     private readonly _userSettingsService: UserSettingsService = null,
-    // Story 2.4: engine-config hydration at import-session start (production wiring 2.6)
-    private readonly _settingsDao: UserSettingsDAO | null = null
+    // Story 2.4: engine-config hydration at import-session start (wired by composeEngine)
+    private readonly _settingsDao: UserSettingsDAO | null = null,
+    // Story 2.3/2.6: column-name recall pool (wired by composeEngine)
+    private readonly _recallPool: RecallPool | null = null
   ) {
     super();
   }
@@ -170,7 +181,25 @@ export class ImportStatementServiceImpl
     // format-level recall is superseded by the 2.3 columnName pool (FEAT-005).
     // Column prefill happens via the RecallResult/RecallPool constructor params
     // of ImportStatementStage2Impl (the 2.3 mount), not via stored FileFormats.
-    return new ImportStatementStage2Impl(stage1, this, initialColumns);
+    //
+    // Recall mount (2.6 — the 2.3 wiring lands here): when a recall pool is
+    // injected, look up the initial column names and pass the GUESSED prefills
+    // + the pool into the stage2 constructor.  Null pool → null recall result —
+    // the deterministic baseline path is byte-identical to 2.3..2.5 behavior.
+    let recallResult: RecallResult | null = null;
+    if (this._recallPool !== null) {
+      const names = initialColumns.map((col) => col.originalName.getText());
+      recallResult = await this._recallPool.recallFor(names);
+    }
+
+    return new ImportStatementStage2Impl(
+      stage1,
+      this,
+      initialColumns,
+      undefined,
+      recallResult,
+      this._recallPool
+    );
   }
 
   private async _createInitialColumns(
@@ -191,12 +220,12 @@ export class ImportStatementServiceImpl
       );
 
       const originalName = new NativeMessage(columnName);
-      // CurrencyCache removed (1.6 wiring) — settingsDao passed as null here.
-      // Recall mounts via the ImportStatementStage2Impl CONSTRUCTOR (recallPool
-      // param); this service-level path does not wire it yet — the production
-      // wiring (recall pool + settingsDao injection) lands with the client
-      // surface in 2.6. ⚠️ 2.6 MUST-DO: do not ship the client surface with
-      // this path unwired.
+      // CurrencyCache removed (1.6 wiring).  Recall mounts via the
+      // ImportStatementStage2Impl CONSTRUCTOR (recallResult/recallPool params,
+      // passed by stage2() above); settingsDao is injected per-column so
+      // `use_base` amount resolution works at parse time.  The production
+      // wiring of both deps happens in internal/worker/composition-root.ts
+      // (composeEngine) — used by the direct client AND the worker host.
       return new ImportStatementColumn(
         generateUniqueId('column'),
         originalName,
@@ -204,7 +233,7 @@ export class ImportStatementServiceImpl
         null,
         null,
         cellData,
-        null // settingsDao — not needed at column-creation time
+        this._settingsDao // enables use_base resolution in parseAsAmount
       );
     });
   }
