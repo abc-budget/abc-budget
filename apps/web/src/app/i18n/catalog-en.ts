@@ -147,6 +147,12 @@ export const CATALOG_EN = {
   s3bConfirm: 'Confirm',
   s3bReconfigure: 'Reconfigure',
   s3bUndo: 'Undo (revert)',
+  // collision (FEAT-005 — recalled name whose saved params differ; LOUD, non-blocking)
+  s3bCollTag: '▸ SAVED RULE DIFFERS',
+  s3bCollBody: 'The saved rule’s parameters for “{col}” differ from the current ones. Confirm to update the rule, or keep it as is.',
+  s3bCollColBadge: 'saved rule’s params differ · confirm/adjust',
+  s3bCollConfirm: 'Update the rule',
+  s3bCollDecline: 'Keep saved',
   // block panel (UNKNOWN gate — Option A)
   s3bBlockTag: '▸ COLUMNS WITHOUT A TYPE',
   s3bBlockBody: 'You can’t continue until every column has a type. Assign a type or mark “Ignore” for:',

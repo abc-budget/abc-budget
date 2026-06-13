@@ -11,6 +11,12 @@ export interface StatusPanelProps {
   columns: MappingColumn[];
   /** Jump to (scroll/open) a column by id. */
   onJump: (columnId: string) => void;
+  /**
+   * The LOUD save-collision affordance (decision #5), rendered at the top of the
+   * panel when a collision is active.  The container passes a <CollisionBanner>;
+   * null when there is no collision.  Persistent until resolved.
+   */
+  collisionBanner?: React.ReactNode;
 }
 
 /**
@@ -27,7 +33,7 @@ export interface StatusPanelProps {
  * NOT ported — it had no engine data source (it was sample-only chrome).
  * Pure: props in, onJump(columnId) out.
  */
-export function StatusPanel({ columns, onJump }: StatusPanelProps) {
+export function StatusPanel({ columns, onJump, collisionBanner = null }: StatusPanelProps) {
   const t = useT();
   const { lang } = useLang();
 
@@ -47,6 +53,7 @@ export function StatusPanel({ columns, onJump }: StatusPanelProps) {
         </span>
       </PanelHeader>
       <PanelBody>
+        {collisionBanner}
         <details className="step-intro">
           <summary className="step-intro-sum f-mono">
             <span className="si-ic" aria-hidden="true">

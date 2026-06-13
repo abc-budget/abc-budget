@@ -28,6 +28,20 @@ function renderPanel(columns = COLUMNS, lang: Lang = 'uk') {
 }
 
 describe('StatusPanel (default right pane)', () => {
+  it('renders the collisionBanner slot at the top of the body when provided', () => {
+    const onJump = vi.fn();
+    render(
+      <LangProvider initialLang="uk">
+        <StatusPanel
+          columns={COLUMNS}
+          onJump={onJump}
+          collisionBanner={<div data-testid="my-collision-banner" />}
+        />
+      </LangProvider>,
+    );
+    expect(screen.getByTestId('my-collision-banner')).toBeTruthy();
+  });
+
   it('renders the info step-intro <details> with rendered markdown', () => {
     const { container } = renderPanel();
     const details = container.querySelector('details.step-intro')!;

@@ -10,6 +10,7 @@ import { RejectionPanel } from './RejectionPanel';
 import type { RejectionInfo } from './RejectionPanel';
 import { BlockPanel } from './BlockPanel';
 import { WorkerProgressPanel } from './WorkerProgressPanel';
+import { CollisionBanner } from './CollisionBanner';
 import type { MappingCell, MappingColumn } from './types';
 import type { S3bSession } from './use-s3b-session';
 import './s3b.css';
@@ -82,7 +83,7 @@ function adaptColumn(col: Stage2ColumnDTO, lang: 'uk' | 'en'): MappingColumn {
 
 export function S3bMapping({ session, fileLabel, totalRows, gateView, progress }: S3bMappingProps) {
   const { lang } = useLang();
-  const { snapshot, rejection } = session;
+  const { snapshot, rejection, collisionColumnId } = session;
 
   /** The inline-open column menu, or null. */
   const [openColId, setOpenColId] = useState<string | null>(null);
@@ -142,6 +143,20 @@ export function S3bMapping({ session, fileLabel, totalRows, gateView, progress }
     setOpenColId(columnId);
   }, []);
 
+  // ── Loud save-collision affordance (decision #5) ───────────────────────────
+  // Persistent + non-blocking: rendered on the colliding column header (a loud
+  // badge) AND atop the default StatusPanel (the resolve banner).  It does NOT
+  // gate-block: the column is typed, so it passes canAdvance() #2.
+  const collisionCol = collisionColumnId ? byId(collisionColumnId) : null;
+  const collisionBanner =
+    snapshot.lastSaveCollision && collisionCol ? (
+      <CollisionBanner
+        columnName={collisionCol.rawName}
+        onConfirm={() => void session.resolveCollision(true)}
+        onDecline={() => void session.resolveCollision(false)}
+      />
+    ) : null;
+
   // ── Right pane resolution ──────────────────────────────────────────────────
   // Gate views (block / worker) take precedence — they're flow-level overlays.
   let rightPane: React.ReactNode;
@@ -174,7 +189,7 @@ export function S3bMapping({ session, fileLabel, totalRows, gateView, progress }
       <ConfigWizard column={col} onApply={onApplyWizard} onCancel={() => setConfigColId(null)} />
     ) : null;
   } else {
-    rightPane = <StatusPanel columns={columns} onJump={onJump} />;
+    rightPane = <StatusPanel columns={columns} onJump={onJump} collisionBanner={collisionBanner} />;
   }
 
   return (
@@ -184,6 +199,7 @@ export function S3bMapping({ session, fileLabel, totalRows, gateView, progress }
         fileLabel={fileLabel}
         totalRows={totalRows}
         openColId={gateView === 'mapping' ? openColId : null}
+        collisionColId={collisionColumnId}
         onOpenCol={setOpenColId}
         menu={{ onPick, onMore, onUndo, onReconfigure, onConfirm }}
       />

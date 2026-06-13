@@ -15,6 +15,8 @@ export interface RawMappingTableProps {
   totalRows: number;
   /** The currently-open column id (its menu renders inline), or null. */
   openColId: string | null;
+  /** The column id with an active save collision (loud header badge), or null. */
+  collisionColId?: string | null;
   onOpenCol: (columnId: string) => void;
   /** Menu callbacks forwarded to ColMenu. */
   menu: Omit<ColMenuProps, 'column'>;
@@ -47,6 +49,7 @@ export function RawMappingTable({
   fileLabel,
   totalRows,
   openColId,
+  collisionColId = null,
   onOpenCol,
   menu,
 }: RawMappingTableProps) {
@@ -74,6 +77,7 @@ export function RawMappingTable({
                   <ColHeader
                     column={col}
                     isActive={openColId === col.id}
+                    collision={collisionColId === col.id}
                     onOpen={onOpenCol}
                   />
                   {openColId === col.id && <ColMenu column={col} {...menu} />}

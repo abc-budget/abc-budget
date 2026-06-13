@@ -152,6 +152,12 @@ export const CATALOG_UK = {
   s3bConfirm: 'Підтвердити',
   s3bReconfigure: 'Налаштувати',
   s3bUndo: 'Скасувати (повернути)',
+  // collision (FEAT-005 — recalled name whose saved params differ; LOUD, non-blocking)
+  s3bCollTag: '▸ ЗБЕРЕЖЕНЕ ПРАВИЛО ВІДРІЗНЯЄТЬСЯ',
+  s3bCollBody: 'Параметри збереженого правила для «{col}» не збігаються з поточними. Підтвердьте, щоб оновити правило, або лишіть як є.',
+  s3bCollColBadge: 'правило ≠ · підтвердьте/змініть',
+  s3bCollConfirm: 'Оновити правило',
+  s3bCollDecline: 'Лишити збережене',
   // block panel (UNKNOWN gate — Option A)
   s3bBlockTag: '▸ Є КОЛОНКИ БЕЗ ТИПУ',
   s3bBlockBody: 'Не можна продовжити, поки кожна колонка не отримає тип. Призначте тип або позначте «Ігнорувати» для:',

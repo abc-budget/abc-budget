@@ -9,6 +9,13 @@ import './s3b.css';
 export interface ColHeaderProps {
   column: MappingColumn;
   isActive: boolean;
+  /**
+   * LOUD save-collision flag (decision #5 + item 3): the column's saved rule
+   * params differ from the just-applied/confirmed ones.  Renders a distinct,
+   * persistent collision badge — NOT a subtle dot.  Non-blocking (the column is
+   * typed → passes the gate); resolved via the StatusPanel CollisionBanner.
+   */
+  collision?: boolean;
   /** Open the column menu for this column id. */
   onOpen: (columnId: string) => void;
 }
@@ -25,7 +32,7 @@ export interface ColHeaderProps {
  *   ignored  → muted, glyph + label, ignored
  * Pure: props in, onOpen(columnId) out.
  */
-export function ColHeader({ column, isActive, onOpen }: ColHeaderProps) {
+export function ColHeader({ column, isActive, collision = false, onOpen }: ColHeaderProps) {
   const t = useT();
   const { lang } = useLang();
   const state = columnState(column);
@@ -34,7 +41,7 @@ export function ColHeader({ column, isActive, onOpen }: ColHeaderProps) {
   return (
     <button
       type="button"
-      className={`colh ${state}${isActive ? ' active' : ''}`}
+      className={`colh ${state}${isActive ? ' active' : ''}${collision ? ' collision' : ''}`}
       aria-haspopup="menu"
       aria-expanded={isActive}
       onClick={(e) => {
@@ -87,6 +94,19 @@ export function ColHeader({ column, isActive, onOpen }: ColHeaderProps) {
         )}
         {state === 'confirmed' && `✓ ${t('s3bConfirmed')}`}
       </span>
+      {collision && (
+        <span
+          className="colh-collision f-mono"
+          data-testid="colh-collision"
+          role="alert"
+          title={t('s3bCollColBadge')}
+        >
+          <span className="colh-collision-ic" aria-hidden="true">
+            ⚠
+          </span>
+          {t('s3bCollColBadge')}
+        </span>
+      )}
     </button>
   );
 }

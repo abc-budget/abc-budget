@@ -49,6 +49,16 @@ export interface S3bSession {
   recognized: { n: number; m: number };
   /** The pending save collision (loud, non-blocking), or null. */
   lastSaveCollision: CollisionDTO | null;
+  /**
+   * The id of the column the active collision is bound to, or null.
+   *
+   * CollisionDTO carries no columnId (decision #5 surfaces it per-column in the
+   * UI but the wire only sends the descriptor).  We bind it to the column whose
+   * apply/confirm RAISED the collision — the last apply/confirm whose returned
+   * snapshot had a non-null lastSaveCollision.  Cleared together with the
+   * collision (resolveCollision, or any snapshot that clears the flag).
+   */
+  collisionColumnId: string | null;
   /** The active >30% rejection (column stays UNKNOWN), or null. */
   rejection: ActiveRejection | null;
   /** Derived display state for a column id. */
@@ -75,6 +85,8 @@ export function useS3bSession(
 ): S3bSession {
   const [snapshot, setSnapshot] = useState<Stage2SnapshotDTO>(initialSnapshot);
   const [rejection, setRejection] = useState<ActiveRejection | null>(null);
+  /** The column the active collision belongs to (CollisionDTO has no id). */
+  const [collisionColumnId, setCollisionColumnId] = useState<string | null>(null);
 
   /** Re-seed only when the sessionId changes (a new S3a session). */
   const seededSessionRef = useRef(sessionId);
@@ -85,6 +97,7 @@ export function useS3bSession(
     seededSessionRef.current = sessionId;
     if (snapshot !== initialSnapshot) setSnapshot(initialSnapshot);
     if (rejection !== null) setRejection(null);
+    if (collisionColumnId !== null) setCollisionColumnId(null);
   }
 
   const apply = useCallback(
@@ -94,6 +107,9 @@ export function useS3bSession(
       if (res.ok) {
         setSnapshot(res.snapshot);
         setRejection(null);
+        // Bind a freshly-raised collision to this column; clear it otherwise so
+        // a clean apply on a different column doesn't keep a stale binding.
+        setCollisionColumnId(res.snapshot.lastSaveCollision !== null ? columnId : null);
       } else {
         // Column stays UNKNOWN (snapshot unchanged); surface the rejection.
         setRejection({ columnId, rejection: res.rejection });
@@ -112,6 +128,8 @@ export function useS3bSession(
       const next = await client.importResetColumn(sessionId, columnId);
       setSnapshot(next);
       setRejection((r) => (r?.columnId === columnId ? null : r));
+      // Resetting the colliding column unstages it → the collision is moot.
+      setCollisionColumnId((cur) => (cur === columnId || next.lastSaveCollision === null ? null : cur));
     },
     [client, sessionId],
   );
@@ -136,7 +154,11 @@ export function useS3bSession(
       await client.importResolveCollision(sessionId, confirm);
       // importResolveCollision returns void; the collision flag lives on the
       // snapshot. Optimistically clear it locally (reconciled on next snapshot).
+      // confirm=true → LWW overwrite at flush; confirm=false → keep stored entry
+      // (no-clobber, proven at the Task-1 engine round-trip). Either way the loud
+      // UI affordance is dismissed: the user has answered.
       setSnapshot((prev) => (prev.lastSaveCollision === null ? prev : { ...prev, lastSaveCollision: null }));
+      setCollisionColumnId(null);
     },
     [client, sessionId],
   );
@@ -157,6 +179,7 @@ export function useS3bSession(
     unmappedIds: snapshot.unmapped.map((u) => u.id),
     recognized: snapshot.recognized,
     lastSaveCollision: snapshot.lastSaveCollision,
+    collisionColumnId: snapshot.lastSaveCollision === null ? null : collisionColumnId,
     rejection,
     stateOf,
     apply,

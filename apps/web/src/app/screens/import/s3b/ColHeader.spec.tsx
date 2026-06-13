@@ -21,11 +21,11 @@ function col(over: Partial<MappingColumn> = {}): MappingColumn {
   };
 }
 
-function renderHeader(column: MappingColumn, lang: Lang = 'uk', isActive = false) {
+function renderHeader(column: MappingColumn, lang: Lang = 'uk', isActive = false, collision = false) {
   const onOpen = vi.fn();
   const utils = render(
     <LangProvider initialLang={lang}>
-      <ColHeader column={column} isActive={isActive} onOpen={onOpen} />
+      <ColHeader column={column} isActive={isActive} collision={collision} onOpen={onOpen} />
     </LangProvider>,
   );
   return { ...utils, onOpen };
@@ -64,6 +64,22 @@ describe('ColHeader (per-column header states)', () => {
     const { container } = renderHeader(col({ definition: 'ignore', recallState: 'confirmed' }));
     expect(container.querySelector('button.colh')!.classList.contains('ignored')).toBe(true);
     expect(container.querySelector('.colh-state')?.textContent).toContain('ігнор.');
+  });
+
+  it('COLLISION: loud distinct badge (role=alert, own class), not a subtle dot', () => {
+    const { container } = renderHeader(col({ definition: 'amount', recallState: 'guessed' }), 'uk', false, true);
+    const btn = container.querySelector('button.colh')!;
+    expect(btn.classList.contains('collision')).toBe(true);
+    const badge = container.querySelector('.colh-collision');
+    expect(badge).toBeTruthy();
+    expect(badge?.getAttribute('role')).toBe('alert');
+    expect(badge?.textContent).toContain('правило');
+  });
+
+  it('no collision badge when collision is false (default)', () => {
+    const { container } = renderHeader(col({ definition: 'amount', recallState: 'guessed' }));
+    expect(container.querySelector('.colh-collision')).toBeNull();
+    expect(container.querySelector('button.colh')!.classList.contains('collision')).toBe(false);
   });
 
   it('active adds the active class and aria-expanded', () => {

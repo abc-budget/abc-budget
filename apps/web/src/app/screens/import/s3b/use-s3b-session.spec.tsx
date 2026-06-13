@@ -210,6 +210,47 @@ describe('useS3bSession', () => {
     expect(result.current.stateOf('c0')).toBe('confirmed');
   });
 
+  it('apply that raises a collision binds collisionColumnId to that column', async () => {
+    const withCollision = snapshot({
+      columns: [
+        col({ id: 'c0', originalName: { text: 'Date' }, definition: 'date', recallState: 'guessed' }),
+        col({ id: 'c1', originalName: { text: 'Amount' }, definition: 'amount', recallState: 'guessed' }),
+      ],
+      unmapped: [],
+      lastSaveCollision: {
+        kind: 'params-change',
+        existing: { definition: 'amount', params: null },
+        incoming: { definition: 'amount', params: null },
+      } as Stage2SnapshotDTO['lastSaveCollision'],
+    });
+    const importApplyColumn = vi.fn(
+      async (): Promise<ApplyColumnResult> => ({ ok: true, snapshot: withCollision }),
+    );
+    const client = makeClient({ importApplyColumn });
+    const { result } = renderHook(() => useS3bSession(client, 'sess-1', snapshot()));
+
+    expect(result.current.collisionColumnId).toBeNull();
+    await act(async () => {
+      await result.current.apply('c1', 'amount', { currency: 'auto', type: 'auto' });
+    });
+    expect(result.current.lastSaveCollision).not.toBeNull();
+    expect(result.current.collisionColumnId).toBe('c1');
+  });
+
+  it('a clean apply on a different column does NOT leave a stale collision binding', async () => {
+    const clean = snapshot({ unmapped: [], lastSaveCollision: null });
+    const importApplyColumn = vi.fn(
+      async (): Promise<ApplyColumnResult> => ({ ok: true, snapshot: clean }),
+    );
+    const client = makeClient({ importApplyColumn });
+    const { result } = renderHook(() => useS3bSession(client, 'sess-1', snapshot()));
+
+    await act(async () => {
+      await result.current.apply('c1', 'amount', { currency: 'auto', type: 'auto' });
+    });
+    expect(result.current.collisionColumnId).toBeNull();
+  });
+
   it('resolveCollision → importResolveCollision then refreshes snapshot via reset of a column', async () => {
     const withCollision = snapshot({
       lastSaveCollision: {
@@ -231,6 +272,7 @@ describe('useS3bSession', () => {
     });
     expect(importResolveCollision).toHaveBeenCalledWith('sess-1', true);
     expect(result.current.lastSaveCollision).toBeNull();
+    expect(result.current.collisionColumnId).toBeNull();
   });
 
   it('next ok → returns the generate result for advance', async () => {
