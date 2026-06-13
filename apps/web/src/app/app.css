@@ -3,9 +3,21 @@
    screen-specific layout arrives with the screens' own epics.
    ========================================================================= */
 .shell{ max-width:1080px; margin:0 auto; padding:var(--sp-l) var(--sp-xl) var(--sp-section); }
-.topbar{ display:flex; align-items:center; justify-content:space-between; gap:var(--sp-l); padding:var(--sp-m) 0 var(--sp-l); }
+/* flex-wrap (390px responsive fix): the header is a flex row of brand + right
+   group (zone-switcher/stepper + langtog). At ~390px the row exceeds the viewport
+   (dashboard topbar-right ~341px; the langtog alone overflows the wizard header by
+   ~13px) and, without wrap, grows the PAGE. Wrapping drops the right group to its
+   own line — content reachable, zero horizontal page overflow. Live-verified at 390px. */
+.topbar{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--sp-l); padding:var(--sp-m) 0 var(--sp-l); }
 .topbar-right{ display:flex; align-items:center; gap:12px; } /* source: Dashboard.html .topbar-right */
-.screen-body{ display:grid; gap:var(--sp-l); }
+/* grid-template-columns: minmax(0,1fr) (390px responsive fix): the implicit single
+   column of `display:grid` is `auto`-sized → it grows to the widest child's
+   MAX-CONTENT (the S3b raw table → ~1179px), so a child's own `min-width:0` can't
+   help (the parent TRACK already grew) and the page overflowed to ~1201px. An
+   explicit minmax(0,1fr) track is bounded to the container, so every screen-body
+   child (s3-head, .split, .result) is viewport-bounded and the raw table scrolls
+   INSIDE its own .rawscroll. Live-verified at 390px (S3a/S3b/dashboard, uk+en). */
+.screen-body{ display:grid; grid-template-columns:minmax(0,1fr); gap:var(--sp-l); }
 .flow-footer{ display:flex; justify-content:space-between; gap:var(--sp-m); margin-top:var(--sp-l); }
 /* Gate-blocked Next (2.7) — port of Import-Source.html:144 .s3-foot .key[disabled]
    + the prototype's inline opacity:.4 on the blocked footer key (line 343). */
