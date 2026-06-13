@@ -171,6 +171,12 @@ export const CATALOG_EN = {
   s3bPerrWhy: 'WHY:',
   s3bPerrDo: 'DO:',
   s3bPerrReview: 'Review problem rows',
+  // rejection panel value lines (>30% ColumnTransformRejection)
+  s3bPerrTagCol: '▸ PARSE ERROR IN COLUMN · {col}',
+  s3bRejWhat: '{errors} of {total} values could not be parsed',
+  s3bRejWhy: 'That exceeds the {pct}% error threshold, so the whole column was rolled back.',
+  s3bRejDo: 'Pick a different type, fix the format, or mark the column to ignore.',
+  s3bRejRow: 'ROW {row}',
   // navigation
   s3bNext: 'Next ▸',
   s3bBack: 'Back',

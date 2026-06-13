@@ -176,6 +176,12 @@ export const CATALOG_UK = {
   s3bPerrWhy: 'ЧОМУ:',
   s3bPerrDo: 'ДІЯ:',
   s3bPerrReview: 'Переглянути проблемні рядки',
+  // rejection panel value lines (>30% ColumnTransformRejection)
+  s3bPerrTagCol: '▸ ПОМИЛКА РОЗБОРУ В КОЛОНЦІ · {col}',
+  s3bRejWhat: '{errors} з {total} значень не вдалося розібрати',
+  s3bRejWhy: 'Це перевищує поріг помилок {pct}%, тож усю колонку відкочено.',
+  s3bRejDo: 'Оберіть інший тип, виправте формат або позначте колонку «Ігнорувати».',
+  s3bRejRow: 'РЯДОК {row}',
   // navigation
   s3bNext: 'Далі ▸',
   s3bBack: 'Назад',

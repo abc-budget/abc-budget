@@ -110,3 +110,14 @@ export function helpFor(definition: string, lang: 'uk' | 'en'): string | null {
   if (key === undefined || key === null) return null;
   return HELP_DOCS[key][lang];
 }
+
+/**
+ * The step-intro markdown (`info.{uk,en}.md`).
+ *
+ * `info` is NOT a column definition, so it has no entry in
+ * DEFINITION_TO_HELP_KEY and is unreachable via helpFor — the StatusPanel's
+ * step-intro <details> reads it through this dedicated accessor.
+ */
+export function infoHelp(lang: 'uk' | 'en'): string {
+  return HELP_DOCS.info[lang];
+}
