@@ -31,7 +31,11 @@ export function BlockPanel({ unmappedColumns, onJump }: BlockPanelProps) {
               type="button"
               key={col.id}
               className="block-chip f-mono"
-              onClick={() => onJump(col.id)}
+              // stopPropagation: the jump OPENS a column menu; without it the click
+              // bubbles to the .split backdrop's closeMenu and re-nulls openColId in
+              // the same event, so the menu never opens (EP-2 FINDING-EP-1). Mirrors
+              // the ColHeader open-button idiom.
+              onClick={(e) => { e.stopPropagation(); onJump(col.id); }}
             >
               <span className="bc-x" aria-hidden="true">
                 ✕
@@ -44,7 +48,9 @@ export function BlockPanel({ unmappedColumns, onJump }: BlockPanelProps) {
           <Key
             variant="orange"
             sm
-            onClick={() => onJump(unmappedColumns[0].id)}
+            // stopPropagation (EP-2 FINDING-EP-1): see the chip handler above — the
+            // .split backdrop's closeMenu would otherwise swallow the menu-open.
+            onClick={(e) => { e.stopPropagation(); onJump(unmappedColumns[0].id); }}
             icon={
               <svg
                 viewBox="0 0 24 24"

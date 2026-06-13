@@ -96,6 +96,15 @@ export function ImportFlow() {
   const [s3bView, setS3bView] = useState<'mapping' | 'block' | 'worker'>('mapping');
   const [s3bProgress, setS3bProgress] = useState({ done: 0, total: 0 });
 
+  /**
+   * Dismiss the loud UNKNOWN-gate (block) overlay back to the mapping view.
+   * S3bMapping's onJump calls this so the gate's «ДІЯ» (jump to an unmapped
+   * column + open its type-menu) is actually reachable — without it the table
+   * force-closes the menu while the block view shows (EP-2 FINDING-EP-1).
+   * Stable identity so it doesn't re-create S3bMapping's onJump each render.
+   */
+  const returnToMapping = useCallback(() => setS3bView('mapping'), []);
+
   /** Gate #1 (s3a) + gate #2 (s3b, Option A: zero true-UNKNOWN). */
   const canAdvance = () => {
     if (step.id === 's3a') return session.state === 'recognized' || session.state === 'unknown';
@@ -194,6 +203,7 @@ export function ImportFlow() {
                 totalRows={session.file?.rows ?? 0}
                 gateView={s3bView}
                 progress={s3bProgress}
+                onReturnToMapping={returnToMapping}
               />
             </>
           ) : (

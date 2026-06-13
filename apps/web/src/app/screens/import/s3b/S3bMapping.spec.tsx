@@ -68,6 +68,7 @@ interface Harness {
   lang?: Lang;
   view?: 'mapping' | 'block' | 'worker';
   progress?: { done: number; total: number };
+  onReturnToMapping?: () => void;
 }
 
 function Harnessed({ h }: { h: Harness }) {
@@ -79,6 +80,7 @@ function Harnessed({ h }: { h: Harness }) {
       totalRows={120}
       gateView={h.view ?? 'mapping'}
       progress={h.progress ?? { done: 0, total: 0 }}
+      onReturnToMapping={h.onReturnToMapping ?? (() => {})}
     />
   );
 }

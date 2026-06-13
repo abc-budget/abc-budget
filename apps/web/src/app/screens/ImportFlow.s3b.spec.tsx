@@ -195,6 +195,35 @@ describe('ImportFlow — gate #2 (Option A, fails closed)', () => {
     void router;
   });
 
+  // EP-2 epic-close FINDING-EP-1: the gate's «ДІЯ» must be REACHABLE — clicking
+  // «Перейти до першої» from the block view must return to mapping AND open the
+  // first unmapped column's type-menu, from which the user can map it. The 2.8
+  // matrix only asserted the gate BLOCKS + NAMES columns, never that the jump
+  // affordance WORKS — so a dead no-op slipped through. This is the missing
+  // behavioral test-with-teeth.
+  it('block view → «Перейти до першої» returns to mapping with the first unmapped column menu OPEN + mappable (FINDING-EP-1)', async () => {
+    const client = makeClient();
+    await reachS3b(client); // c1 (Сума) is UNKNOWN
+    fireEvent.click(nextKey()); // → loud block view
+    expect(screen.getByText(/Є КОЛОНКИ БЕЗ ТИПУ/i)).toBeTruthy();
+
+    // The gate's remediation button — the whole point of the finding.
+    fireEvent.click(screen.getByRole('button', { name: 'Перейти до першої' }));
+
+    // Block overlay dismissed → back to the mapping view…
+    expect(screen.queryByText(/Є КОЛОНКИ БЕЗ ТИПУ/i)).toBeNull();
+    // …with the first unmapped column's type-menu OPEN (the affordance WORKS).
+    const typeOptions = await screen.findAllByRole('menuitemradio');
+    expect(typeOptions.length).toBeGreaterThan(0);
+
+    // And the user can actually MAP it from there (e.g. → Опис/description).
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Опис' }));
+    await waitFor(() => expect(client.importApplyColumn).toHaveBeenCalled());
+    const lastCall = (client.importApplyColumn as ReturnType<typeof vi.fn>).mock.calls.at(-1);
+    expect(lastCall?.[1]).toBe('c1');
+    expect(lastCall?.[2]).toBe('description');
+  });
+
   it('zero-UNKNOWN → press «Далі» → importNext → advance to S3c', async () => {
     const importNext = vi.fn(
       async (): Promise<ImportNextResult> => ({

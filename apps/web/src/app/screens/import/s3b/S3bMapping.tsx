@@ -40,6 +40,14 @@ export interface S3bMappingProps {
   gateView: 'mapping' | 'block' | 'worker';
   /** importNext progress (only meaningful when gateView === 'worker'). */
   progress: { done: number; total: number };
+  /**
+   * Dismiss the gate (block) overlay back to the mapping view — owned by
+   * ImportFlow (it owns `gateView`).  The gate's «ДІЯ» (jump to an unmapped
+   * column + open its type-menu) is only reachable if `gateView` returns to
+   * 'mapping'; otherwise the menu is force-closed at the table (`openColId`
+   * gate below) and the affordance is a dead no-op (EP-2 FINDING-EP-1).
+   */
+  onReturnToMapping: () => void;
 }
 
 /**
@@ -81,7 +89,7 @@ function adaptColumn(col: Stage2ColumnDTO, lang: 'uk' | 'en'): MappingColumn {
   };
 }
 
-export function S3bMapping({ session, fileLabel, totalRows, gateView, progress }: S3bMappingProps) {
+export function S3bMapping({ session, fileLabel, totalRows, gateView, progress, onReturnToMapping }: S3bMappingProps) {
   const { lang } = useLang();
   const { snapshot, rejection, collisionColumnId } = session;
 
@@ -138,10 +146,19 @@ export function S3bMapping({ session, fileLabel, totalRows, gateView, progress }
     [session, configColId],
   );
 
-  const onJump = useCallback((columnId: string) => {
-    setConfigColId(null);
-    setOpenColId(columnId);
-  }, []);
+  const onJump = useCallback(
+    (columnId: string) => {
+      // Dismiss the gate overlay FIRST (EP-2 FINDING-EP-1): while gateView !==
+      // 'mapping' the table force-closes every menu (openColId gate below), so
+      // setting openColId without returning to the mapping view is a no-op — the
+      // gate's «Перейти до першої» / chip clicks would do nothing.  Returning to
+      // mapping + opening the column's menu in one action makes «ДІЯ» reachable.
+      onReturnToMapping();
+      setConfigColId(null);
+      setOpenColId(columnId);
+    },
+    [onReturnToMapping],
+  );
 
   // ── Loud save-collision affordance (decision #5) ───────────────────────────
   // Persistent + non-blocking: rendered on the colliding column header (a loud
