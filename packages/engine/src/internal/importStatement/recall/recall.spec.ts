@@ -285,6 +285,74 @@ describe('save semantics', () => {
   });
 });
 
+// ── detectCollision (2.8 decision #4 — read-only DETECT, no write) ────────────
+
+describe('detectCollision — read-only collision detect (2.8 defer-commit)', () => {
+  const dateParams: DateColumnParams = { format: 'auto' };
+
+  it('new name → saved outcome, but writes NOTHING (pool stays empty)', async () => {
+    const result = await pool.detectCollision('Amount', ColumnDefinition.AMOUNT, null);
+    expect(result.outcome).toBe('saved');
+    // The defining contract: detect MUST NOT write.
+    const keys = await pool.getAllKeys();
+    expect(keys).toHaveLength(0);
+  });
+
+  it('identical mapping → saved outcome, no write', async () => {
+    await pool.save('Date', ColumnDefinition.DATE, dateParams);
+    const result = await pool.detectCollision('Date', ColumnDefinition.DATE, dateParams);
+    expect(result.outcome).toBe('saved');
+    const keys = await pool.getAllKeys();
+    expect(keys).toHaveLength(1); // unchanged — detect did not add/overwrite
+  });
+
+  it('same definition + different params → params-change collision, no write', async () => {
+    const originalParams: DateColumnParams = { format: 'auto' };
+    const newParams: DateColumnParams = { format: { custom: 'dd/MM/yyyy' } };
+    await pool.save('Date', ColumnDefinition.DATE, originalParams);
+
+    const result = await pool.detectCollision('Date', ColumnDefinition.DATE, newParams);
+    expect(result.outcome).toBe('collision');
+    if (result.outcome === 'collision') {
+      expect(result.collision.kind).toBe('params-change');
+      expect(result.collision.existing.params).toEqual(originalParams);
+      expect(result.collision.incoming.params).toEqual(newParams);
+    }
+
+    // The stored entry is UNTOUCHED — detect left the original params in place.
+    const recall = await pool.recallFor(['Date']);
+    expect(recall.prefills.get('Date')!.params).toEqual(originalParams);
+  });
+
+  it('different definition → type-change collision, no write', async () => {
+    await pool.save('Col', ColumnDefinition.DATE, dateParams);
+    const result = await pool.detectCollision('Col', ColumnDefinition.AMOUNT, null);
+    expect(result.outcome).toBe('collision');
+    if (result.outcome === 'collision') {
+      expect(result.collision.kind).toBe('type-change');
+    }
+    // Stored entry stays DATE — detect wrote nothing.
+    const recall = await pool.recallFor(['Col']);
+    expect(recall.prefills.get('Col')!.definition).toBe(ColumnDefinition.DATE);
+  });
+
+  it('normalizes the name before detect (NFD variant hits the saved NFC entry)', async () => {
+    await pool.save('Дата і час', ColumnDefinition.DATE, dateParams);
+    const nfd = 'Дата і час'.normalize('NFD');
+    // Same mapping under the NFD form → identical (saved), no collision.
+    const result = await pool.detectCollision(nfd, ColumnDefinition.DATE, dateParams);
+    expect(result.outcome).toBe('saved');
+  });
+
+  it('detect → save parity: detect returns the SAME outcome save would, without writing', async () => {
+    await pool.save('Col', ColumnDefinition.DATE, dateParams);
+    const detected = await pool.detectCollision('Col', ColumnDefinition.AMOUNT, null);
+    // detect did not write; a subsequent save sees the same prior state and agrees.
+    const saved = await pool.save('Col', ColumnDefinition.AMOUNT, null);
+    expect(detected.outcome).toBe(saved.outcome); // both 'collision'
+  });
+});
+
 // ── recallFor ────────────────────────────────────────────────────────────────
 
 describe('recallFor', () => {

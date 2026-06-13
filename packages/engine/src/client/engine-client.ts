@@ -145,7 +145,10 @@ export interface EngineClient {
   /**
    * Advance to stage3 and generate all rows.
    * Returns GenerateResultDTO on success, or UnmappedColumnsDTO when columns remain unmapped.
-   * Completing this call frees the session from the registry.
+   * Flushes the staged recall writes to the pool (2.8 decision #4 — the advance is
+   * the user's endorsement). DECLARED CHANGE (2.8 decision #4 + PM clarification):
+   * completing this call NO LONGER frees the session — it stays live for S3c to
+   * reuse. Only importAbort frees the session now.
    *
    * Throws SessionUnknownError if sessionId is not found.
    */

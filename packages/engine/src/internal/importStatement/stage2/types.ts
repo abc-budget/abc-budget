@@ -125,6 +125,26 @@ export interface ImportStatementStage2
   resetColumn(columnId: string): Promise<unknown>;
 
   /**
+   * Flush all staged recall writes to the pool (2.8 decision #4 — defer-commit).
+   * Called on advance (importNext). Commits each staged mapping; loud-on-failure,
+   * never throws. No-op when no pool is wired or nothing is staged.
+   */
+  flushRecallWrites(): Promise<void>;
+
+  /**
+   * Drop a column's staged recall write (2.8 decision #4 — for importResetColumn).
+   * Per-id; siblings sharing a normalized name are untouched. No-op if absent.
+   */
+  unstageRecallWrite(columnId: string): void;
+
+  /**
+   * Mark a column's staged recall write as user-confirmed (2.8 decision #4 — for
+   * importResolveCollision on confirm) so flush uses confirmSave (LWW). No-op if
+   * nothing is staged for the id.
+   */
+  confirmStagedRecallWrite(columnId: string): void;
+
+  /**
    * Gets the original column with the specified ID from the initial state
    * @param columnId The ID of the column to retrieve
    * @returns The original column from the initial state

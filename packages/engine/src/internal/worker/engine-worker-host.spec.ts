@@ -22,8 +22,10 @@
  *   - handshake + ping/getVersion over the hop
  *   - FULL session flow over the hop: decode → importStart (snapshot DTO shape)
  *     → importApplyColumn ×9 → importGetRows windows → importNext (typed rows,
- *     ISO dates) → post-next apply → SessionUnknownError (registry empty)
- *   - recall prefill + N-of-M visible over the hop (map-once → re-importStart)
+ *     ISO dates) → SESSION SURVIVES advance (2.8 #4 — getRows/apply still work
+ *     post-next; only importAbort frees)
+ *   - recall prefill + N-of-M visible over the hop (map → ADVANCE warms the pool
+ *     via flush → re-importStart prefilled GUESSED; 2.8 #4 defer-commit)
  *   - bad column → ColumnRejectionDTO over the hop, rehydrated client-side as
  *     ColumnTransformRejection with cellErrors intact
  *   - SESSION PINS: double importStart → SessionAlreadyActiveError;
@@ -197,7 +199,10 @@ function workerFactory(): WorkerLike {
 }
 
 function makeClient(): EngineClient {
-  return createWorkerEngineClient(workerFactory);
+  // 2.8 QA MAJOR-1: raise ONLY the TEST handshake timeout — a real worker spawn on a
+  // cold machine under parallel-suite contention can exceed the 5s production default
+  // (which is UNCHANGED; prod is SW-precached and never pays this cold cost).
+  return createWorkerEngineClient(workerFactory, { handshakeTimeoutMs: 20000 });
 }
 
 /**
@@ -316,7 +321,7 @@ describe('real hop: handshake + baseline', () => {
 // ===========================================================================
 
 describe('real hop: full session flow (mono-like-utf8.csv)', () => {
-  it('decode → importStart → applyColumn ×9 → getRows windows → importNext → typed rows; completed next frees the session', { timeout: 20000 }, async () => {
+  it('decode → importStart → applyColumn ×9 → getRows windows → importNext → typed rows; session SURVIVES advance (2.8 #4)', { timeout: 20000 }, async () => {
     // The 2.7 gate sets the base currency before any import — mirror that.
     const db = await trackedTestDb();
     await setBaseCurrency(new UserSettingsIDBDAO(() => db), 'UAH');
@@ -389,8 +394,23 @@ describe('real hop: full session flow (mono-like-utf8.csv)', () => {
     expect(lastGen.done).toBe(lastGen.total);
     expect(lastGen.total).toBe(12);
 
-    // ── completed importNext FREES the session (refinement 1) ────────────────
+    // ── session-survives-advance pin ─────────────────────────────────────────
+    // DECLARED CHANGE (2.8 decision #4 + PM clarification 2026-06-13): importNext
+    // no longer frees — S3c reuses the session; only importAbort frees. A
+    // snapshot/getRows call on the SAME sessionId post-advance still resolves
+    // (no SessionUnknownError). The ≤1-active rule still holds via importStart's
+    // SessionAlreadyActiveError guard + the UI's abort-before-restart.
+    const postNext = await client.importGetRows(sessionId, 0, 3);
+    expect(postNext.total).toBe(12);
+    expect(postNext.rows).toHaveLength(3);
+
+    // …and it is still mutable: a column op on the live session succeeds (no throw).
     const dateColId = dateCol.id;
+    const reset = await client.importResetColumn(sessionId, dateColId);
+    expect(findColumn(reset, 'Дата i час операції').definition).toBeNull();
+
+    // Only importAbort frees it — afterwards the id is gone.
+    await client.importAbort(sessionId);
     await expect(
       client.importApplyColumn(sessionId, dateColId, ColumnDefinition.IGNORE, null),
     ).rejects.toThrowError(SessionUnknownError);
@@ -403,12 +423,20 @@ describe('real hop: full session flow (mono-like-utf8.csv)', () => {
     const client = makeClient();
     const decodeResult = await client.decode(readFixture('mono-like-utf8.csv'), 'mono-like-utf8.csv');
 
-    // First session: map everything (the learning loop fires savePool per column)
+    // First session: map everything, then ADVANCE. DECLARED CHANGE (2.8 #4):
+    // apply only STAGES the recall write — the pool is warmed by the flush on
+    // importNext (the user's endorsement), NOT by apply. (Pre-2.8 this warmed via
+    // apply's fire-and-forget save and the abort merely freed the session.)
     const first = await client.importStart(decodeResult.rows);
     await applyAll(client, first.sessionId, first.stage2, MONO_MAPPINGS);
+
+    const advanced = await client.importNext(first.sessionId); // flush → pool warmed
+    expect(advanced.ok).toBe(true);
+
+    // importNext no longer frees — abort to free the session before re-import.
     await client.importAbort(first.sessionId);
 
-    // savePool is async fire-and-forget — wait for all 9 entries to land
+    // flush awaits its writes, but settle to be safe across the hop.
     await waitForPoolEntries(db, 9);
 
     // Second session: the pool prefills GUESSED over the hop — N-of-M = 9/9

@@ -30,6 +30,17 @@ vi.mock('../engine', () => ({
       stage2: { columns: [], recognized: { n: 0, m: 2 }, lastSaveCollision: null, unmapped: [] },
     }),
     importAbort: async () => undefined,
+    // 2.8 Task 4: S3b's gate #2 advance calls importNext (the staged-recall
+    // flush + row generation). The router walk's snapshot has unmapped: [] so
+    // the gate passes; importNext just needs to resolve ok for the step to bump.
+    importApplyColumn: async () => ({
+      ok: true,
+      snapshot: { columns: [], recognized: { n: 0, m: 2 }, lastSaveCollision: null, unmapped: [] },
+    }),
+    importResetColumn: async () => ({ columns: [], recognized: { n: 0, m: 2 }, lastSaveCollision: null, unmapped: [] }),
+    importConfirmRecall: async () => undefined,
+    importResolveCollision: async () => undefined,
+    importNext: async () => ({ ok: true, result: { rows: [], rowErrors: [], skipped: [], structuralErrors: [] } }),
     // 2.7 Task 4: the cold-start gate probes on /import entry — set here, so
     // the wizard walks never see the dialog (ImportFlow.spec owns the gate).
     getBaseCurrency: async () => 'UAH',
@@ -58,6 +69,18 @@ async function passS3aGate() {
     target: { files: [new File(['a,b\n1,2'], 'statement.csv', { type: 'text/csv' })] },
   });
   await waitFor(() => expect(screen.getByTestId('s3a-unknown')).toBeTruthy());
+}
+
+/** Walk S3a → S3d. Step 2 (S3b) advances ASYNCHRONOUSLY (gate #2 → importNext
+ *  → worker takeover), so each hop is awaited. The router mock's snapshot has
+ *  unmapped: [] so gate #2 passes. */
+async function walkToS3d() {
+  fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+  await waitFor(() => expect(screen.getByText('КРОК 2 / 4')).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+  await waitFor(() => expect(screen.getByText('КРОК 3 / 4')).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+  await waitFor(() => expect(screen.getByText('КРОК 4 / 4')).toBeTruthy());
 }
 
 beforeEach(() => {
@@ -166,11 +189,12 @@ describe('wizard flow (single route, internal steps; REAL gate #1 since 2.7)', (
   it('S3d: «До бюджету» → Dashboard (after leave-confirm); «Імпортувати ще» → reset to S3a', async () => {
     renderAt('/import');
     await passS3aGate();
-    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
-    expect(screen.getByText('КРОК 4 / 4')).toBeTruthy();
+    await walkToS3d();
     fireEvent.click(screen.getByRole('button', { name: 'Імпортувати ще' }));
     expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
-    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+    // «Імпортувати ще» resets to step 0 but keeps the live S3a session (state
+    // still 'unknown' → gate #1 already passes), so we can walk straight again.
+    await walkToS3d();
     fireEvent.click(screen.getByRole('button', { name: 'До бюджету' }));
     // the session is still live → exit-protection fires here too
     fireEvent.click(screen.getByRole('button', { name: 'Перервати й вийти' }));

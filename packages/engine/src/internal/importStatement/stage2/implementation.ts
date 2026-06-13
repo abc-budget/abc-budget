@@ -131,6 +131,27 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
   private readonly _recallPool: RecallPool | null;
 
   /**
+   * Staged recall writes (2.8 decision #4 — defer-commit).
+   *
+   * Keyed by columnId (NOT normalizedName) so unstageRecallWrite is per-column-
+   * correct and name-collapse (NFC/NFD siblings) is deferred to flush, where it
+   * matches the pool's own LWW. Each apply with a definition STAGES here; the
+   * actual pool write happens only on flushRecallWrites() (importNext/advance).
+   * importAbort lets the buffer die with this instance (= discard);
+   * importResetColumn calls unstageRecallWrite. `confirmed` marks an entry the
+   * user resolved-confirm → flush uses confirmSave (LWW) instead of save.
+   */
+  private readonly _stagedRecallWrites = new Map<
+    string,
+    {
+      name: string;
+      definition: import('../types').ColumnDefinition;
+      params: import('../types').ColumnParams | null;
+      confirmed?: boolean;
+    }
+  >();
+
+  /**
    * N-of-M recall count: how many column names were recognized from the pool
    * (or auto-detected) at stage2 creation. n=0 when recall was not run.
    */
@@ -334,11 +355,21 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
         }
       }
 
-      // Fire savePool async — non-blocking so applyColumn stays sync (prior-art
-      // recall-save timing: per-column). NON-FATAL but NEVER SILENT (HC-7): a failed
-      // pool save means the next import quietly loses recall — log loudly.
-      // 2.8 carry-forward: surface this as a non-fatal UI notice in S3b.
-      this._recallPool.save(name, definition, params).then((result) => {
+      // ── 2.8 decision #4: DETECT at apply, STAGE the write, DEFER to flush ────
+      // STAGE the write keyed by columnId (last apply per column wins). The
+      // actual pool write fires on flushRecallWrites() (importNext = the user's
+      // advance/endorsement); importAbort discards by dropping this instance;
+      // importResetColumn unstages. An apply REPLACES any prior staged entry for
+      // this column (incl. clearing a previous `confirmed` flag — a re-apply is a
+      // fresh, unresolved mapping).
+      this._stagedRecallWrites.set(columnToApply.id, { name, definition, params });
+
+      // Fire the READ-ONLY collision DETECT async — non-blocking so applyColumn
+      // stays sync, and map-time UX is byte-identical to the old save() (it sets
+      // lastSaveCollision exactly as before). NO IDB WRITE here. NON-FATAL but
+      // NEVER SILENT (HC-7): a failed detect means the next import may quietly
+      // lose recall — log loudly.
+      this._recallPool.detectCollision(name, definition, params).then((result) => {
         if (result.outcome === 'collision') {
           this.lastSaveCollision = result.collision;
         } else {
@@ -346,7 +377,7 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
         }
       }).catch((err) => {
         getLogger('engine.importStatement.stage2').error(
-          'recall-pool save failed — the mapping works for THIS import, but it will NOT be recalled next time:',
+          'recall-pool collision detect failed — the mapping works for THIS import, but it may NOT be recalled next time:',
           name,
           err,
         );
@@ -367,6 +398,60 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
   }
 
   /**
+   * Flush all staged recall writes to the pool (2.8 decision #4).
+   *
+   * Called on importNext (the advance = the user's endorsement). Commits each
+   * staged entry preserving today's write semantics:
+   *   - new / identical / unresolved → `save()` (writes new/identical; a
+   *     still-unresolved params/type change returns a collision WITHOUT writing —
+   *     the safe no-clobber default, exactly as save() does);
+   *   - user resolved-confirm (`confirmed`) → `confirmSave()` (LWW overwrite).
+   * Awaits all writes. NON-FATAL but NEVER SILENT (HC-7): a failed write is
+   * logged loudly, never thrown — a flush failure must not abort the advance.
+   * No-op when no pool is wired or nothing is staged.
+   */
+  async flushRecallWrites(): Promise<void> {
+    if (!this._recallPool) return;
+    const pool = this._recallPool;
+    const writes = Array.from(this._stagedRecallWrites.values()).map((entry) =>
+      (entry.confirmed
+        ? pool.confirmSave(entry.name, entry.definition, entry.params)
+        : pool.save(entry.name, entry.definition, entry.params)
+      ).catch((err) => {
+        getLogger('engine.importStatement.stage2').error(
+          'recall-pool flush failed — this mapping will NOT be recalled next time:',
+          entry.name,
+          err,
+        );
+      })
+    );
+    await Promise.all(writes);
+  }
+
+  /**
+   * Drop a column's staged recall write (2.8 decision #4 — for importResetColumn).
+   *
+   * Clean per-id: a sibling column sharing a normalized name is untouched
+   * (staging is keyed by columnId, not by normalizedName). No-op if absent.
+   */
+  unstageRecallWrite(columnId: string): void {
+    this._stagedRecallWrites.delete(columnId);
+  }
+
+  /**
+   * Mark a column's staged recall write as user-confirmed (2.8 decision #4 — for
+   * importResolveCollision on confirm). Flush will then use confirmSave (LWW)
+   * for this entry instead of the no-clobber save. No-op if nothing is staged
+   * for the id (idempotent).
+   */
+  confirmStagedRecallWrite(columnId: string): void {
+    const entry = this._stagedRecallWrites.get(columnId);
+    if (entry) {
+      entry.confirmed = true;
+    }
+  }
+
+  /**
    * Resets a column to its initial state or removes it if it wasn't in the initial state.
    * 1. Checks if column exists in current columns
    * 2. Finds the initial column with the same id
@@ -382,6 +467,10 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
     if (columnIndex === -1) {
       throw new Error(`Column with id ${columnId} not found`);
     }
+
+    // 2.8 decision #4: a reset discards this column's staged recall write so an
+    // unmapped column never reaches the pool on the next advance (pin d).
+    this.unstageRecallWrite(columnId);
 
     const initialColumn = this._initialState.find((c) => c.id === columnId);
     const newColumns = [...currentColumns];

@@ -13,4 +13,8 @@
  */
 export default async function globalSetup(): Promise<void> {
   await import('luxon');
+  // 2.8 QA MAJOR-1: also warm the recall date-heuristic module (it lazy-imports
+  // luxon AND its own transform is non-trivial cold) so its cost is paid here,
+  // not inside the recall auto-detect test's budget.
+  await import('./src/internal/utils/date/format-detector');
 }

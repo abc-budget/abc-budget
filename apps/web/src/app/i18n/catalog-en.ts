@@ -118,4 +118,80 @@ export const CATALOG_EN = {
   s3aLeaveBody: 'If you leave now, the current import is cancelled. You will need to load the file again.',
   s3aLeaveStay: 'Stay',
   s3aLeaveLeave: 'Abandon & leave',
+  // ── S3b — Import → Columns (2.8; ported from design-reference/s3b-data.jsx `M`) ──
+  s3bEyebrow: '▸ IMPORT · COLUMNS',
+  s3bStepOf: 'STEP 2 / 4',
+  s3bTitle: 'Map the columns',
+  s3bLead: 'ABC filled in column types you mapped before (from your rules) — confirm or fix. It’s an exact name match, not AI.',
+  // raw statement header
+  s3bRaw: 'RAW STATEMENT',
+  s3bTransient: 'TRANSIENT VIEW · NOT STORED',
+  s3bRows: 'rows',
+  s3bCols: 'columns',
+  // column states
+  s3bUnknown: 'unknown',
+  s3bUnknownShort: 'no type',
+  s3bGuessed: 'from rules',
+  s3bGuessedN: 'from rules',
+  s3bConfirmed: 'set',
+  s3bIgnored: 'ignored',
+  // status panel
+  s3bStatusTitle: 'MAPPING STATUS',
+  s3bRecallNote: '"From rules" = ABC filled the type by an exact column-name match against your saved rules. Deterministic recall, not AI. First import (no rules yet) → every column untyped.',
+  // normalization panel
+  s3bNormTitle: 'CURRENCY NORMALIZATION',
+  s3bNormSub: 'symbol · code → ISO',
+  // column menu actions
+  s3bPickType: 'Pick a column type',
+  s3bMore: 'More… (configure)',
+  s3bConfirm: 'Confirm',
+  s3bReconfigure: 'Reconfigure',
+  s3bUndo: 'Undo (revert)',
+  // collision (FEAT-005 — recalled name whose saved params differ; LOUD, non-blocking)
+  s3bCollTag: '▸ SAVED RULE DIFFERS',
+  s3bCollBody: 'The saved rule’s parameters for “{col}” differ from the current ones. Confirm to update the rule, or keep it as is.',
+  s3bCollColBadge: 'saved rule’s params differ · confirm/adjust',
+  s3bCollConfirm: 'Update the rule',
+  s3bCollDecline: 'Keep saved',
+  // block panel (UNKNOWN gate — Option A)
+  s3bBlockTag: '▸ COLUMNS WITHOUT A TYPE',
+  s3bBlockBody: 'You can’t continue until every column has a type. Assign a type or mark “Ignore” for:',
+  s3bBlockFix: 'Go to the first',
+  // config wizard
+  s3bCfgStep1: 'STEP 1 · TYPE',
+  s3bCfgStep2: 'STEP 2 · PARAMETERS',
+  s3bCfgFor: 'Configure column',
+  s3bCfgApply: 'Apply',
+  s3bCfgCancel: 'Cancel',
+  s3bCfgBack: 'Back',
+  s3bCfgPreview: 'PREVIEW',
+  // worker progress panel (large file background processing)
+  s3bWorkerTag: '▸ LARGE FILE · BACKGROUND PROCESSING',
+  s3bWorkerTitle: 'Parsing the statement',
+  s3bWorkerBody: 'The file is large, so processing runs in the background — the app stays responsive. You can watch the progress.',
+  s3bWorkerRows: 'rows processed',
+  s3bWorkerHint: '▸ 1–2 MONTHS PARSE INSTANTLY · THIS ONE IS BIGGER',
+  // parse-error / rejection panel (WHAT/WHY/DO)
+  s3bPerrTag: '▸ PARSE ERROR IN COLUMN',
+  s3bPerrWhat: 'WHAT:',
+  s3bPerrWhy: 'WHY:',
+  s3bPerrDo: 'DO:',
+  s3bPerrReview: 'Review problem rows',
+  // rejection panel value lines (>30% ColumnTransformRejection)
+  s3bPerrTagCol: '▸ PARSE ERROR IN COLUMN · {col}',
+  s3bRejWhat: '{errors} of {total} values could not be parsed',
+  s3bRejWhy: 'That exceeds the {pct}% error threshold, so the whole column was rolled back.',
+  s3bRejDo: 'Pick a different type, fix the format, or mark the column to ignore.',
+  s3bRejRow: 'ROW {row}',
+  // navigation
+  s3bNext: 'Next ▸',
+  s3bBack: 'Back',
+  s3bFoot: '▸ LOCAL · OFFLINE · RAW ROWS ARE TRANSIENT — NOT STORED',
+  // help panel
+  s3bHelpIntro: 'ABOUT THIS STEP',
+  s3bSelectColHint: 'Select a column to see help for its type.',
+  // parameterized: showing(n, m) and ofFull(n, m)
+  // 1.4 pattern: template strings with {n} / {m} placeholders
+  s3bShowing: 'showing {n} of {m}',
+  s3bOfFull: '{n} of {m} in file',
 } satisfies Record<ChromeKey, string>;

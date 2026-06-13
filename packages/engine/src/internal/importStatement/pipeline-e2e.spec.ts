@@ -10,9 +10,10 @@
  *      NO `time` key); N-of-M recognized label; placeholder/skip rows carried through.
  *
  *   B. Map-once-reimport-prefilled E2E (FEAT-013 learning loop):
- *      Run the mapping once on an EMPTY pool (savePool fires via applyColumn), then
- *      re-run the same fixture through a FRESH stage2 with a pre-seeded pool → columns
- *      prefilled GUESSED with n=M.
+ *      Run the mapping once on an EMPTY pool then flush (2.8 decision #4 defer-commit:
+ *      apply STAGES the recall write; flushRecallWrites() — the advance — commits it),
+ *      then re-run the same fixture through a FRESH stage2 with a pre-seeded pool →
+ *      columns prefilled GUESSED with n=M.
  *
  * Database: a real (fake-indexeddb) DB through openDatabase / ENGINE_MIGRATIONS so
  * migration v3 (both stores) is exercised. Reset between tests via afterEach.
@@ -316,8 +317,9 @@ describe('Fixture E2E — mono-like-utf8.csv', () => {
 
     await applyMappings(stage2aWithPool, MONO_CSV_TRANSFORMATIONS);
 
-    // Wait for all async savePool calls to settle
-    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    // DECLARED CHANGE (2.8 decision #4): apply STAGES the recall write; the pool
+    // is warmed by the flush on advance (importNext). Drive the flush directly.
+    await stage2aWithPool.flushRecallWrites();
 
     // Pool should now have entries for non-IGNORE columns
     const poolKeys = await recallPool.getAllKeys();
@@ -513,7 +515,8 @@ describe('Fixture E2E — bank-like.xlsx', () => {
     );
 
     await applyMappings(stage2a, BANK_XLSX_TRANSFORMATIONS);
-    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    // 2.8 #4: flush the staged writes (the advance) to warm the pool.
+    await stage2a.flushRecallWrites();
 
     // Pool should have at minimum DATE + DESCRIPTION + AMOUNT entries
     const keys = await recallPool.getAllKeys();
@@ -559,7 +562,8 @@ describe('Fixture E2E — bank-like.xlsx', () => {
 describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
   /**
    * Protocol:
-   *   1. Run the mapping once with an empty pool (all applyColumn calls fire savePool).
+   *   1. Run the mapping once with an empty pool then flushRecallWrites() (2.8 #4:
+   *      apply stages, flush — the advance — commits).
    *   2. Re-run the same fixture through a FRESH stage2 wired with the same pool.
    *   3. recallFor() → every non-IGNORE column is prefilled GUESSED.
    *   4. recognized.n == number of non-IGNORE mapped columns (n=M for meaningful cols).
@@ -606,8 +610,8 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
     );
 
     await applyMappings(stage2, TRANSFORMATIONS);
-    // Flush async pool.save() calls
-    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    // 2.8 #4: the staged writes are committed by the flush on advance.
+    await stage2.flushRecallWrites();
 
     const keys = await recallPool.getAllKeys();
     // All column names (including IGNORE) should be in the pool.
@@ -637,7 +641,8 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
       recallPool,
     );
     await applyMappings(stage2a, TRANSFORMATIONS);
-    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    // 2.8 #4: the staged writes are committed by the flush on advance.
+    await stage2a.flushRecallWrites();
 
     // ── Second import: recallFor → fresh stage2 with prefills ────────────────
     const stage1b = service.startWith(decodeResult.rows);
@@ -688,7 +693,8 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
       recallPool,
     );
     await applyMappings(stage2a, TRANSFORMATIONS);
-    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    // 2.8 #4: the staged writes are committed by the flush on advance.
+    await stage2a.flushRecallWrites();
 
     // Recall
     const stage1b = service.startWith(decodeResult.rows);
@@ -731,7 +737,8 @@ describe('FEAT-013 learning loop — map-once-reimport-prefilled', () => {
       recallPool,
     );
     await applyMappings(stage2a, TRANSFORMATIONS);
-    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    // 2.8 #4: the staged writes are committed by the flush on advance.
+    await stage2a.flushRecallWrites();
 
     // Second run: build stage2 with recall prefills, then apply ALL transformations
     // to get parsed cell data (recall prefills set definition/params for UI prefilling;

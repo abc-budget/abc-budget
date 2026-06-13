@@ -116,6 +116,24 @@ export interface RecallPool {
   ): Promise<SaveResult>;
 
   /**
+   * Read-only collision DETECT — returns the SAME SaveResult `save()` would,
+   * but performs NO write (2.8 decision #4 defer-commit). Used at map time so
+   * the UX surfaces collisions identically to today while the actual pool write
+   * is deferred to advance (flushRecallWrites). The name is normalized (NFC+trim)
+   * before the read (LD-2).
+   *
+   * - New name → { outcome: 'saved' } (would-write, but writes nothing).
+   * - Identical entry → { outcome: 'saved' } (no-op either way).
+   * - Same definition + different params → params-change collision.
+   * - Different definition → type-change collision.
+   */
+  detectCollision(
+    name: string,
+    definition: ColumnDefinition,
+    params: ColumnParams | null
+  ): Promise<SaveResult>;
+
+  /**
    * Last-Write-Wins overwrite — called after the user confirms a collision.
    * The name is normalized before the write (LD-2).
    */
@@ -268,21 +286,21 @@ export function createRecallPool(dbProvider: DbProvider): RecallPool {
       return dao.getAllKeys() as Promise<string[]>;
     },
 
-    async save(
+    async detectCollision(
       name: string,
       definition: ColumnDefinition,
       params: ColumnParams | null
     ): Promise<SaveResult> {
+      // READ + COMPARE only — never writes (2.8 decision #4). save() reuses this.
       const key = normalizeKey(name);
       const existing = await dao.getEntry(key);
 
       if (!existing) {
-        // New entry
-        await dao.putEntry({ columnName: key, definition, params });
+        // New entry: a save() here WOULD write, so the outcome is 'saved'.
         return { outcome: 'saved' };
       }
 
-      // Identical: definition same + params deep-equal → no-op
+      // Identical: definition same + params deep-equal → no-op 'saved'
       if (existing.definition === definition && paramsEqual(existing.params, params)) {
         return { outcome: 'saved' };
       }
@@ -299,6 +317,25 @@ export function createRecallPool(dbProvider: DbProvider): RecallPool {
           incoming: { definition, params },
         },
       };
+    },
+
+    async save(
+      name: string,
+      definition: ColumnDefinition,
+      params: ColumnParams | null
+    ): Promise<SaveResult> {
+      // Detect first (read + compare); only write on the would-save path. A
+      // collision returns WITHOUT writing — the safe no-clobber default (LD-1).
+      const result = await this.detectCollision(name, definition, params);
+      if (result.outcome === 'saved') {
+        const key = normalizeKey(name);
+        const existing = await dao.getEntry(key);
+        // Only a genuinely new entry needs a write; an identical entry is a no-op.
+        if (!existing) {
+          await dao.putEntry({ columnName: key, definition, params });
+        }
+      }
+      return result;
     },
 
     async confirmSave(

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker, useNavigate } from 'react-router';
+import type { Stage2SnapshotDTO } from '@abc-budget/engine';
 import { Key, Lamp, Panel, PanelBody, PanelHeader } from '../../ui/altus/components';
 import { useEngineClient } from '../engine-client-context';
 import { FlowHeader } from '../headers';
@@ -8,7 +9,23 @@ import { ImportSessionContext } from './import/import-session-context';
 import { BaseCurrencyDialog } from './import/s3a/BaseCurrencyDialog';
 import { S3aSource } from './import/s3a/S3aSource';
 import { useS3aSession } from './import/s3a/use-s3a-session';
+import { S3bMapping } from './import/s3b/S3bMapping';
+import { useS3bSession } from './import/s3b/use-s3b-session';
 import './import/s3a/s3a.css';
+import './import/s3b/s3b.css';
+
+/**
+ * A placeholder snapshot for the S3b hook BEFORE S3a establishes a session.
+ * The S3b body never renders without a real session (it's step 2, reachable
+ * only after gate #1), but the hook must be called unconditionally — it
+ * re-seeds from the real snapshot the moment the sessionId arrives.
+ */
+const EMPTY_SNAPSHOT: Stage2SnapshotDTO = {
+  columns: [],
+  recognized: { n: 0, m: 0 },
+  lastSaveCollision: null,
+  unmapped: [],
+};
 
 /**
  * Launched flow (FEAT-030): single route, internal step state — gates are state
@@ -64,18 +81,91 @@ export function ImportFlow() {
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === STEPS.length - 1;
 
-  /** Gate #1 (real, 2.7): per-step predicates — s3b/s3c gates land with 2.8+. */
-  const canAdvance = () =>
-    step.id === 's3a' ? session.state === 'recognized' || session.state === 'unknown' : true;
+  /**
+   * S3b session (Story 2.8) — lives HERE so it survives step changes (the
+   * snapshot must persist across S3b→«Назад»→S3a→forward) and so canAdvance #2
+   * can read snapshot.unmapped.  Seeded from the S3a session; re-seeds when the
+   * sessionId changes (S3a replace → fresh importStart → all-UNKNOWN).
+   */
+  const s3b = useS3bSession(client, session.sessionId ?? '', session.snapshot ?? EMPTY_SNAPSHOT);
+
+  /**
+   * S3b gate state (Option A): «Далі» is always active at step 2; the press
+   * resolves to a BLOCK overlay (≥1 unmapped) or the WORKER takeover (advance).
+   */
+  const [s3bView, setS3bView] = useState<'mapping' | 'block' | 'worker'>('mapping');
+  const [s3bProgress, setS3bProgress] = useState({ done: 0, total: 0 });
+
+  /** Gate #1 (s3a) + gate #2 (s3b, Option A: zero true-UNKNOWN). */
+  const canAdvance = () => {
+    if (step.id === 's3a') return session.state === 'recognized' || session.state === 'unknown';
+    if (step.id === 's3b') return s3b.snapshot.unmapped.length === 0;
+    return true;
+  };
   const nextEnabled = canAdvance();
 
   /** Exit-protection: blocker is active iff a worker-side session exists. */
   const blocker = useBlocker(session.sessionId !== null);
 
+  /**
+   * ImportSessionContext carries the LIVE snapshot: at step 0 it's S3a's; once a
+   * session exists it's the S3b hook's evolving snapshot (so any context
+   * consumer sees the latest applied state, and back→forward is consistent).
+   */
+  const liveSnapshot = session.sessionId !== null ? s3b.snapshot : session.snapshot;
   const importSession = useMemo(
-    () => ({ sessionId: session.sessionId, snapshot: session.snapshot }),
-    [session.sessionId, session.snapshot],
+    () => ({ sessionId: session.sessionId, snapshot: liveSnapshot }),
+    [session.sessionId, liveSnapshot],
   );
+
+  /**
+   * Step-2 «Далі» (Option A): unmapped → loud BlockPanel + jump-to-first, NO
+   * advance (fails closed); zero-unmapped → importNext (flushes staged recall),
+   * showing the WorkerProgressPanel takeover driven by the real 'generate'
+   * progress events, then advance to S3c.
+   */
+  const advancingRef = useRef(false);
+  const onS3bNext = useCallback(async () => {
+    if (advancingRef.current) return;
+    if (s3b.snapshot.unmapped.length > 0) {
+      setS3bView('block'); // loud gate, names the columns; no advance
+      return;
+    }
+    advancingRef.current = true;
+    setS3bView('worker');
+    setS3bProgress({ done: 0, total: 0 });
+    const unsubscribe = client.onEvent((evt) => {
+      if (evt.event === 'progress' && evt.phase === 'generate') {
+        setS3bProgress({ done: evt.done, total: evt.total });
+      }
+    });
+    try {
+      const res = await s3b.next();
+      if (res.ok) {
+        setS3bView('mapping');
+        setStepIndex((i) => i + 1); // → S3c
+      } else {
+        // Defensive: the gate already guaranteed zero-unmapped, but if the
+        // engine still reports unmapped, surface the loud block (fails closed).
+        setS3bView('block');
+      }
+    } finally {
+      unsubscribe();
+      advancingRef.current = false;
+    }
+  }, [client, s3b]);
+
+  /** «Назад» from S3b → S3a (step 1), NON-DESTRUCTIVE: no importAbort. The
+   *  session + staged mappings live on the worker session and survive; only
+   *  S3a's explicit replace/remove aborts. */
+  const goBack = useCallback(() => {
+    if (isFirst) {
+      navigate('/dashboard');
+      return;
+    }
+    setS3bView('mapping');
+    setStepIndex((i) => i - 1);
+  }, [isFirst, navigate]);
 
   return (
     <div className="shell" data-testid="screen-import">
@@ -91,6 +181,21 @@ export function ImportFlow() {
               </div>
               {baseGate !== 'probing' && <S3aSource session={session} />}
             </>
+          ) : step.id === 's3b' && session.sessionId !== null ? (
+            <>
+              <div className="s3-head">
+                <div className="f-mono ob-eyebrow">{t('s3bEyebrow')}</div>
+                <h1 className="f-disp s3-title">{t('s3bTitle')}</h1>
+                <p className="body-p s3-lead">{t('s3bLead')}</p>
+              </div>
+              <S3bMapping
+                session={s3b}
+                fileLabel={session.file?.name ?? ''}
+                totalRows={session.file?.rows ?? 0}
+                gateView={s3bView}
+                progress={s3bProgress}
+              />
+            </>
           ) : (
             <Panel screws>
               <PanelHeader logchip={step.logchip} title={step.title} />
@@ -101,22 +206,26 @@ export function ImportFlow() {
           )}
         </ImportSessionContext.Provider>
         <div className="flow-footer">
-          <Key
-            variant="beige"
-            sm
-            onClick={() => (isFirst ? navigate('/dashboard') : setStepIndex(stepIndex - 1))}
-          >
+          <Key variant="beige" sm onClick={goBack}>
             {t('keyBack')}
           </Key>
           {!isLast ? (
-            <Key
-              variant="gold"
-              disabled={!nextEnabled}
-              aria-disabled={!nextEnabled}
-              onClick={() => nextEnabled && setStepIndex(stepIndex + 1)}
-            >
-              {t('keyNext')}
-            </Key>
+            step.id === 's3b' ? (
+              // Option A: «Далі» is ALWAYS active at step 2; the press resolves
+              // to the loud block (unmapped) or the worker takeover + advance.
+              <Key variant="gold" onClick={() => void onS3bNext()}>
+                {t('keyNext')}
+              </Key>
+            ) : (
+              <Key
+                variant="gold"
+                disabled={!nextEnabled}
+                aria-disabled={!nextEnabled}
+                onClick={() => nextEnabled && setStepIndex(stepIndex + 1)}
+              >
+                {t('keyNext')}
+              </Key>
+            )
           ) : (
             <div style={{ display: 'flex', gap: 'var(--sp-m)' }}>
               <Key variant="beige" onClick={() => setStepIndex(0)}>{t('keyImportMore')}</Key>

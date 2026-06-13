@@ -123,6 +123,82 @@ export const CATALOG_UK = {
   s3aLeaveBody: 'Якщо ви підете зараз, поточний імпорт буде скасовано. Файл доведеться завантажити знову.',
   s3aLeaveStay: 'Залишитись',
   s3aLeaveLeave: 'Перервати й вийти',
+  // ── S3b — Import → Columns (2.8; ported from design-reference/s3b-data.jsx `M`) ──
+  s3bEyebrow: '▸ ІМПОРТ · КОЛОНКИ',
+  s3bStepOf: 'КРОК 2 / 4',
+  s3bTitle: 'Зіставте колонки',
+  s3bLead: 'ABC підставив типи колонок, які ви вже зіставляли раніше (з ваших правил) — підтвердьте або виправте. Це точний збіг назв, не ШІ.',
+  // raw statement header
+  s3bRaw: 'СИРА ВИПИСКА',
+  s3bTransient: 'ТИМЧАСОВИЙ ПЕРЕГЛЯД · НЕ ЗБЕРІГАЄТЬСЯ',
+  s3bRows: 'рядків',
+  s3bCols: 'колонок',
+  // column states
+  s3bUnknown: 'не визначено',
+  s3bUnknownShort: 'без типу',
+  s3bGuessed: 'з правил',
+  s3bGuessedN: 'з правил',
+  s3bConfirmed: 'підтв.',
+  s3bIgnored: 'ігнор.',
+  // status panel
+  s3bStatusTitle: 'СТАН ЗІСТАВЛЕННЯ',
+  s3bRecallNote: '«З правил» = ABC підставив тип за точним збігом назви колонки з вашими збереженими правилами. Це детермінований відклик, не ШІ. Перший імпорт (правил ще немає) → усі колонки без типу.',
+  // normalization panel
+  s3bNormTitle: 'НОРМАЛІЗАЦІЯ ВАЛЮТИ',
+  s3bNormSub: 'символ · код → ISO',
+  // column menu actions
+  s3bPickType: 'Оберіть тип колонки',
+  s3bMore: 'Більше… (налаштувати)',
+  s3bConfirm: 'Підтвердити',
+  s3bReconfigure: 'Налаштувати',
+  s3bUndo: 'Скасувати (повернути)',
+  // collision (FEAT-005 — recalled name whose saved params differ; LOUD, non-blocking)
+  s3bCollTag: '▸ ЗБЕРЕЖЕНЕ ПРАВИЛО ВІДРІЗНЯЄТЬСЯ',
+  s3bCollBody: 'Параметри збереженого правила для «{col}» не збігаються з поточними. Підтвердьте, щоб оновити правило, або лишіть як є.',
+  s3bCollColBadge: 'правило ≠ · підтвердьте/змініть',
+  s3bCollConfirm: 'Оновити правило',
+  s3bCollDecline: 'Лишити збережене',
+  // block panel (UNKNOWN gate — Option A)
+  s3bBlockTag: '▸ Є КОЛОНКИ БЕЗ ТИПУ',
+  s3bBlockBody: 'Не можна продовжити, поки кожна колонка не отримає тип. Призначте тип або позначте «Ігнорувати» для:',
+  s3bBlockFix: 'Перейти до першої',
+  // config wizard
+  s3bCfgStep1: 'КРОК 1 · ТИП',
+  s3bCfgStep2: 'КРОК 2 · ПАРАМЕТРИ',
+  s3bCfgFor: 'Налаштування колонки',
+  s3bCfgApply: 'Застосувати',
+  s3bCfgCancel: 'Скасувати',
+  s3bCfgBack: 'Назад',
+  s3bCfgPreview: 'ПОПЕРЕДНІЙ ПЕРЕГЛЯД',
+  // worker progress panel (large file background processing)
+  s3bWorkerTag: '▸ ВЕЛИКИЙ ФАЙЛ · ФОНОВА ОБРОБКА',
+  s3bWorkerTitle: 'Розбираємо виписку',
+  s3bWorkerBody: 'Файл великий, тож обробка йде у фоні — застосунок лишається чутливим. Ви можете спостерігати за прогресом.',
+  s3bWorkerRows: 'рядків оброблено',
+  s3bWorkerHint: '▸ 1–2 МІСЯЦІ РОЗБИРАЮТЬСЯ МИТТЄВО · ЦЕЙ БІЛЬШИЙ',
+  // parse-error / rejection panel (ЩО/ЧОМУ/ДІЯ)
+  s3bPerrTag: '▸ ПОМИЛКА РОЗБОРУ В КОЛОНЦІ',
+  s3bPerrWhat: 'ЩО:',
+  s3bPerrWhy: 'ЧОМУ:',
+  s3bPerrDo: 'ДІЯ:',
+  s3bPerrReview: 'Переглянути проблемні рядки',
+  // rejection panel value lines (>30% ColumnTransformRejection)
+  s3bPerrTagCol: '▸ ПОМИЛКА РОЗБОРУ В КОЛОНЦІ · {col}',
+  s3bRejWhat: '{errors} з {total} значень не вдалося розібрати',
+  s3bRejWhy: 'Це перевищує поріг помилок {pct}%, тож усю колонку відкочено.',
+  s3bRejDo: 'Оберіть інший тип, виправте формат або позначте колонку «Ігнорувати».',
+  s3bRejRow: 'РЯДОК {row}',
+  // navigation
+  s3bNext: 'Далі ▸',
+  s3bBack: 'Назад',
+  s3bFoot: '▸ ЛОКАЛЬНО · ОФЛАЙН · СИРІ РЯДКИ ТИМЧАСОВІ — НЕ ЗБЕРІГАЮТЬСЯ',
+  // help panel
+  s3bHelpIntro: 'ПРО ЦЕЙ КРОК',
+  s3bSelectColHint: 'Оберіть колонку, щоб побачити довідку про її тип.',
+  // parameterized: showing(n, m) and ofFull(n, m)
+  // 1.4 pattern: template strings with {n} / {m} placeholders
+  s3bShowing: 'показано {n} з {m}',
+  s3bOfFull: '{n} з {m} у файлі',
 } as const;
 
 export type ChromeKey = keyof typeof CATALOG_UK;
