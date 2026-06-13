@@ -236,12 +236,14 @@ describe('ImportFlow — useBlocker exit-protection', () => {
 });
 
 describe('ImportFlow — session context for S3b (2.8 seam)', () => {
-  it('s3b placeholder still renders after advancing (the context provider wraps the steps)', async () => {
+  it('advancing into S3b renders the real S3bMapping over the session context', async () => {
     renderFlow(makeClient());
     await dropFile();
     await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
     fireEvent.click(nextKey());
-    expect(screen.getByText('Колонки')).toBeTruthy();
+    // the real S3b container is now mounted (no more placeholder panel)
+    expect(screen.getByTestId('s3b-mapping')).toBeTruthy();
+    expect(screen.getByText('КРОК 2 / 4')).toBeTruthy();
   });
 });
 
