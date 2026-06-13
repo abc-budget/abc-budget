@@ -8,3 +8,7 @@
  * 5s testTimeout. Together they make the cold-cache path deterministic.
  */
 await import('luxon');
+// 2.8 QA MAJOR-1: warm the recall date-heuristic module per worker too (it
+// lazy-imports luxon and runs many parses; warming its transform here keeps the
+// cold cost out of the recall auto-detect test's budget).
+await import('./src/internal/utils/date/format-detector');

@@ -29,13 +29,19 @@
    ========================================================================= */
 
 /* ── split pane — source: Import-Mapping.html:51-54 ─────────────────────── */
-.split{ display:grid; grid-template-columns:1.55fr 1fr; gap:16px; align-items:start; }
+/* min-width:0 (2.8 QA MINOR-3): .split is a grid item of .screen-body, whose
+   default min-width:auto lets the wide raw table expand the track to max-content
+   → horizontal PAGE overflow at 390px (QA: page grew to 1259px). min-width:0 lets
+   .split shrink to the viewport track so the inner .rawscroll bounds the table. */
+.split{ display:grid; grid-template-columns:1.55fr 1fr; gap:16px; align-items:start; min-width:0; }
 .split > .rawpanel{ min-width:0; }
 .split-side{ position:sticky; top:14px; min-width:0; }
 
 /* ── raw table — source: Import-Mapping.html:56-61 ──────────────────────── */
 .rawpanel{ overflow:visible; }
-.rawscroll{ overflow-x:auto; padding-bottom:2px; }
+/* max-width:100% (2.8 QA MINOR-3): the scroll container is the table's width
+   boundary — overflow-x stays INSIDE it, never the page. */
+.rawscroll{ overflow-x:auto; max-width:100%; padding-bottom:2px; }
 .rawtable{ border-collapse:collapse; width:100%; }
 .rawtable th{ padding:0; vertical-align:bottom; position:relative; min-width:128px; }
 .rawtable thead tr{ background:transparent; }

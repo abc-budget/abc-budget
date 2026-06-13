@@ -217,15 +217,17 @@ describe('buildEngineParams — cashback', () => {
 });
 
 describe('buildEngineParams — status', () => {
-  // Engine shape: TransactionStatusColumnParams { successValue: 'auto' | string }
+  // Engine shape: TransactionStatusColumnParams { successValue: 'auto' | { useValue: string } }
+  // (2.8 QA MAJOR-2: the explicit choice MUST be the WRAPPED { useValue } — a bare string
+  //  is silently dropped to auto-detect by the engine's `.useValue` guard, column.ts:1261.)
 
   it('defaults → { successValue: "auto" }', () => {
     expect(buildEngineParams('status', { successValue: 'auto' })).toEqual({ successValue: 'auto' });
   });
 
-  it('successValue=useValue + custom → { successValue: "completed" }', () => {
+  it('successValue=useValue + custom → { successValue: { useValue: "completed" } }', () => {
     expect(buildEngineParams('status', { successValue: 'useValue', successValueCustom: 'completed' }))
-      .toEqual({ successValue: 'completed' });
+      .toEqual({ successValue: { useValue: 'completed' } });
   });
 
   it('successValue=useValue + empty custom → falls back to auto', () => {

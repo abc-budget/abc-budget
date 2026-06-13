@@ -13,7 +13,7 @@
  *   BalanceColumnParams      { currency: 'auto' | 'use_base' | { code: string } }
  *   BankCommissionColumnParams { currency: 'auto' | 'use_base' | { code: string } }
  *   CashbackColumnParams     { currency: 'auto' | 'use_base' | { code: string } }
- *   TransactionStatusColumnParams { successValue: 'auto' | string }
+ *   TransactionStatusColumnParams { successValue: 'auto' | { useValue: string } }
  *
  * Everything else (description, currency, balance, bank_account, merchant_category,
  * exchange_rate, category, time, counterparty, ignore): no params → null.
@@ -189,9 +189,16 @@ interface BuiltCurrencyOnlyParams {
   currency: CurrencyParam;
 }
 
-/** Engine: TransactionStatusColumnParams */
+/**
+ * Engine: TransactionStatusColumnParams.
+ * The explicit choice MUST be the WRAPPED `{ useValue: string }` shape — the
+ * engine's parse guard is `params.successValue !== 'auto' && params.successValue.useValue`
+ * (column.ts:1261). A bare string passes the `!== 'auto'` clause but its `.useValue`
+ * is undefined, so the engine SILENTLY falls back to auto-detect, discarding the
+ * user's explicit success value (2.8 QA MAJOR-2, HC-7).
+ */
 interface BuiltStatusParams {
-  successValue: 'auto' | string;
+  successValue: 'auto' | { useValue: string };
 }
 
 /** Resolves the currency UI value + optional custom ISO code → engine CurrencyParam. */
@@ -250,9 +257,12 @@ export function buildEngineParams(
       const selected = uiValues['successValue'] ?? 'auto';
       if (selected === 'useValue') {
         const value = (uiValues['successValueCustom'] ?? '').trim();
-        // The engine accepts any non-empty string as the successValue literal.
-        // Fall back to 'auto' if the user didn't type anything.
-        return { successValue: value || 'auto' } satisfies BuiltStatusParams;
+        // Explicit choice → the WRAPPED { useValue } shape the engine guard checks
+        // (column.ts:1261). A bare string would be silently dropped to auto-detect
+        // (2.8 QA MAJOR-2). Empty custom → 'auto' (nothing to honor).
+        return value
+          ? ({ successValue: { useValue: value } } satisfies BuiltStatusParams)
+          : ({ successValue: 'auto' } satisfies BuiltStatusParams);
       }
       return { successValue: 'auto' } satisfies BuiltStatusParams;
     }

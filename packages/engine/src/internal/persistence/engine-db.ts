@@ -159,8 +159,22 @@ async function doInit(): Promise<PersistenceInitResult> {
   }
 }
 
-/** Test seam — resets memoization. Not exported from the package barrel. */
+/**
+ * Test seam — resets memoization. Not exported from the package barrel.
+ *
+ * 2.8 QA MAJOR-1 follow-up: also CLOSE the memoized connection. Nulling the
+ * promise alone left a live IDBDatabase open on the (often about-to-be-swapped)
+ * fake-indexeddb factory; across spec files that lingering connection holds the
+ * DB at its version and made a later open's `onblocked` fire (unhandled →
+ * non-zero vitest exit). Closing here makes the seam leak-free for every spec.
+ * Fire-and-forget close (the promise may still be resolving); swallow errors —
+ * a reset must never throw.
+ */
 export function resetPersistenceForTests(): void {
+  const closing = dbPromise;
   dbPromise = null;
   initPromise = null;
+  if (closing) {
+    closing.then((db) => db.close()).catch(() => { /* never throw from a reset */ });
+  }
 }

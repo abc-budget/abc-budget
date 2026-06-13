@@ -57,7 +57,10 @@ interface Transport {
 
 const TRANSPORTS: Transport[] = [
   { name: 'direct', make: () => createDirectEngineClient() },
-  { name: 'worker', make: () => createWorkerEngineClient(workerFactory) },
+  // 2.8 QA MAJOR-1: raise ONLY the TEST handshake timeout — a real worker spawn on a
+  // cold machine under parallel-suite contention can exceed the 5s production default.
+  // The production default (worker-client.ts) is UNCHANGED; prod is SW-precached.
+  { name: 'worker', make: () => createWorkerEngineClient(workerFactory, { handshakeTimeoutMs: 20000 }) },
 ];
 
 // ── Pool readers (a SECOND connection from the test side) ──────────────────────
@@ -379,4 +382,135 @@ describe.each(TRANSPORTS)('defer-commit recall pins — $name transport', ({ mak
     const cafe = entries.find((e) => e.columnName === nfc)!;
     expect(cafe.definition).toBe(ColumnDefinition.AMOUNT); // last apply (NFD→AMOUNT) won
   });
+});
+
+// ===========================================================================
+// Param honoring — 2.8 QA MAJOR-2 test-with-teeth + sibling audit.
+//
+// Lives in THIS file (not a new spec) deliberately: a third engine-DB-opening
+// spec file tipped a latent fake-indexeddb + @vitest/web-worker teardown race
+// (unhandled onblocked → non-zero exit) under added fork load. Reusing this
+// file's proven-clean beforeEach/afterEach (factory swap + base-currency seed +
+// worker/db teardown) keeps the behavioral coverage without the extra file.
+//
+// The lesson behind MAJOR-2: behind the NFR-003 boundary a hardcoded shape-assert
+// in apps/web is only as good as the shape it GUESSED. The builder had emitted a
+// BARE { successValue: 'completed' }; the engine guard is
+// `params.successValue !== 'auto' && params.successValue.useValue` (column.ts:1261),
+// so the bare string passed the first clause but `.useValue` was undefined → the
+// engine SILENTLY auto-detected, discarding the user's explicit value (HC-7).
+// These prove BEHAVIORALLY — real client, real engine — that the WRAPPED shapes
+// the corrected builder produces are the shapes the engine CONSUMES. Direct client
+// only (the worker shims over it; parity is the pins above).
+// ===========================================================================
+
+describe('param honoring (2.8 QA MAJOR-2 + sibling audit) — direct client', () => {
+  // STATUS — sharpest teeth: a NO-DOMINANT column where auto-detect THROWS
+  // (ok ×5, pending ×3, failed ×2 over 10 rows → max 0.5 < 0.8 threshold).
+  const STATUS_VALUES = ['ok', 'ok', 'ok', 'ok', 'ok', 'pending', 'pending', 'pending', 'failed', 'failed'];
+  function statusRows(): Record<string, unknown>[] {
+    return STATUS_VALUES.map((s, i) => ({
+      Date: `2024-01-${String(i + 1).padStart(2, '0')}`,
+      Amount: `-${i + 1}.00`,
+      Status: s,
+      Description: `row ${i}`,
+    }));
+  }
+
+  it('STATUS wrapped { useValue } → apply SUCCEEDS on a no-dominant column and the engine stores it (auto-detect would throw)', async () => {
+    const client = createDirectEngineClient();
+    const started = await client.importStart(statusRows());
+    const statusCol = findColumn(started.stage2, 'Status');
+
+    const res = await client.importApplyColumn(started.sessionId, statusCol.id, ColumnDefinition.STATUS, {
+      successValue: { useValue: 'pending' },
+    });
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error('expected the explicit success value to be honored');
+    const applied = findColumn(res.snapshot, 'Status');
+    expect(applied.definition).toBe(ColumnDefinition.STATUS);
+    expect(applied.params).toEqual({ successValue: { useValue: 'pending' } });
+
+    await client.importAbort(started.sessionId);
+  });
+
+  it('STATUS bare string is NOT honored — falls to the throwing auto-detect (proves the shape distinction is behavioral)', async () => {
+    const client = createDirectEngineClient();
+    const started = await client.importStart(statusRows());
+    const statusCol = findColumn(started.stage2, 'Status');
+
+    const bare = { successValue: 'pending' } as unknown as Record<string, unknown>;
+    let honored = false;
+    try {
+      const res = await client.importApplyColumn(started.sessionId, statusCol.id, ColumnDefinition.STATUS, bare);
+      honored =
+        res.ok &&
+        JSON.stringify(findColumn(res.snapshot, 'Status').params) ===
+          JSON.stringify({ successValue: { useValue: 'pending' } });
+    } catch {
+      honored = false; // threw via auto-detect — definitely not honored
+    }
+    expect(honored).toBe(false);
+
+    await client.importAbort(started.sessionId);
+  });
+
+  it('AMOUNT { currency: { code: "EUR" } } is HONORED through to every generated row', async () => {
+    const client = createDirectEngineClient();
+    const rs = Array.from({ length: 6 }, (_, i) => ({
+      Date: `2024-03-${String(i + 1).padStart(2, '0')}`,
+      Amount: `-${i + 10}.00`,
+      Description: `row ${i}`,
+    }));
+    const started = await client.importStart(rs);
+    let snap = started.stage2;
+    const apply = async (name: string, def: ColumnDefinition, params: Record<string, unknown> | null) => {
+      const r = await client.importApplyColumn(started.sessionId, findColumn(snap, name).id, def, params);
+      if (!r.ok) throw new Error(`unexpected rejection for ${name}`);
+      snap = r.snapshot;
+    };
+    await apply('Date', ColumnDefinition.DATE, { format: 'auto' });
+    await apply('Amount', ColumnDefinition.AMOUNT, { currency: { code: 'EUR' }, type: 'outcome' });
+    await apply('Description', ColumnDefinition.DESCRIPTION, null);
+
+    const next = await client.importNext(started.sessionId);
+    expect(next.ok).toBe(true);
+    const window = await client.importGetRows(started.sessionId, 0, 100);
+    expect(window.rows.length).toBeGreaterThan(0);
+    for (const r of window.rows) expect(r.currency).toBe('EUR');
+
+    await client.importAbort(started.sessionId);
+  });
+
+  it('DATE { format: { custom: "dd/MM/yyyy" } } is HONORED — 13/06/2024 → 2024-06-13 (not auto-misparsed)', async () => {
+    const client = createDirectEngineClient();
+    const rs = [
+      { Date: '13/06/2024', Amount: '-10.00', Description: 'a' },
+      { Date: '14/06/2024', Amount: '-11.00', Description: 'b' },
+      { Date: '15/06/2024', Amount: '-12.00', Description: 'c' },
+    ];
+    const started = await client.importStart(rs);
+    let snap = started.stage2;
+    const apply = async (name: string, def: ColumnDefinition, params: Record<string, unknown> | null) => {
+      const r = await client.importApplyColumn(started.sessionId, findColumn(snap, name).id, def, params);
+      if (!r.ok) throw new Error(`unexpected rejection for ${name}`);
+      snap = r.snapshot;
+    };
+    await apply('Date', ColumnDefinition.DATE, { format: { custom: 'dd/MM/yyyy' } });
+    await apply('Amount', ColumnDefinition.AMOUNT, { currency: { code: 'USD' }, type: 'outcome' });
+    await apply('Description', ColumnDefinition.DESCRIPTION, null);
+
+    const next = await client.importNext(started.sessionId);
+    expect(next.ok).toBe(true);
+    const window = await client.importGetRows(started.sessionId, 0, 100);
+    const days = window.rows.map((r) => r.date.slice(0, 10)).sort();
+    expect(days).toEqual(['2024-06-13', '2024-06-14', '2024-06-15']);
+
+    await client.importAbort(started.sessionId);
+  });
+
+  // CURRENCY takes NO params (parseAsCurrency ignores params; the builder returns
+  // null) — no explicit value to drop, no behavioral risk. Covered by the web-side
+  // param-schema.spec.ts asserting buildEngineParams('currency') === null.
 });

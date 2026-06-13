@@ -199,7 +199,10 @@ function workerFactory(): WorkerLike {
 }
 
 function makeClient(): EngineClient {
-  return createWorkerEngineClient(workerFactory);
+  // 2.8 QA MAJOR-1: raise ONLY the TEST handshake timeout — a real worker spawn on a
+  // cold machine under parallel-suite contention can exceed the 5s production default
+  // (which is UNCHANGED; prod is SW-precached and never pays this cold cost).
+  return createWorkerEngineClient(workerFactory, { handshakeTimeoutMs: 20000 });
 }
 
 /**
