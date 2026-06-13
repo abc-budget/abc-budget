@@ -118,11 +118,20 @@ export interface SkippedRow {
  *  - `rows`      — successfully generated transaction rows (good rows always generated).
  *  - `rowErrors` — rows that could not be generated; one entry per bad row.
  *  - `skipped`   — rows discarded for non-error reasons (income / mixed-positive, etc.).
+ *
+ * 2.7 decision 2 (the structural channel):
+ *  - `structuralErrors` — column-SET-level failures detected BEFORE the row loop
+ *    (no-DATE / multiple-DATE mapping). ONE message per condition; when non-empty,
+ *    `rows`/`rowErrors`/`skipped` are ALL empty (the loop never ran) and no
+ *    pseudo-ops spawn. Distinct messages carry distinct ДІЯ hints:
+ *      - structural-no-date-column        → ДІЯ: map a column as DATE.
+ *      - structural-multiple-date-columns → ДІЯ: unmap one of the DATE columns.
  */
 export interface GenerateRowsResult {
   readonly rows: TransactionRow[];
   readonly rowErrors: RowError[];
   readonly skipped: SkippedRow[];
+  readonly structuralErrors: Message[];
 }
 
 // ---------------------------------------------------------------------------

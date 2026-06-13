@@ -42,4 +42,80 @@ export const CATALOG_EN = {
   engMismatchReload: 'Reload',
   engDiedTitle: 'Engine restarting',
   engDiedBody: 'The background engine stopped — the current operation was interrupted. It will respawn automatically.',
+  // ── S3a — Import → Source (2.7; ported from design-reference/s3a-i18n.jsx) ──
+  s3aEyebrow: '▸ IMPORT · SOURCE',
+  s3aStepOf: 'STEP 1 / 4',
+  s3aTitle: 'Choose a statement file',
+  s3aLead: 'Take the statement you exported from your bank. ABC reads it here, on this device — nothing is uploaded to the internet.',
+  // drop zone
+  s3aDropTitle: 'Drop the file here',
+  s3aDropOr: 'or',
+  s3aPick: 'Choose file',
+  s3aFormats: 'CSV · XLS · XLSX · up to 50 MB',
+  s3aLocalOnly: 'LOCAL · THE FILE NEVER LEAVES THIS DEVICE',
+  s3aSample: 'Try a sample',
+  // file chip
+  s3aReplace: 'Replace',
+  s3aRemove: 'Remove',
+  s3aRowsEst: 'rows (approx.)',
+  // recognized (per-column recall from the learned pool — NOT a "format")
+  // prototype recogTitle(n,m) is conditional → two parameterized keys; the component picks on n===m
+  s3aRecogTag: '▸ RECALLED FROM YOUR RULES',
+  s3aRecogTitleAll: 'All {m} columns recognized',
+  s3aRecogTitleSome: 'Recognized {n} of {m} columns',
+  s3aRecogBody: 'These column names match ones you mapped before, so ABC filled in their types from your saved rules. This is an exact name match — not a guess, not AI.',
+  s3aRecogPartial: '{k} still untyped — you’ll map them on the next step.',
+  s3aPoolLab: 'FILE COLUMNS → YOUR RULES',
+  s3aRecalled: 'from rules',
+  s3aUnkType: 'untyped',
+  s3aDedupTitle: 'Repeat transactions aren’t counted twice',
+  s3aDedupBody: 'If the file contains transactions you imported before, ABC recognizes and merges them. Exact counts appear on the Review step.',
+  s3aProceedNote: 'Every import passes through validation. The full parse runs when you press “Continue”.',
+  s3aReviewMap: 'Review mapping',
+  s3aProceed: 'Continue ▸',
+  // unknown = empty pool (first-ever import) → all columns untyped
+  s3aUnkTag: '▸ NO KNOWN COLUMN',
+  s3aUnkTitle: 'First import — no rules yet',
+  s3aUnkBody: 'ABC hasn’t seen these column names before, so they’re all untyped for now. On the next step you’ll map them by hand, and ABC will remember the names — next time it fills the types in automatically.',
+  s3aUnkAllCols: '{m} columns · all untyped',
+  s3aNextUnk: 'Next · map columns ▸',
+  // error (fail loud, HC-7). The *V values are DEFAULTS for the generic
+  // read-failure case — the real ErrorPanel renders decode-issue-driven props;
+  // the container falls back to these when no specific issue copy exists.
+  s3aErrTag: '▸ COULDN’T READ THE FILE',
+  s3aErrWhat: 'WHAT:',
+  s3aErrWhy: 'WHY:',
+  s3aErrDo: 'DO:',
+  s3aErrWhatV: 'The file could not be opened',
+  s3aErrWhyV: 'It’s empty, corrupted, or not a spreadsheet (CSV/XLS/XLSX).',
+  s3aErrDoV: 'Make sure it’s a statement export and try another file.',
+  // issue-specific ЧОМУ (2.7 Task 3 — derived from the FATAL DecodeIssue kind)
+  s3aErrWhyNoData: 'No data rows were found in the file.',
+  s3aErrWhyUnreadable: 'The content could not be parsed — the file is corrupted or not a CSV/XLS/XLSX.',
+  s3aTryAgain: 'Choose another file',
+  s3aBack: 'Back',
+  // decoding (DecodingPanel — NO bundle equivalent; dev-designed copy, PM pixel pass)
+  s3aDecodingTag: '▸ READING THE FILE',
+  s3aDecodingPrep: 'OPENING THE FILE…',
+  s3aDecodingRows: '{done} / {total} rows',
+  // base-currency cold-start dialog (Task 4 consumes; keys ported with the bundle set)
+  s3aBaseTitle: 'Base currency',
+  s3aBaseBody: 'Overall budget totals are computed in one currency. We detected it automatically — confirm it before your first import.',
+  s3aBaseLabel: 'Currency',
+  s3aBaseAuto: 'DETECTED BY REGION · YOU CAN CHANGE IT LATER IN SETTINGS',
+  s3aCancel: 'Cancel',
+  s3aCont: 'Continue ▸',
+  // dialog optgroup labels + the loud save-failure line (Task 4) — NO bundle
+  // source (the prototype select had only the curated 8): dev-designed copy,
+  // PM eyeballs at the pixel pass.
+  s3aBaseGroupCurated: 'Common',
+  s3aBaseGroupAll: 'All currencies',
+  s3aBaseError: 'Couldn’t save the currency',
+  // multi-sheet neutral note (2.1 decision — flagged, not invented)
+  s3aOtherSheets: 'The file has other sheets: {names} — only the first one was read.',
+  // useBlocker exit-protection (1.5 carry-forward, lands at 2.7 Task 3)
+  s3aLeaveTitle: 'Abandon this import?',
+  s3aLeaveBody: 'If you leave now, the current import is cancelled. You will need to load the file again.',
+  s3aLeaveStay: 'Stay',
+  s3aLeaveLeave: 'Abandon & leave',
 } satisfies Record<ChromeKey, string>;

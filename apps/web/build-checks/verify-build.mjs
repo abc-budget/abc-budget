@@ -13,6 +13,8 @@
  *       INCLUDES those lazy chunks + the worker entry — offline parse depends
  *       on this (the mechanical halves of the offline proof).
  *   (c) the engine worker entry chunk exists (`engine-worker-*.js`).
+ *   (d) the bundled sample statement (2.7 — the S3a sample path) is in the
+ *       dist output AND the Workbox precache manifest (offline FEAT-001 path 2).
  *
  * Exit code 0 = all green; 1 = any failure (loud, listed).
  */
@@ -98,6 +100,13 @@ for (const file of [workerChunk, ...heavyFiles].filter(Boolean)) {
   if (sw.includes(file)) ok(`sw.js precache manifest includes assets/${file}`);
   else fail(`sw.js precache manifest MISSING assets/${file} — offline parse would 404`);
 }
+
+// ── (d) the S3a sample statement ships AND is precached (2.7) ─────────────────
+const SAMPLE = 'sample-statement.csv';
+if (existsSync(join(dist, SAMPLE))) ok(`sample asset exists: ${SAMPLE}`);
+else fail(`sample asset MISSING from dist/: ${SAMPLE} — public/ copy broken?`);
+if (sw.includes(SAMPLE)) ok(`sw.js precache manifest includes ${SAMPLE}`);
+else fail(`sw.js precache manifest MISSING ${SAMPLE} — the offline sample path would 404`);
 
 // ── Verdict ───────────────────────────────────────────────────────────────────
 if (failures.length > 0) {

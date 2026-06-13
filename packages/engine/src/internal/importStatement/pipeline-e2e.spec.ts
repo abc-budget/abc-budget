@@ -902,13 +902,16 @@ describe('Story 2.4 — thresholds, rejection, Q-009', () => {
 
     // Session must still be alive — stage2 completes without throwing.
     // (The per-COLUMN boundary: one bad column rejected does NOT kill the session.)
-    // Generate rows: Date is IGNORED → extractDate finds no DATE column → each row
-    // lands in rowErrors (no date = incomplete row), but generateRows itself doesn't throw.
+    // Generate rows: Date is IGNORED → ZERO DATE-mapped columns → the pre-loop
+    // structural check fires ONCE; the row loop never runs.
     const colsFinal = await firstValueFrom(stage2.columns);
     const rows: ImportStatementRowData[] = await firstValueFrom(stage2.currentData);
     const genResult = await generateRows(rows, toColumnInfo(colsFinal), 'UAH');
-    // key assertion: generateRows completes (session alive), 12 row errors (no date column)
-    expect(genResult.rowErrors).toHaveLength(12);
+    // DECLARED CHANGE (2.7 decision 2): was 12 per-row no-DATE errors (the 2.4-era
+    // honest behavior) — now ONE structural message. A missing DATE mapping is a
+    // property of the column set, detected BEFORE the row loop; zero row-error echoes.
+    expect(genResult.structuralErrors).toHaveLength(1);
+    expect(genResult.rowErrors).toHaveLength(0);
     expect(genResult.rows).toHaveLength(0);
     expect(genResult.skipped).toHaveLength(0);
   });

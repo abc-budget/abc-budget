@@ -1,5 +1,5 @@
 /**
- * Wire envelope for the EngineClient transport (contract v2).
+ * Wire envelope for the EngineClient transport (contract v3).
  *
  * CONTRACT VERSION BUMP RULE (decision 2, 2026-06-12):
  *   Increment CONTRACT_VERSION whenever ANY of the following change:
@@ -15,10 +15,16 @@
  *   v1 — spike: ping + getVersion only (no handshake).
  *   v2 — production: explicit session protocol; hello/helloAck handshake;
  *        full import method set; out-of-band progress/blocked/dead events.
+ *   v3 — Story 2.7 (the bump rule's first real exercise): the base-currency
+ *        surface joins — EngineMethod += getBaseCurrency | setBaseCurrency
+ *        (decision 1, the cold-start gate's probe + persist); AND
+ *        GenerateResultDTO += structuralErrors (decision 2 — the structural
+ *        DATE-error channel rides the same bump: importNext's return shape
+ *        changed). No compat path — exact-match handshake by design.
  */
 
 /** The current contract version. Increment per the bump rule above. */
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 
 // ── Handshake ─────────────────────────────────────────────────────────────────
 
@@ -60,7 +66,9 @@ export type EngineMethod =
   | 'importResolveCollision'
   | 'importGetRows'
   | 'importNext'
-  | 'importAbort';
+  | 'importAbort'
+  | 'getBaseCurrency'
+  | 'setBaseCurrency';
 
 /** A client → worker RPC call. */
 export interface EngineRequest {

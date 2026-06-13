@@ -36,11 +36,15 @@ function resolveInNode(specifier: string): { ok: boolean; stderr: string } {
   }
 }
 
-describe('NFR-003 engine boundary (declared 2.6 change: ./qa sunset, worker client joins)', () => {
-  it('runtime surface is EXACTLY the two client factories', () => {
+describe('NFR-003 engine boundary (declared 2.7 change: localeToCurrency joins as a pure runtime export)', () => {
+  it('runtime surface is EXACTLY the two client factories + localeToCurrency', () => {
+    // DECLARED CHANGE (2.7 decision 1): localeToCurrency joins the runtime
+    // surface — a PURE function (no DAO, no engine state) the base-currency
+    // gate uses to preselect from navigator.language.
     expect(Object.keys(barrel).sort()).toEqual([
       'createDirectEngineClient',
       'createWorkerEngineClient',
+      'localeToCurrency',
     ]);
   });
 

@@ -11,6 +11,9 @@
  *
  * `setBaseCurrency(iso)` — validates via the 1.6 getCurrency reference before
  * persisting.
+ *
+ * `getBaseCurrencyOrNull()` — NEW in Story 2.7 (decision 1): the gate's probe
+ * variant — null when unset, no exception-driven control flow.
  */
 
 import { getCurrency } from '../currency/reference';
@@ -40,14 +43,22 @@ export class BaseCurrencyNotSetError extends Error {
 
 /**
  * Thrown when `setBaseCurrency` is called with an unknown ISO currency code.
+ *
+ * 2.7: crosses the EngineClient wire TYPED (client/errors.ts codec) — the
+ * rejected `iso` is carried structurally for rehydration fidelity.
  */
 export class InvalidBaseCurrencyError extends Error {
+  /** The rejected ISO code. */
+  readonly iso: string;
+
   constructor(iso: string) {
     super(
       `[abc-engine] Invalid base currency code: "${iso}". ` +
         'Must be a valid ISO 4217 alpha code from the currency reference dataset.',
     );
     this.name = 'InvalidBaseCurrencyError';
+    this.iso = iso;
+    Object.setPrototypeOf(this, InvalidBaseCurrencyError.prototype);
   }
 }
 
@@ -63,6 +74,27 @@ export async function getBaseCurrency(dao: UserSettingsDAO): Promise<string> {
   const value = await dao.getSetting<string>(SettingKeys.BASE_CURRENCY);
   if (value === undefined || value === null || value === '') {
     throw new BaseCurrencyNotSetError();
+  }
+  return value;
+}
+
+/**
+ * Returns the stored base currency ISO code, or null when unset.
+ *
+ * NEW in Story 2.7 (decision 1) — the cold-start gate's PROBE variant.
+ * "Unset" is an EXPECTED state for the gate (it decides whether to show the
+ * dialog), so this variant returns null instead of throwing — no
+ * exception-driven control flow on the probe path.
+ *
+ * The loud-throw `getBaseCurrency` STAYS for `use_base` resolution, where an
+ * unset base currency is a flow bug (the gate must have run first).
+ *
+ * @param dao - The user settings DAO to read from
+ */
+export async function getBaseCurrencyOrNull(dao: UserSettingsDAO): Promise<string | null> {
+  const value = await dao.getSetting<string>(SettingKeys.BASE_CURRENCY);
+  if (value === undefined || value === null || value === '') {
+    return null;
   }
   return value;
 }

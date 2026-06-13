@@ -1,6 +1,6 @@
 /**
  * Data Transfer Objects + pure serializer functions for the EngineClient session
- * protocol (contract v2).
+ * protocol (contract v3 — GenerateResultDTO gained `structuralErrors` at 2.7).
  *
  * All types are JSON-safe by design (no Date, no class instances, no RxJS).
  * Serializers are pure functions over internal objects — no worker required.
@@ -281,6 +281,12 @@ export interface GenerateResultDTO {
   readonly rows: TransactionRowDTO[];
   readonly rowErrors: RowErrorDTO[];
   readonly skipped: SkippedRowDTO[];
+  /**
+   * 2.7 decision 2 (contract v3): column-SET-level failures detected BEFORE the
+   * row loop (no-DATE / multiple-DATE mapping). ONE message per condition; when
+   * non-empty the other three arrays are ALL empty (the loop never ran).
+   */
+  readonly structuralErrors: SerializedMessage[];
 }
 
 /** Serialize a GenerateRowsResult to its wire DTO. */
@@ -296,6 +302,7 @@ export function serializeGenerateResult(result: GenerateRowsResult): GenerateRes
       rowIndex: s.rowIndex,
       reason: serializeMessage(s.reason),
     })),
+    structuralErrors: result.structuralErrors.map(serializeMessage),
   };
 }
 

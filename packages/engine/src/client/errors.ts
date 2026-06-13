@@ -1,5 +1,5 @@
 /**
- * Wire-error codec for the EngineClient transport (contract v2).
+ * Wire-error codec for the EngineClient transport (contract v3).
  *
  * Provides:
  *   serializeEngineError(err) → WireError  — serialize any Error to a plain object.
@@ -9,6 +9,7 @@
  *   ColumnTransformRejection   — 2.4 column-transform gate
  *   UnmappedColumnsError       — 2.4 Q-009 explicit stop
  *   BaseCurrencyNotSetError    — 2.3 base-currency missing
+ *   InvalidBaseCurrencyError   — NEW (2.7): setBaseCurrency rejected the ISO code
  *   ContractMismatchError      — NEW (2.6): hello/helloAck version mismatch
  *   EngineWorkerDiedError      — NEW (2.6): worker death / drain
  *   SessionAlreadyActiveError  — NEW (2.6): importStart while active
@@ -19,7 +20,7 @@
 
 import { ColumnTransformRejection } from '../internal/importStatement/stage2/errors';
 import { UnmappedColumnsError } from '../internal/importStatement/stage2/errors';
-import { BaseCurrencyNotSetError } from '../internal/settings/base-currency';
+import { BaseCurrencyNotSetError, InvalidBaseCurrencyError } from '../internal/settings/base-currency';
 import { NativeMessage, LocalizableMessage } from '../internal/utils/messages/message';
 import type { Message } from '../internal/utils/messages/message';
 import type { SerializedMessage } from './dto';
@@ -160,6 +161,10 @@ interface SessionUnknownPayload {
   sessionId: string;
 }
 
+interface InvalidBaseCurrencyPayload {
+  iso: string;
+}
+
 // ── serializeEngineError ──────────────────────────────────────────────────────
 
 /**
@@ -191,6 +196,11 @@ export function serializeEngineError(err: unknown): WireError {
 
   if (err instanceof BaseCurrencyNotSetError) {
     return { name: 'BaseCurrencyNotSetError', message: err.message, payload: null };
+  }
+
+  if (err instanceof InvalidBaseCurrencyError) {
+    const payload: InvalidBaseCurrencyPayload = { iso: err.iso };
+    return { name: 'InvalidBaseCurrencyError', message: err.message, payload };
   }
 
   if (err instanceof ContractMismatchError) {
@@ -253,6 +263,11 @@ export function rehydrateEngineError(wire: WireError): Error {
 
     case 'BaseCurrencyNotSetError': {
       return new BaseCurrencyNotSetError();
+    }
+
+    case 'InvalidBaseCurrencyError': {
+      const p = wire.payload as InvalidBaseCurrencyPayload;
+      return new InvalidBaseCurrencyError(p?.iso ?? '');
     }
 
     case 'ContractMismatchError': {

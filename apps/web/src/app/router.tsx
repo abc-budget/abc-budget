@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
+import type { RouteObject } from 'react-router';
 import { useHasData } from './has-data';
 import { Dashboard } from './screens/Dashboard';
 import { ImportFlow } from './screens/ImportFlow';
@@ -10,24 +11,22 @@ function Root() {
   return useHasData() ? <Navigate to="/dashboard" replace /> : <Onboarding />;
 }
 
-/** Routes only — testable under MemoryRouter. */
-export function AppRoutes() {
-  return (
-    <Routes>
-      <Route path="/" element={<Root />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/settings" element={<Settings />} />
-      <Route path="/import" element={<ImportFlow />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
-}
+/**
+ * Route table — DATA-router objects since 2.7: ImportFlow's useBlocker
+ * exit-protection needs the data-router context (declarative <BrowserRouter>
+ * has no blocker support). Tests mount these via createMemoryRouter.
+ */
+export const routes: RouteObject[] = [
+  { path: '/', element: <Root /> },
+  { path: '/dashboard', element: <Dashboard /> },
+  { path: '/settings', element: <Settings /> },
+  { path: '/import', element: <ImportFlow /> },
+  { path: '*', element: <Navigate to="/" replace /> },
+];
 
-/** Production mount. */
+/** Production mount (lazy singleton — createBrowserRouter touches history). */
+let browserRouter: ReturnType<typeof createBrowserRouter> | undefined;
 export function AppRouter() {
-  return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
-  );
+  browserRouter ??= createBrowserRouter(routes);
+  return <RouterProvider router={browserRouter} />;
 }

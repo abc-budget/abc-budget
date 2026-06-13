@@ -24,7 +24,8 @@ export default defineConfig({
       },
       // ttf: vendored ALTUS brand fonts must work offline (~1MB precache accepted;
       // woff2-subset pass is the EP-9.1 carry-forward).
-      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,ttf,woff2}'] },
+      // csv: the bundled sample statement (2.7 — FEAT-001 path 2 must work offline).
+      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,ttf,woff2,csv}'] },
     }),
   ],
   // The engine worker entry uses dynamic import (lazy luxon/xlsx — the 2.2

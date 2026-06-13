@@ -770,10 +770,39 @@ describe('WorkerTransport — full EngineClient method routing', () => {
       (m) => (m as { kind?: string }).kind === 'req',
     ) as EngineRequest[];
     expect(reqs[0].method).toBe('getVersion');
-    respond(worker, reqs[0].id, true, { engine: '1.0.0', contract: 2 });
+    // Fake echo value — bumped 2 → 3 with the contract for grep hygiene (2.7 declared)
+    respond(worker, reqs[0].id, true, { engine: '1.0.0', contract: 3 });
 
     const ver = await p;
-    expect(ver.contract).toBe(2);
+    expect(ver.contract).toBe(3);
+  });
+
+  it('getBaseCurrency routes through generic call (contract v3)', async () => {
+    const { worker, client } = makeWorkerAndClient();
+    ackHandshake(worker);
+
+    const p = client.getBaseCurrency();
+    const reqs = (worker.sent as unknown[]).filter(
+      (m) => (m as { kind?: string }).kind === 'req',
+    ) as EngineRequest[];
+    expect(reqs[0].method).toBe('getBaseCurrency');
+    expect(reqs[0].args).toEqual([]);
+    respond(worker, reqs[0].id, true, 'PLN');
+    expect(await p).toBe('PLN');
+  });
+
+  it('setBaseCurrency routes the iso argument (contract v3)', async () => {
+    const { worker, client } = makeWorkerAndClient();
+    ackHandshake(worker);
+
+    const p = client.setBaseCurrency('UAH');
+    const reqs = (worker.sent as unknown[]).filter(
+      (m) => (m as { kind?: string }).kind === 'req',
+    ) as EngineRequest[];
+    expect(reqs[0].method).toBe('setBaseCurrency');
+    expect(reqs[0].args).toEqual(['UAH']);
+    respond(worker, reqs[0].id, true, undefined);
+    await expect(p).resolves.toBeUndefined();
   });
 
   it('importAbort routes correctly', async () => {

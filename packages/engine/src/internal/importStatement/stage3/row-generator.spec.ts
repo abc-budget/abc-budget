@@ -21,11 +21,16 @@
  *
  *   S1. "should throw an error if no DATE column is found"
  *       → Prior: `rejects.toBeInstanceOf(LocalizableException)`
- *       → Now:   row with no-DATE → `rowErrors` entry; `rows` empty; generation continues.
+ *       → 2.3:   row with no-DATE → `rowErrors` entry; `rows` empty; generation continues.
+ *       → 2.7 (decision 2, DECLARED CHANGE): no-DATE is a STRUCTURAL condition of the
+ *         column mapping, not a per-row condition — detected BEFORE the row loop;
+ *         ONE `structuralErrors` message, ZERO row-error echoes.
  *
  *   S2. "should throw an error if multiple DATE columns are found"
  *       → Prior: `rejects.toBeInstanceOf(LocalizableException)`
- *       → Now:   row with multi-DATE → `rowErrors` entry; `rows` empty; generation continues.
+ *       → 2.3:   row with multi-DATE → `rowErrors` entry; `rows` empty; generation continues.
+ *       → 2.7 (decision 2, DECLARED CHANGE): same migration as S1 — ONE structural
+ *         message, distinct key from the no-DATE one.
  *
  *   S3. Implicit throw-on-income (no explicit prior-art test — but the income-type
  *       single-amount-column path threw `income-only-column`).
@@ -311,8 +316,11 @@ describe('ImportStatementStage3 Row Generator', () => {
   // ---------------------------------------------------------------------------
 
   describe('FEAT-022: collect-don\'t-throw contract', () => {
-    // S1 SUPERSEDED: no-DATE-column → rowError, NOT a throw
-    it('S1 (superseded): no DATE column → rowErrors entry, generation continues', async () => {
+    // S1: no-DATE-column → STRUCTURAL message, NOT per-row errors.
+    // DECLARED CHANGE (2.7 decision 2): was a rowErrors entry per row (the 2.3
+    // collect-don't-throw honest behavior) — a missing DATE mapping is a property
+    // of the COLUMN SET, so it now reports ONCE via structuralErrors.
+    it('S1 (migrated, decision 2): no DATE column → ONE structuralErrors message, zero rowErrors', async () => {
       const rows = [
         createMockRow(0, { col2: 100.5, col3: 'USD', col4: 'Coffee shop' }),
       ];
@@ -327,14 +335,17 @@ describe('ImportStatementStage3 Row Generator', () => {
       const result = await generateRows(rows, columns, BASE_CURRENCY);
 
       expect(result.rows).toHaveLength(0);
-      expect(result.rowErrors).toHaveLength(1);
-      expect(result.rowErrors[0].rowIndex).toBe(0);
-      expect(result.rowErrors[0].errors).toHaveLength(1);
+      expect(result.rowErrors).toHaveLength(0); // PIN (b): zero row-error echoes
       expect(result.skipped).toHaveLength(0);
+      expect(result.structuralErrors).toHaveLength(1);
+      expect(result.structuralErrors[0].getText()).toBe(
+        'engine.importStatement.stage3.structural-no-date-column',
+      );
     });
 
-    // S2 SUPERSEDED: multiple-DATE-columns → rowError, NOT a throw
-    it('S2 (superseded): multiple DATE columns → rowErrors entry, generation continues', async () => {
+    // S2: multiple-DATE-columns → STRUCTURAL message, NOT per-row errors.
+    // DECLARED CHANGE (2.7 decision 2): same migration as S1 — distinct key.
+    it('S2 (migrated, decision 2): multiple DATE columns → ONE structuralErrors message, zero rowErrors', async () => {
       const date = new Date('2023-01-15');
       const rows = [
         createMockRow(0, { col1: date, col1b: date, col2: 100.5, col3: 'USD' }),
@@ -350,9 +361,12 @@ describe('ImportStatementStage3 Row Generator', () => {
       const result = await generateRows(rows, columns, BASE_CURRENCY);
 
       expect(result.rows).toHaveLength(0);
-      expect(result.rowErrors).toHaveLength(1);
-      expect(result.rowErrors[0].rowIndex).toBe(0);
+      expect(result.rowErrors).toHaveLength(0); // PIN (b): zero row-error echoes
       expect(result.skipped).toHaveLength(0);
+      expect(result.structuralErrors).toHaveLength(1);
+      expect(result.structuralErrors[0].getText()).toBe(
+        'engine.importStatement.stage3.structural-multiple-date-columns',
+      );
     });
 
     // N1 NEW: bad row collected, rest generated (5-row input, 1 broken → 4 rows + 1 rowError)
@@ -404,6 +418,88 @@ describe('ImportStatementStage3 Row Generator', () => {
       expect(descriptions).toContain('Row B');
       expect(descriptions).toContain('Row D');
       expect(descriptions).toContain('Row E');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Decision 2 (2.7): structural DATE errors — the structural channel
+  // ---------------------------------------------------------------------------
+
+  describe('decision 2 (2.7): structural DATE errors', () => {
+    // PIN (a) TAXONOMY BOUNDARY: no-DATE and multiple-DATE are DISTINCT messages
+    it('PIN (a): no-DATE and multiple-DATE produce DISTINCT structural message keys', async () => {
+      const date = new Date('2023-01-15');
+
+      const noDateResult = await generateRows(
+        [createMockRow(0, { col2: 100.5 })],
+        [createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams)],
+        BASE_CURRENCY,
+      );
+      const multiDateResult = await generateRows(
+        [createMockRow(0, { col1: date, col1b: date, col2: 100.5 })],
+        [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col1b', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams),
+        ],
+        BASE_CURRENCY,
+      );
+
+      expect(noDateResult.structuralErrors).toHaveLength(1);
+      expect(multiDateResult.structuralErrors).toHaveLength(1);
+      const noDateKey = noDateResult.structuralErrors[0].getText();
+      const multiDateKey = multiDateResult.structuralErrors[0].getText();
+      expect(noDateKey).toBe('engine.importStatement.stage3.structural-no-date-column');
+      expect(multiDateKey).toBe('engine.importStatement.stage3.structural-multiple-date-columns');
+      expect(noDateKey).not.toBe(multiDateKey); // distinct ДІЯ hints: map one vs unmap one
+    });
+
+    it('happy path carries an EMPTY structuralErrors array (the channel is always present)', async () => {
+      const date = new Date('2023-01-15');
+      const result = await generateRows(
+        [createMockRow(0, { col1: date, col2: 100.5, col3: 'USD' })],
+        [
+          createColumn('col1', ColumnDefinition.DATE),
+          createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'auto' } as AmountColumnParams),
+          createColumn('col3', ColumnDefinition.CURRENCY),
+        ],
+        BASE_CURRENCY,
+      );
+      expect(result.rows).toHaveLength(1);
+      expect(result.structuralErrors).toEqual([]);
+    });
+
+    // PIN: pseudo-ops do NOT spawn on structural failure — there are no reliable
+    // dates to donate (the DATE mapping itself is broken).
+    it('PIN: structural failure spawns ZERO pseudo-ops (commission + cashback cells present)', async () => {
+      const rows = [
+        createMockRow(0, { col2: 100.5, colComm: 5.0, colCb: 1.0 }),
+        createMockRow(1, { col2: 200.0, colComm: 7.0, colCb: 2.0 }),
+      ];
+      const columns = [
+        // NO DATE column mapped — structural failure
+        createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams),
+        { id: 'colComm', definition: ColumnDefinition.BANK_COMMISSION, params: { currency: 'use_base' } } as ColumnInfo,
+        { id: 'colCb', definition: ColumnDefinition.CASHBACK, params: { currency: 'use_base' } } as ColumnInfo,
+      ];
+
+      const result = await generateRows(rows, columns, BASE_CURRENCY);
+
+      expect(result.structuralErrors).toHaveLength(1);
+      expect(result.rows).toHaveLength(0); // no mains AND no pseudo-ops
+      expect(result.rowErrors).toHaveLength(0);
+      expect(result.skipped).toHaveLength(0);
+    });
+
+    it('multi-row input still reports exactly ONE structural message (not one per row)', async () => {
+      const rows = Array.from({ length: 12 }, (_, i) => createMockRow(i, { col2: 10 * (i + 1) }));
+      const columns = [
+        createColumn('col2', ColumnDefinition.AMOUNT, { currency: 'use_base' } as AmountColumnParams),
+      ];
+      const result = await generateRows(rows, columns, BASE_CURRENCY);
+      expect(result.structuralErrors).toHaveLength(1);
+      expect(result.rowErrors).toHaveLength(0);
+      expect(result.rows).toHaveLength(0);
     });
   });
 

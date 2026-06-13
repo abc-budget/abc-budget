@@ -23,10 +23,13 @@ function resolveInNode(specifier: string): { ok: boolean; stderr: string } {
 }
 
 describe('NFR-003 UI/Engine boundary (exports map)', () => {
-  it('public barrel exposes exactly the two client factories at runtime (2.6 declared change)', () => {
+  it('public barrel exposes exactly the two client factories + localeToCurrency at runtime (2.7 declared change)', () => {
+    // DECLARED CHANGE (2.7 decision 1): localeToCurrency joins — the pure
+    // locale→ISO mapping the cold-start base-currency gate preselects with.
     expect(Object.keys(engineModule).sort()).toEqual([
       'createDirectEngineClient',
       'createWorkerEngineClient',
+      'localeToCurrency',
     ]);
   });
 

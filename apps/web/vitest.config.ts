@@ -6,5 +6,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.spec.{ts,tsx}'],
+    // jsdom-undici realm bridge for the data router (see vitest.setup.ts)
+    setupFiles: ['./vitest.setup.ts'],
   },
 });

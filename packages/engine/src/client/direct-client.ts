@@ -1,5 +1,5 @@
 /**
- * Direct (in-thread) EngineClient — implements the full EngineClient contract v2
+ * Direct (in-thread) EngineClient — implements the full EngineClient contract v3
  * without a Worker.  This is the transport vitest and QA ride; the worker host
  * (`internal/worker/engine-worker-host.ts`) is a wire shim over THIS client, so
  * both transports run the identical session logic and the identical composed
@@ -66,8 +66,14 @@ import type { ImportStatementStage2Impl } from '../internal/importStatement/stag
 import { generateRows } from '../internal/importStatement/stage3/row-generator';
 import type { ColumnInfo } from '../internal/importStatement/stage3/row-generator';
 import type { GenerateRowsResult } from '../internal/importStatement/stage3/types';
-import { getBaseCurrency } from '../internal/settings/base-currency';
-import { BaseCurrencyNotSetError } from '../internal/settings/base-currency';
+import {
+  getBaseCurrency,
+  getBaseCurrencyOrNull,
+  setBaseCurrency,
+  BaseCurrencyNotSetError,
+  InvalidBaseCurrencyError,
+} from '../internal/settings/base-currency';
+import { getCurrency } from '../internal/currency/reference';
 import { generateUniqueId } from '../internal/utils/id/generator';
 import { SessionRegistry } from '../internal/worker/sessions';
 import { CONTRACT_VERSION, ENGINE_VERSION } from '../internal/version';
@@ -383,6 +389,35 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     async importAbort(sessionId: string): Promise<void> {
       // Free the session; no-op if already gone (idempotent)
       registry.free(sessionId);
+    },
+
+    // ── Base currency (contract v3 — Story 2.7, decision 1) ──────────────────
+
+    async getBaseCurrency(): Promise<string | null> {
+      const { settingsDao } = await composedPromise;
+      if (settingsDao === null) {
+        // No persistence → no base currency CAN exist. The probe's contract is
+        // "null = unset" — this is genuinely unset, not an error state.
+        return null;
+      }
+      return getBaseCurrencyOrNull(settingsDao);
+    },
+
+    async setBaseCurrency(iso: string): Promise<void> {
+      // Validate FIRST — the 1.6 reference is pure, no DB needed, so an invalid
+      // code reports as InvalidBaseCurrencyError even where persistence is absent.
+      if (!getCurrency(iso)) {
+        throw new InvalidBaseCurrencyError(iso);
+      }
+      const { settingsDao } = await composedPromise;
+      if (settingsDao === null) {
+        // A set that cannot persist must NEVER look successful (HC-7 loud).
+        throw new Error(
+          '[abc-engine] Cannot set base currency: persistence is unavailable ' +
+            '(no indexedDB in this environment).',
+        );
+      }
+      await setBaseCurrency(settingsDao, iso);
     },
 
     // ── Out-of-band events ────────────────────────────────────────────────────

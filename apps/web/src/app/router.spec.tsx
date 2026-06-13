@@ -1,31 +1,63 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
-import { AppRoutes } from './router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
+import type { EngineClient } from '@abc-budget/engine';
+import { routes } from './router';
 import { useHasData } from './has-data';
+import { engine } from '../engine';
+import { EngineClientProvider } from './engine-client-context';
 import { LangProvider } from './i18n/LangProvider';
 
 vi.mock('./has-data');
 
 // engine.ts spawns the real Worker at module init (2.6 always-worker) — jsdom has
 // no Worker, so screens that render the engine status line get a fake client.
+// 2.7: the S3a session methods joined the mock — the wizard walk now has to pass
+// the REAL gate #1 (decode → importStart → unknown unlocks Next).
 vi.mock('../engine', () => ({
   engine: {
     ping: async (message: string) => message,
-    getVersion: async () => ({ engine: '0.0.0', contract: 2 }),
+    // DECLARED UPDATE (2.7): contract 2 → 3 (base-currency surface + structural channel)
+    getVersion: async () => ({ engine: '0.0.0', contract: 3 }),
     onEvent: () => () => {},
+    decode: async () => ({
+      rows: [{ Дата: '01.01.2026', Сума: '-1,00' }],
+      issues: [],
+      meta: { format: 'csv', headerRow: 0, totalRows: 1, decodedRows: 1 },
+    }),
+    importStart: async () => ({
+      sessionId: 'sess-router',
+      stage2: { columns: [], recognized: { n: 0, m: 2 }, lastSaveCollision: null, unmapped: [] },
+    }),
+    importAbort: async () => undefined,
+    // 2.7 Task 4: the cold-start gate probes on /import entry — set here, so
+    // the wizard walks never see the dialog (ImportFlow.spec owns the gate).
+    getBaseCurrency: async () => 'UAH',
+    setBaseCurrency: async () => undefined,
   },
   engineReady: Promise.resolve({ state: 'ready' }),
 }));
 
+// Data router since 2.7 (ImportFlow's useBlocker needs it) — tests mount the
+// same route objects through createMemoryRouter.
 function renderAt(path: string) {
+  const router = createMemoryRouter(routes, { initialEntries: [path] });
   return render(
     <LangProvider initialLang="uk">
-      <MemoryRouter initialEntries={[path]}>
-        <AppRoutes />
-      </MemoryRouter>
+      <EngineClientProvider client={engine as unknown as EngineClient}>
+        <RouterProvider router={router} />
+      </EngineClientProvider>
     </LangProvider>,
   );
+}
+
+/** Pass gate #1: drive a file through S3a → unknown (n=0) unlocks Далі.
+ *  find* because the S3a body waits for the base-currency probe (Task 4). */
+async function passS3aGate() {
+  fireEvent.change(await screen.findByTestId('s3a-file-input'), {
+    target: { files: [new File(['a,b\n1,2'], 'statement.csv', { type: 'text/csv' })] },
+  });
+  await waitFor(() => expect(screen.getByTestId('s3a-unknown')).toBeTruthy());
 }
 
 beforeEach(() => {
@@ -58,7 +90,7 @@ describe('screen mounts', () => {
     renderAt('/dashboard');
     expect(screen.getByTestId('screen-dashboard')).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId('engine-status').textContent).toContain('PING OK'));
-    expect(screen.getByTestId('engine-status').textContent).toContain('CONTRACT 2');
+    expect(screen.getByTestId('engine-status').textContent).toContain('CONTRACT 3');
   });
   it('/settings mounts Settings with section tabs', () => {
     renderAt('/settings');
@@ -104,26 +136,45 @@ describe('FEAT-030 link map', () => {
   });
 });
 
-describe('wizard flow (single route, internal steps)', () => {
-  it('Далі walks S3a→S3d; Назад steps back; S3a-Назад exits to Dashboard', () => {
+describe('wizard flow (single route, internal steps; REAL gate #1 since 2.7)', () => {
+  it('S3a-Назад with NO session exits straight to Dashboard (blocker inactive)', () => {
+    renderAt('/import');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByTestId('screen-dashboard')).toBeTruthy();
+  });
+  it('gate #1: Далі is disabled until S3a resolves; then walks S3a→S3d and back', async () => {
     renderAt('/import');
     expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Далі' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+    expect(screen.getByText('КРОК 1 / 4')).toBeTruthy(); // gate held
+    await passS3aGate();
     fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
     expect(screen.getByText('КРОК 2 / 4')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
     expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
-    expect(screen.getByTestId('screen-dashboard')).toBeTruthy(); // S3a Назад → Dashboard
   });
-  it('S3d: «До бюджету» → Dashboard; «Імпортувати ще» → reset to S3a', () => {
+  it('exit with an active session → confirm modal; «Перервати й вийти» → Dashboard', async () => {
     renderAt('/import');
+    await passS3aGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    // blocked: the altus confirm modal, not the dashboard
+    expect(screen.getByRole('dialog', { name: 'Перервати імпорт?' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Перервати й вийти' }));
+    await waitFor(() => expect(screen.getByTestId('screen-dashboard')).toBeTruthy());
+  });
+  it('S3d: «До бюджету» → Dashboard (after leave-confirm); «Імпортувати ще» → reset to S3a', async () => {
+    renderAt('/import');
+    await passS3aGate();
     for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
     expect(screen.getByText('КРОК 4 / 4')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Імпортувати ще' }));
     expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
     for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
     fireEvent.click(screen.getByRole('button', { name: 'До бюджету' }));
-    expect(screen.getByTestId('screen-dashboard')).toBeTruthy();
+    // the session is still live → exit-protection fires here too
+    fireEvent.click(screen.getByRole('button', { name: 'Перервати й вийти' }));
+    await waitFor(() => expect(screen.getByTestId('screen-dashboard')).toBeTruthy());
   });
 });
 
