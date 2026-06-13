@@ -17,7 +17,9 @@
  *     SessionAlreadyActiveError.
  *   - importApplyColumn returns the COLUMN-STATE snapshot only (row economy);
  *     full rows flow through windowed importGetRows.
- *   - completed importNext / importAbort free the session graph.
+ *   - importAbort frees the session graph (the SOLE free path now). DECLARED
+ *     CHANGE (2.8 decision #4): completed importNext NO LONGER frees — it flushes
+ *     the staged recall writes and leaves the session live for S3c to reuse.
  *
  * Progress events (HC-10 honest counts): decode and importNext emit
  * `progress {jobId, phase, done, total}` via onEvent — done is monotone,
@@ -305,6 +307,7 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
         entry.generatedRows = null; // column state changed — typed-row cache is stale
         entry.generatedSourceTotal = null;
         entry.lastAppliedColumnName = col.originalName.getText(); // collision key
+        entry.lastAppliedColumnId = col.id; // staged-write key for resolveCollision (2.8 #4)
         const snapshot = await snapshotStage2(stage2);
         return { ok: true, snapshot };
       } catch (err) {
@@ -318,6 +321,8 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
 
     async importResetColumn(sessionId: string, columnId: string): Promise<Stage2SnapshotDTO> {
       const entry = registry.get(sessionId);
+      // stage2.resetColumn unstages the column's staged recall write (2.8 #4):
+      // a reset mapping never reaches the pool on the next advance (pin d).
       await entry.stage2.resetColumn(columnId);
       entry.generatedRows = null;
       entry.generatedSourceTotal = null;
@@ -343,12 +348,15 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       if (!collision) {
         return; // nothing to resolve — idempotent no-op
       }
+      // 2.8 decision #4 (defer-commit): writes defer to flushRecallWrites() on
+      // advance, so resolve does NOT write here. On confirm, MARK the staged
+      // entry confirmed → flush uses confirmSave (LWW). On decline, leave it
+      // staged-unconfirmed → flush's save() returns the collision WITHOUT writing
+      // (the safe no-clobber default — the stored pool entry is preserved).
       if (confirm) {
-        // LWW overwrite via the REAL pool (composition root) — confirmSave path.
-        const { recallPool } = await composedPromise;
-        const name = entry.lastAppliedColumnName;
-        if (recallPool && name) {
-          await recallPool.confirmSave(name, collision.incoming.definition, collision.incoming.params);
+        const columnId = entry.lastAppliedColumnId;
+        if (columnId) {
+          stage2.confirmStagedRecallWrite(columnId);
         }
       }
       impl.lastSaveCollision = null;
@@ -375,14 +383,22 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
         return { ok: false, unmapped: serializeUnmappedColumns(unmapped) };
       }
 
+      // 2.8 decision #4 (defer-commit): flush the STAGED recall writes on the
+      // advance — the user's endorsement. One advance, one commit, one honest
+      // takeover (rides the same generateForSession progress). Flush is loud-on-
+      // failure but never throws, so it cannot abort the advance.
+      await stage2.flushRecallWrites();
+
       const jobId = generateUniqueId('job');
       const result = await generateForSession(entry, (done, total) =>
         emitProgress(jobId, 'generate', done, total),
       );
 
-      // Completed importNext frees the session graph (founder refinement 1).
-      registry.free(sessionId);
-
+      // DECLARED CHANGE (2.8 decision #4 + PM clarification 2026-06-13): importNext
+      // NO LONGER frees the session — S3c reuses the live session for categorize/
+      // review. Only importAbort frees now (the sole free path). The ≤1-active
+      // rule still holds via importStart's SessionAlreadyActiveError guard +
+      // the UI's abort-before-restart (2.7 replace/remove).
       return { ok: true, result: serializeGenerateResult(result) };
     },
 

@@ -4,7 +4,10 @@
  * Enforces the session lifecycle contract (founder refinement 1):
  *   - ≤1 active session at a time.
  *   - importStart while active → SessionAlreadyActiveError.
- *   - importAbort / completed importNext → frees the session from the registry.
+ *   - importAbort → frees the session from the registry (the SOLE free path).
+ *     DECLARED CHANGE (2.8 decision #4 + PM clarification): completed importNext
+ *     NO LONGER frees — it flushes staged recall writes and leaves the session
+ *     live for S3c to reuse.
  *   - Sessions die with the worker; after respawn, importStart is the only way forward.
  *
  * The registry holds the worker-side stage graph by sessionId. Session ids are
@@ -44,6 +47,12 @@ export interface SessionEntry {
    * not carry the column name).
    */
   lastAppliedColumnName: string | null;
+  /**
+   * Column id of the most recently applied column — lets importResolveCollision
+   * mark the right STAGED recall write confirmed (2.8 decision #4 defer-commit),
+   * since staging is keyed by columnId.
+   */
+  lastAppliedColumnId: string | null;
 }
 
 // ── SessionRegistry ───────────────────────────────────────────────────────────
@@ -98,6 +107,7 @@ export class SessionRegistry {
       generatedRows: null,
       generatedSourceTotal: null,
       lastAppliedColumnName: null,
+      lastAppliedColumnId: null,
     };
     this._sessions.set(sessionId, entry);
     this._activeSessionId = sessionId;
