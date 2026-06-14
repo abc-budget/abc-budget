@@ -52,7 +52,7 @@ import type { ImportStatementRowData } from '../stage2/types';
 import { ColumnDefinition } from '../types';
 import type { AmountColumnParams, ColumnParams } from '../types';
 import { detectAmountAndCurrency } from './amount-currency-detector';
-import { calculateRowHash } from './hash';
+import { calculateRowHash, applyDupCounters } from './hash';
 import { expandPseudoOps } from './pseudo-ops';
 import type {
   GenerateRowsResult,
@@ -212,6 +212,18 @@ export async function generateRows(
   // Sync rowIndex with array index (performance optimization, verbatim from prior art)
   for (let i = 0; i < resultRows.length; i++) {
     resultRows[i].rowIndex = i;
+  }
+
+  // ── Dup-counter post-pass (Story 3.2, Q-011 second half) ───────────────────
+  // Each row currently carries its BASE hash (9-field recipe + pseudoOp). This
+  // batch pass wraps genuine full-row duplicates (same base hash + same pseudoOp)
+  // with a per-group counter so they get DISTINCT final hashes {h#0, h#1, …} —
+  // the (hash,year,month) unique index in 3.4 then keeps them as separate records
+  // instead of merging them (ENT-014). Batch-deterministic (decision 1) + stable
+  // by count not order (decision 2); the base recipe is byte-unchanged (decision 6).
+  const finalHashes = await applyDupCounters(resultRows.map((r) => r.hash));
+  for (let i = 0; i < resultRows.length; i++) {
+    resultRows[i].hash = finalHashes[i];
   }
 
   // Final honest count: done === total, always emitted exactly once (HC-10).

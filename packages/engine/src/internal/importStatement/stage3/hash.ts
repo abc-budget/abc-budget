@@ -20,7 +20,10 @@
  * except the following declared extensions:
  *   - 2.3 QA FINDING-1 (ENT-009): COUNTERPARTY added to HASH_COLUMN_DEFINITIONS.
  *   - 2.5 Q-011 (decision 2): `pseudoOp` discriminator key added to the canonical object.
- *     Type-marker landed here; dup-counter (identical full rows → suffix 0,1,2…) → EP-3.
+ *     Type-marker landed here.
+ *   - 3.2 Q-011 (second half): the dup-counter (identical full rows → distinct hashes)
+ *     landed here too — `applyDupCounters`, a batch wrap→re-SHA layer over the base
+ *     recipe (`finalHash = SHA-256({ base, dup })`). The base recipe below is unchanged.
  */
 
 import type { ImportStatementRowData } from '../stage2/types';
@@ -33,7 +36,8 @@ import { ColumnDefinition } from '../types';
 /**
  * Identifies the pseudo-op kind for the row hash discriminator.
  * 'main' = the original transaction row; 'commission' / 'cashback' = derived pseudo-ops.
- * Dup-counter (identical full rows → suffix 0,1,2…) deferred to EP-3.
+ * The dup-counter (identical full rows → distinct hashes) is a separate wrap layer —
+ * see `applyDupCounters` below (Story 3.2, Q-011 second half).
  */
 export type PseudoOpKind = 'main' | 'commission' | 'cashback';
 
@@ -178,4 +182,48 @@ export async function calculateRowHash(
 ): Promise<string> {
   const hashableObject = generateHashableObject(row, columns, discriminator);
   return objectHash(hashableObject);
+}
+
+// ---------------------------------------------------------------------------
+// Q-011 second half — dup-counter (Story 3.2, decisions 1–6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Batch dup-counter post-pass: given the BASE hashes of every generated row in
+ * a single import batch (in order), return the FINAL hashes that give genuine
+ * full-row duplicates distinct identities.
+ *
+ * Two rows identical across all 9 recipe fields AND the same `pseudoOp` produce
+ * the same base hash. Grouping the batch by base hash and assigning a counter
+ * `0..n-1` per group, then wrapping each as `objectHash({ base, dup })`, yields
+ * a distinct final hash per occurrence — `{h#0, h#1, …}` (Q-011 second half).
+ *
+ * Decision 6 — wrap → re-SHA: the final hash stays a uniform opaque 64-hex SHA
+ * (no parseable `base#k` structure); the base recipe (`generateHashableObject`)
+ * is byte-UNCHANGED — `dup` is a separate layer, not a recipe field.
+ *
+ * Decision 1 — BATCH-deterministic, never against the store: the counter is a
+ * pure function of THIS batch's base hashes; the same statement always yields
+ * the same SET, so 3.4's upsert is idempotent (a re-import never sees N and
+ * assigns N..2N-1).
+ *
+ * Decision 2/3 — stable by COUNT, not order; no inter-row links: `k` is assigned
+ * in index order, but because grouped rows are identical the resulting SET of
+ * final hashes is invariant under input reordering (HC-9). Per-index assignment
+ * may differ across orders; the multiset/SET does not.
+ *
+ * @param baseHashes  The per-row base hashes (`calculateRowHash` output), in row order.
+ * @returns           The final hashes, aligned 1:1 to `baseHashes` by index.
+ */
+export async function applyDupCounters(
+  baseHashes: readonly string[]
+): Promise<string[]> {
+  const seen = new Map<string, number>(); // base hash → next counter for that group
+  const finals: string[] = [];
+  for (const base of baseHashes) {
+    const dup = seen.get(base) ?? 0;
+    seen.set(base, dup + 1);
+    finals.push(await objectHash({ base, dup }));
+  }
+  return finals;
 }
