@@ -20,7 +20,10 @@
  * except the following declared extensions:
  *   - 2.3 QA FINDING-1 (ENT-009): COUNTERPARTY added to HASH_COLUMN_DEFINITIONS.
  *   - 2.5 Q-011 (decision 2): `pseudoOp` discriminator key added to the canonical object.
- *     Type-marker landed here; dup-counter (identical full rows → suffix 0,1,2…) → EP-3.
+ *     Type-marker landed here.
+ *   - 3.2 Q-011 (second half): the dup-counter (identical full rows → distinct hashes)
+ *     landed here too — `applyDupCounters`, a batch wrap→re-SHA layer over the base
+ *     recipe (`finalHash = SHA-256({ base, dup })`). The base recipe below is unchanged.
  */
 
 import type { ImportStatementRowData } from '../stage2/types';
@@ -33,7 +36,8 @@ import { ColumnDefinition } from '../types';
 /**
  * Identifies the pseudo-op kind for the row hash discriminator.
  * 'main' = the original transaction row; 'commission' / 'cashback' = derived pseudo-ops.
- * Dup-counter (identical full rows → suffix 0,1,2…) deferred to EP-3.
+ * The dup-counter (identical full rows → distinct hashes) is a separate wrap layer —
+ * see `applyDupCounters` below (Story 3.2, Q-011 second half).
  */
 export type PseudoOpKind = 'main' | 'commission' | 'cashback';
 
