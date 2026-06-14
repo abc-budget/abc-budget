@@ -69,6 +69,10 @@ vi.mock('./hash', () => ({
       `dummy-hash-${discriminator}`,
   ),
   generateHashableObject: vi.fn().mockReturnValue({}),
+  // 3.2: identity passthrough — this unit tests generateRows STRUCTURE with hash
+  // stubbed; the dup-counter's real wrap→re-SHA behavior is covered with the REAL
+  // hash in dup-counter.spec.ts, so here it must not alter the stubbed hashes.
+  applyDupCounters: vi.fn().mockImplementation(async (hs: string[]) => hs),
 }));
 
 // ---------------------------------------------------------------------------
