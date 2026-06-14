@@ -16,12 +16,15 @@ export const ENGINE_DB_NAME = 'abc-budget';
 /**
  * v1 is a deliberate NO-OP ANCHOR: it pins the version sequence without creating any
  * store (HC-2/3 — no raw-ledger assumptions; store shapes are settled by their epics).
- * EP-3 footprints / EP-4 rules / EP-6 budget append steps v2+ here.
+ * EP-4 rules / EP-6 budget append steps here.
  *
  * v2: creates the `exchangeRates` object store (keyPath: ['base', 'date'], indexes: base + date).
  *
  * v3: creates `userSettings` (keyPath: 'key', unique index: 'key') and
  *     `recallPool` (keyPath: 'columnName') — ONE step, both stores.
+ *
+ * v4: creates the `footprint` object store (keyPath: ['hash', 'year', 'month'], no indexes).
+ *     The `hash` non-unique lookup index is deferred to Story 3.4 — do NOT add it here.
  */
 export const ENGINE_MIGRATIONS: MigrationStep[] = [
   {
@@ -48,6 +51,14 @@ export const ENGINE_MIGRATIONS: MigrationStep[] = [
       });
       // recallPool store — keyPath:'columnName' (Task 2 recall pool)
       ctx.createStore('recallPool', { keyPath: 'columnName' });
+    },
+  },
+  {
+    toVersion: 4,
+    migrate: (ctx) => {
+      // footprint store — composite keyPath:['hash','year','month'] (EP-3 dedup footprints).
+      // No indexes: the `hash` non-unique lookup index is deferred to Story 3.4.
+      ctx.createStore('footprint', { keyPath: ['hash', 'year', 'month'] });
     },
   },
 ];

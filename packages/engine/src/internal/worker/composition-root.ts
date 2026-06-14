@@ -22,6 +22,7 @@
 
 import type { ExchangeRateApi } from '../exchange-rate/api';
 import { setRemoteRatesApi } from '../exchange-rate/rates-holder';
+import { WorkerHttpRatesApi } from '../exchange-rate/worker-http-rates-api';
 import { initEnginePersistence, openEngineDb } from '../persistence/engine-db';
 import type { PersistenceInitResult } from '../persistence/engine-db';
 import { UserSettingsIDBDAO } from '../settings/user-settings-idb';
@@ -37,6 +38,7 @@ export interface ComposeEngineOptions {
   /**
    * Remote ExchangeRateApi implementation supplied by the app layer.
    * When provided, the engine wires a 2-level cache (IDB → remote) lazily.
+   * When omitted, composeEngine self-derives a same-origin WorkerHttpRatesApi.
    */
   exchangeRateApi?: ExchangeRateApi;
 }
@@ -63,7 +65,12 @@ export interface ComposedEngine {
  */
 export async function composeEngine(options?: ComposeEngineOptions): Promise<ComposedEngine> {
   // Rates holder wiring — module-level; lazy service construction on first use.
-  setRemoteRatesApi(options?.exchangeRateApi);
+  // When no explicit api is provided, self-derive the same-origin WorkerHttpRatesApi so the
+  // worker host (which composes WITHOUT a rates api) gets a working remote. This closes the
+  // 2.6 carry-forward gap (worker had an IDB rate cache DAO but no remote source) WITHOUT an
+  // init param and WITHOUT touching CONTRACT_VERSION — nothing about rates crosses the wire.
+  // An explicit override (in-thread/QA composition) is preserved as-is.
+  setRemoteRatesApi(options?.exchangeRateApi ?? new WorkerHttpRatesApi());
 
   // Opens the engine DB (v3 migrations), requests durability, hydrates the
   // engine-config snapshot (2.4 engine-init hydration). Memoized; no-throw
