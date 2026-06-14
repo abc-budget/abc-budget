@@ -124,6 +124,7 @@ function Harnessed({ h }: { h: Harness }) {
       totalRows={120}
       gateView={h.view ?? 'mapping'}
       progress={h.progress ?? { done: 0, total: 0 }}
+      onReturnToMapping={() => {}}
     />
   );
 }
