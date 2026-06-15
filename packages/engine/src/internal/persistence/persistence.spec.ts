@@ -59,19 +59,21 @@ describe('requestDurability', () => {
 });
 
 describe('engine DB migration anchor', () => {
-  // LEGITIMATE TEST UPDATE (Task 1, Story 3.3): v4 appended for the footprint store.
+  // LEGITIMATE TEST UPDATE (Task 1, Story 3.4): v5 appended for the footprint hash index.
   // Step[0] (v1) remains a no-op anchor byte-identical to its original form.
   // Step[1] (v2) creates 'exchangeRates' — byte-unchanged vs Story 1.6.
   // Step[2] (v3) creates 'userSettings' (keyPath:'key', index:'key' unique) + 'recallPool' (keyPath:'columnName').
-  // Step[3] (v4) creates 'footprint' (keyPath:['hash','year','month'], no indexes — index deferred to 3.4).
-  it('ENGINE_MIGRATIONS has 4 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint', async () => {
-    expect(ENGINE_MIGRATIONS).toHaveLength(4);
+  // Step[3] (v4) creates 'footprint' (keyPath:['hash','year','month'], no indexes).
+  // Step[4] (v5) adds the 'hash' NON-unique lookup index to the existing 'footprint' store.
+  it('ENGINE_MIGRATIONS has 5 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint + v5 footprint hash index', async () => {
+    expect(ENGINE_MIGRATIONS).toHaveLength(5);
     expect(ENGINE_MIGRATIONS[0].toVersion).toBe(1);
     expect(ENGINE_MIGRATIONS[1].toVersion).toBe(2);
     expect(ENGINE_MIGRATIONS[2].toVersion).toBe(3);
     expect(ENGINE_MIGRATIONS[3].toVersion).toBe(4);
-    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v4`, ENGINE_MIGRATIONS);
-    expect(db.version).toBe(4);
+    expect(ENGINE_MIGRATIONS[4].toVersion).toBe(5);
+    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v5`, ENGINE_MIGRATIONS);
+    expect(db.version).toBe(5);
     const storeNames = Array.from(db.objectStoreNames).sort();
     expect(storeNames).toEqual(['exchangeRates', 'footprint', 'recallPool', 'userSettings']);
     db.close();
@@ -97,21 +99,25 @@ describe('engine DB migration anchor', () => {
   });
 
   // ── Story 3.3 (Task 1): v4 footprint store ──────────────────────────────────
+  // NB (Story 3.4): these assert the SHAPE v4 itself produced, so they open a v4-only
+  // slice — v5 later adds the `hash` index on the same store (covered by the v5 tests).
   it('v4 creates footprint with composite keyPath [hash,year,month], no indexes, no autoIncrement', async () => {
-    const db = await openDatabase(`${ENGINE_DB_NAME}-v4-footprint`, ENGINE_MIGRATIONS);
+    const v4Steps = ENGINE_MIGRATIONS.slice(0, 4);
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v4-footprint`, v4Steps);
     expect(Array.from(db.objectStoreNames)).toContain('footprint');
     const tx = db.transaction('footprint', 'readonly');
     const store = tx.objectStore('footprint');
     expect(store.keyPath).toEqual(['hash', 'year', 'month']);
     expect(store.autoIncrement).toBe(false);
-    // hash lookup index is explicitly deferred to Story 3.4 — none yet.
+    // v4 itself adds no index — the hash lookup index lands in v5 (Story 3.4).
     expect(Array.from(store.indexNames)).toEqual([]);
     db.close();
   });
 
   it('fresh open ≡ upgrade path: both reach v4 with same store names', async () => {
-    // fresh open
-    const freshDb = await openDatabase(`${ENGINE_DB_NAME}-fresh-v4`, ENGINE_MIGRATIONS);
+    const v4Steps = ENGINE_MIGRATIONS.slice(0, 4);
+    // fresh open (v1 → v4)
+    const freshDb = await openDatabase(`${ENGINE_DB_NAME}-fresh-v4`, v4Steps);
     const freshStores = Array.from(freshDb.objectStoreNames).sort();
     freshDb.close();
 
@@ -119,7 +125,7 @@ describe('engine DB migration anchor', () => {
     const v3Steps = ENGINE_MIGRATIONS.slice(0, 3);
     const upgradeDb = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v4`, v3Steps);
     upgradeDb.close();
-    const v4Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v4`, ENGINE_MIGRATIONS);
+    const v4Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v4`, v4Steps);
     const upgradeStores = Array.from(v4Db.objectStoreNames).sort();
     // footprint store shape identical via the upgrade path
     const upTx = v4Db.transaction('footprint', 'readonly');
@@ -135,6 +141,64 @@ describe('engine DB migration anchor', () => {
 
   it('v4 upgrade does not regress prior stores (exchangeRates, userSettings, recallPool keyPaths)', async () => {
     const db = await openDatabase(`${ENGINE_DB_NAME}-v4-noregress`, ENGINE_MIGRATIONS);
+    const tx = db.transaction(['exchangeRates', 'userSettings', 'recallPool'], 'readonly');
+    expect(tx.objectStore('exchangeRates').keyPath).toEqual(['base', 'date']);
+    expect(tx.objectStore('userSettings').keyPath).toBe('key');
+    expect(tx.objectStore('recallPool').keyPath).toBe('columnName');
+    db.close();
+  });
+
+  // ── Story 3.4 (Task 1): v5 footprint hash lookup index ──────────────────────
+  it('v5 adds a non-unique "hash" lookup index on footprint (keyPath "hash")', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v5-hash-index`, ENGINE_MIGRATIONS);
+    const tx = db.transaction('footprint', 'readonly');
+    const store = tx.objectStore('footprint');
+    expect(Array.from(store.indexNames)).toContain('hash');
+    const idx = store.index('hash');
+    expect(idx.keyPath).toBe('hash');
+    expect(idx.unique).toBe(false);
+    db.close();
+  });
+
+  it('v5 leaves the footprint composite keyPath [hash,year,month] unchanged', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v5-keypath`, ENGINE_MIGRATIONS);
+    const tx = db.transaction('footprint', 'readonly');
+    const store = tx.objectStore('footprint');
+    expect(store.keyPath).toEqual(['hash', 'year', 'month']);
+    expect(store.autoIncrement).toBe(false);
+    db.close();
+  });
+
+  it('fresh open ≡ upgrade path: both reach v5 with the footprint hash index present', async () => {
+    // fresh open (v1 → v5)
+    const freshDb = await openDatabase(`${ENGINE_DB_NAME}-fresh-v5`, ENGINE_MIGRATIONS);
+    const freshTx = freshDb.transaction('footprint', 'readonly');
+    const freshFootprint = freshTx.objectStore('footprint');
+    expect(Array.from(freshFootprint.indexNames)).toContain('hash');
+    expect(freshFootprint.index('hash').unique).toBe(false);
+    freshDb.close();
+
+    // upgrade path: open at v4 first (no hash index), then upgrade to v5
+    const v4Steps = ENGINE_MIGRATIONS.slice(0, 4);
+    const v4Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v5`, v4Steps);
+    // assert v4 baseline has NO hash index before upgrading
+    const v4Tx = v4Db.transaction('footprint', 'readonly');
+    expect(Array.from(v4Tx.objectStore('footprint').indexNames)).toEqual([]);
+    v4Db.close();
+
+    const v5Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v5`, ENGINE_MIGRATIONS);
+    const upTx = v5Db.transaction('footprint', 'readonly');
+    const upFootprint = upTx.objectStore('footprint');
+    expect(upFootprint.keyPath).toEqual(['hash', 'year', 'month']);
+    expect(Array.from(upFootprint.indexNames)).toContain('hash');
+    const upIdx = upFootprint.index('hash');
+    expect(upIdx.keyPath).toBe('hash');
+    expect(upIdx.unique).toBe(false);
+    v5Db.close();
+  });
+
+  it('v5 upgrade does not regress prior stores (exchangeRates, userSettings, recallPool keyPaths)', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v5-noregress`, ENGINE_MIGRATIONS);
     const tx = db.transaction(['exchangeRates', 'userSettings', 'recallPool'], 'readonly');
     expect(tx.objectStore('exchangeRates').keyPath).toEqual(['base', 'date']);
     expect(tx.objectStore('userSettings').keyPath).toBe('key');

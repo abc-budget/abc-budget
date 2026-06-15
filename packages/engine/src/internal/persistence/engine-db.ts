@@ -25,6 +25,10 @@ export const ENGINE_DB_NAME = 'abc-budget';
  *
  * v4: creates the `footprint` object store (keyPath: ['hash', 'year', 'month'], no indexes).
  *     The `hash` non-unique lookup index is deferred to Story 3.4 — do NOT add it here.
+ *
+ * v5: adds the `hash` NON-unique lookup index to the existing `footprint` store (Story 3.4).
+ *     Native compound-keyPath upsert needs no lookup; this index serves forward-looking
+ *     findByHash (EP-4/EP-6). No `rebuildStore` — the store already exists from v4.
  */
 export const ENGINE_MIGRATIONS: MigrationStep[] = [
   {
@@ -59,6 +63,14 @@ export const ENGINE_MIGRATIONS: MigrationStep[] = [
       // footprint store — composite keyPath:['hash','year','month'] (EP-3 dedup footprints).
       // No indexes: the `hash` non-unique lookup index is deferred to Story 3.4.
       ctx.createStore('footprint', { keyPath: ['hash', 'year', 'month'] });
+    },
+  },
+  {
+    toVersion: 5,
+    migrate: (ctx) => {
+      // footprint hash lookup index (Story 3.4) — NON-unique. Native compound-keyPath
+      // upsert needs no lookup; this index serves forward-looking findByHash (EP-4/EP-6).
+      ctx.createIndex('footprint', { name: 'hash', keyPath: 'hash', options: { unique: false } });
     },
   },
 ];
