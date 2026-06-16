@@ -72,8 +72,12 @@ const HAS_FILE = existsSync(REAL_STATEMENT_PATH);
 /** Min bucket size to be a measurable homogeneous-category bucket (spec N_MIN). */
 const N_MIN = 8;
 
-/** PM Ruling 2 re-tune line: a clean bucket above this flag-rate is a signal. */
-const FLAG_RATE_CEILING = 0.2;
+/**
+ * The TARGET bar after the amount-path fix (log-space outliers + the min-spread
+ * floor): "narrow ~1000 rows to ~10 worth a glance" — a single-digit OVERALL
+ * flag-rate. A clean bucket above this is a re-tune signal.
+ */
+const FLAG_RATE_CEILING = 0.1;
 
 if (!HAS_FILE) {
   // HC-10 — no silent skip. State that we skipped and exactly why.
@@ -337,10 +341,8 @@ describe.skipIf(!HAS_FILE)(
         )
         .join('\n');
 
-      // PM Ruling 2 re-tune banner: any clean bucket (or the overall) above the
-      // ceiling is a re-tune SIGNAL to hand back to the founder — NOT silently
-      // re-tuned here (constants/rankBucket are frozen for this task) and NOT
-      // faked green by weakening the measurement.
+      // Re-tune banner: any clean bucket (or the overall) above the ceiling is a
+      // re-tune SIGNAL to hand back to the founder.
       const overCeiling = measurements.filter(
         (m) => m.flagRate > FLAG_RATE_CEILING
       );
@@ -362,26 +364,23 @@ describe.skipIf(!HAS_FILE)(
           `flagRate=${largest.flagRate.toFixed(4)}\n` +
           `  ── per-bucket (size desc) ──\n${table}` +
           (retune
-            ? `\n  ⚠ RE-TUNE SIGNAL (PM Ruling 2): bucket(s) over ${FLAG_RATE_CEILING} → ` +
+            ? `\n  ⚠ RE-TUNE SIGNAL: bucket(s) over ${FLAG_RATE_CEILING} → ` +
               `${overCeiling.map((m) => `mcc=${m.mcc}(${m.flagRate.toFixed(4)})`).join(', ')}.\n` +
-              `    Cause is the AMOUNT dimension, NOT text — see top-reasons (amount:z…),\n` +
-              `    so the #6c text containment HOLDS (text-sole flags = ${textSoleFlags}). The amount\n` +
-              `    MAD-z tail (Z0=3..ZMAX=6) over-fires on heavy-tailed real spend within a\n` +
-              `    single category (e.g. mcc 4829: many 1000s + a 18k–21k transfer tail; mcc\n` +
-              `    5814: MAD=0 point-like 130s ⇒ any deviation = atypicality 1). HAND BACK to\n` +
-              `    founder for an amount-knob re-tune decision; do NOT re-tune in this task.`
+              `    Inspect the top-reasons; hand back to the founder for an amount-knob decision.`
             : '')
       );
 
       // 5. TEETH.
       //
-      //    The literal "flag-rate ≤ 0.20 on the largest/overall bucket" is the
-      //    EXPECTATION; on this real statement it is FALSIFIED by the AMOUNT
-      //    dimension (heavy-tailed real spend within a category), reported above
-      //    as a PM-Ruling-2 re-tune signal. We do NOT weaken that to a hollow
-      //    green, nor re-tune the (frozen) constants. We assert instead the
-      //    property the task's prose actually justifies — the #6c TEXT
-      //    containment that defeats the "naive lexical → ~100%" failure mode:
+      //    After the amount-path fix (log-space outliers + the MIN_LOG_MAD
+      //    min-spread floor) the AMOUNT dimension no longer over-fires on real
+      //    heavy-tailed / point-like category spend:
+      //      - point-like buckets (logMad < MIN_LOG_MAD, e.g. mcc 5814's ≈130s)
+      //        are NON-INFORMATIVE → no longer flag every trivial deviation;
+      //      - genuinely log-normal buckets (e.g. mcc 4829's 30→21000) treat the
+      //        upper tail as EXPECTED → near-zero atypicality.
+      //    The overall flag-rate collapses to single-digit % — the TARGET bar
+      //    ("narrow ~1000 rows to ~10 worth a glance").
       //
       //    (a) #6c invariant — NO op is flagged by TEXT alone. TEXT_CAP < T_ABS
       //        makes a rare merchant word a weak signal that can never, by
@@ -389,9 +388,12 @@ describe.skipIf(!HAS_FILE)(
       //        varied-merchant bucket does NOT light up ~100% on lexical novelty.
       expect(textSoleFlags).toBe(0);
 
-      //    (b) Sanity floor — no clean bucket reaches the naive ~100%. Real
-      //        amount-driven flagging is far below a lexical impl's blanket
-      //        flag; cap the worst clean bucket well under saturation (≤ 50%).
+      //    (b) TARGET — the OVERALL flag-rate is single-digit % (≤ the ceiling).
+      //        This is the live witness that the amount fix hit the real bar.
+      expect(overallFlagRate).toBeLessThanOrEqual(FLAG_RATE_CEILING);
+
+      //    (c) No clean bucket saturates: every per-bucket flag-rate is far below
+      //        a naive lexical impl's blanket ~100%.
       const worstFlagRate = Math.max(...measurements.map((m) => m.flagRate));
       expect(worstFlagRate).toBeLessThanOrEqual(0.5);
     });

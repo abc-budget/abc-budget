@@ -31,7 +31,7 @@
  */
 
 import type { ImportStatementStage3Row } from '../../importStatement/stage3/types';
-import { MAD_SIGMA, N_MIN, REPORT_A_F, T_ABS } from './constants';
+import { N_MIN, REPORT_A_F, T_ABS } from './constants';
 import {
   amountAtypicality,
   buildBucketProfile,
@@ -50,7 +50,8 @@ import {
  * divergence, and the kind-specific payload the UI surfaces.
  *
  *   - categorical-minority → `value` (mcc as the number, others as the string).
- *   - amount-outlier       → `magnitude` (the rounded MAD-z of the amount).
+ *   - amount-outlier       → `magnitude` (≈ ×N the typical: `round(|amount| /
+ *                            rawMedian)`, a finite, interpretable multiple).
  *   - rare-tokens          → `tokens` (the op's rarest non-filter tokens).
  */
 export interface TypicalityReason {
@@ -129,12 +130,16 @@ function categoricalReasonValue(
   return categoricalValue(row, field) as string;
 }
 
-/** The MAD-z of `amount` against its currency profile — the reported magnitude. */
-function amountMadZ(amount: number, c: AmountProfile): number {
-  if (c.mad === 0) {
-    return amount === c.median ? 0 : Infinity;
+/**
+ * The reported amount-outlier magnitude: ≈ how many times the typical spend this
+ * op is, `round(|amount| / rawMedian)`. Finite and interpretable (no Infinity).
+ * A non-positive / zero `rawMedian` is degenerate → 0.
+ */
+function amountMultiple(amount: number, c: AmountProfile): number {
+  if (c.rawMedian === 0) {
+    return 0;
   }
-  return Math.abs(amount - c.median) / (MAD_SIGMA * c.mad);
+  return Math.round(Math.abs(amount) / Math.abs(c.rawMedian));
 }
 
 /**
@@ -215,7 +220,7 @@ function scoreOp(
       reason: () => ({
         field: 'amount',
         kind: 'amount-outlier',
-        magnitude: Math.round(amountMadZ(row.amount, currencyProfile)),
+        magnitude: amountMultiple(row.amount, currencyProfile),
       }),
     });
   }

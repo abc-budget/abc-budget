@@ -170,22 +170,24 @@ describe('rankBucket — field availability', () => {
 // ── per-currency amount ──────────────────────────────────────────────────────
 
 describe('rankBucket — per-currency amount', () => {
-  it('a 10× UAH op flags as amount-outlier; USD ops at another scale do NOT', () => {
-    // 8 normal UAH ops near 100, one 10× UAH outlier, + 5 USD ops at a different
-    // scale (≈ 5). The USD scale must not contaminate the UAH outlier, and the
-    // USD ops themselves are not flagged.
+  it('a ~50× UAH op flags as amount-outlier; USD ops at another scale do NOT', () => {
+    // 8 normal UAH ops with a real LOG spread (60..150, rawMedian 100 → logMad
+    // clears MIN_LOG_MAD so amount is a genuine signal), one large UAH outlier
+    // (5000 ≈ 50× the typical), + 5 USD ops at a different scale with their own
+    // in-spread log range. The USD scale must not contaminate the UAH outlier,
+    // and the USD ops themselves are not flagged.
     const list = rows([
-      { rowIndex: 0, amount: 98 },
-      { rowIndex: 1, amount: 99 },
-      { rowIndex: 2, amount: 100 },
-      { rowIndex: 3, amount: 101 },
-      { rowIndex: 4, amount: 102 },
-      { rowIndex: 5, amount: 100 },
-      { rowIndex: 6, amount: 99 },
-      { rowIndex: 7, amount: 101 },
-      { rowIndex: 8, amount: 1000 }, // the 10× UAH outlier
-      // 5 USD ops at a different scale, with a non-degenerate in-spread range
-      // (median 5, mad 1 → every op well within Z0, none an outlier).
+      { rowIndex: 0, amount: 60 },
+      { rowIndex: 1, amount: 70 },
+      { rowIndex: 2, amount: 80 },
+      { rowIndex: 3, amount: 90 },
+      { rowIndex: 4, amount: 100 },
+      { rowIndex: 5, amount: 110 },
+      { rowIndex: 6, amount: 130 },
+      { rowIndex: 7, amount: 150 },
+      { rowIndex: 8, amount: 5000 }, // the ~50× UAH outlier
+      // 5 USD ops at a different scale, each well within their own log spread
+      // (3..7 → none an outlier).
       { rowIndex: 9, amount: 3, currency: 'USD' },
       { rowIndex: 10, amount: 4, currency: 'USD' },
       { rowIndex: 11, amount: 5, currency: 'USD' },
@@ -194,13 +196,15 @@ describe('rankBucket — per-currency amount', () => {
     ]);
     const result = rankBucket(list, NO_FILTER);
 
-    // The UAH outlier flagged with an amount-outlier reason.
+    // The UAH outlier flagged with an amount-outlier reason; magnitude is the
+    // finite ×N multiple (≈ 5000/100 = 50), never Infinity.
     const outlier = result.flagged.find((f) => f.row.rowIndex === 8);
     expect(outlier).toBeDefined();
     expect(outlier!.reasons.some((r) => r.kind === 'amount-outlier')).toBe(true);
     const amountReason = outlier!.reasons.find((r) => r.kind === 'amount-outlier')!;
     expect(amountReason.field).toBe('amount');
-    expect(amountReason.magnitude).toBeGreaterThan(0);
+    expect(amountReason.magnitude).toBe(50);
+    expect(Number.isFinite(amountReason.magnitude)).toBe(true);
 
     // No USD op is flagged (no cross-currency contamination).
     const usdFlags = result.flagged.filter((f) => f.row.currency === 'USD');
@@ -213,16 +217,17 @@ describe('rankBucket — per-currency amount', () => {
 describe('rankBucket — attribution', () => {
   it('reasons are ordered by ENT-021 signal strength (mcc before amount)', () => {
     // One op atypical in BOTH mcc and amount → mcc must come before amount.
+    // The 8 typical ops carry a real log spread (60..150) so amount is a signal.
     const list = rows([
-      { rowIndex: 0, amount: 98 },
-      { rowIndex: 1, amount: 99 },
-      { rowIndex: 2, amount: 100 },
-      { rowIndex: 3, amount: 101 },
-      { rowIndex: 4, amount: 102 },
-      { rowIndex: 5, amount: 100 },
-      { rowIndex: 6, amount: 99 },
-      { rowIndex: 7, amount: 101 },
-      { rowIndex: 8, amount: 1000, mcc: 6051 }, // atypical mcc AND amount
+      { rowIndex: 0, amount: 60 },
+      { rowIndex: 1, amount: 70 },
+      { rowIndex: 2, amount: 80 },
+      { rowIndex: 3, amount: 90 },
+      { rowIndex: 4, amount: 100 },
+      { rowIndex: 5, amount: 110 },
+      { rowIndex: 6, amount: 130 },
+      { rowIndex: 7, amount: 150 },
+      { rowIndex: 8, amount: 5000, mcc: 6051 }, // atypical mcc AND amount
     ]);
     const result = rankBucket(list, NO_FILTER);
     const flagged = result.flagged.find((f) => f.row.rowIndex === 8)!;

@@ -8,7 +8,10 @@
  *   - tokenize is DEFENSIVE: drops numbers / IDs / short fragments, keeps real
  *     words, lower-cases (ruling #6a).
  *   - categoricalAtypicality: mode → 0; minority → high; homogeneous → 0.
- *   - amountAtypicality: 10× → high ramp; in-spread → 0; mad=0 boundary.
+ *   - amountAtypicality: LOG-SPACE — a 10× magnitude outlier in a tight
+ *     log-spread bucket → high a_f; in-spread → 0; amount===0 → 0; and a
+ *     point-like bucket (logMad < MIN_LOG_MAD) is NOT informative (the bug-fix:
+ *     a constant amount no longer flags every trivial deviation).
  *   - textAtypicality: a unique real word → high but ≤ TEXT_CAP (the cap is
  *     asserted, ruling #6b); all-common → 0; numbers-only op → 0.
  *   - informativeFields: diverse-categorical / filtered / thin-currency /
@@ -20,7 +23,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { ImportStatementStage3Row } from '../../importStatement/stage3/types';
-import { AMOUNT_CURRENCY_FLOOR, TEXT_CAP } from './constants';
+import { AMOUNT_CURRENCY_FLOOR, MIN_LOG_MAD, TEXT_CAP } from './constants';
 import {
   amountAtypicality,
   buildAmountProfiles,
@@ -112,32 +115,74 @@ describe('categoricalAtypicality', () => {
 
 // ── amountAtypicality ────────────────────────────────────────────────────────
 
-describe('amountAtypicality', () => {
-  it('a 10× amount ramps high; an in-spread amount → 0', () => {
-    // amounts 8..12 (UAH), median 10, mad small but non-zero.
+describe('amountAtypicality (log-space)', () => {
+  it('a 10× magnitude outlier in a tight log-spread bucket ramps high; in-spread → 0', () => {
+    // A modest log-spread of UAH amounts (60..160, rawMedian 100). The robust
+    // log-space spread clears MIN_LOG_MAD, so amount is a real signal here.
     const list = rows([
-      { amount: 8 },
-      { amount: 9 },
-      { amount: 10 },
-      { amount: 11 },
-      { amount: 12 },
+      { amount: 60 },
+      { amount: 80 },
+      { amount: 100 },
+      { amount: 125 },
+      { amount: 160 },
     ]);
     const c = buildAmountProfiles(list).get('UAH')!;
-    expect(c.mad).toBeGreaterThan(0);
+    expect(c.logMad).toBeGreaterThan(0);
+    expect(c.logMad).toBeGreaterThanOrEqual(MIN_LOG_MAD);
+    expect(c.rawMedian).toBe(100);
 
     // within the spread → 0
-    expect(amountAtypicality(11, c)).toBe(0);
-    // 10× the median → far outside → ramps high
-    expect(amountAtypicality(100, c)).toBeGreaterThan(0.5);
+    expect(amountAtypicality(100, c)).toBe(0);
+    // 10× the typical magnitude (1000) → far outside the log centre → ramps high
+    expect(amountAtypicality(1000, c)).toBeGreaterThan(0.5);
   });
 
-  it('mad === 0: different from median → 1, equal → 0', () => {
+  it('a point-like bucket (logMad < MIN_LOG_MAD) is NOT informative (bug-fix proof)', () => {
+    // All-equal amounts → zero log spread. Under the old mad===0 → 1 branch this
+    // flagged EVERY deviation; now the currency is simply non-informative.
+    const constant = buildBucketProfile(
+      rows(Array.from({ length: 8 }, () => ({ amount: 130 }))),
+      new Set()
+    );
+    const cConst = constant.amount.get('UAH')!;
+    expect(cConst.logMad).toBe(0);
+    expect(cConst.logMad).toBeLessThan(MIN_LOG_MAD);
+    expect(constant.informative.amountCurrencies.has('UAH')).toBe(false);
+
+    // A ±1% near-constant bucket is likewise too tightly clustered to score.
+    const near = buildBucketProfile(
+      rows([
+        { amount: 129 },
+        { amount: 130 },
+        { amount: 130 },
+        { amount: 130 },
+        { amount: 131 },
+        { amount: 130 },
+        { amount: 129 },
+        { amount: 131 },
+      ]),
+      new Set()
+    );
+    const cNear = near.amount.get('UAH')!;
+    expect(cNear.logMad).toBeLessThan(MIN_LOG_MAD);
+    expect(near.informative.amountCurrencies.has('UAH')).toBe(false);
+  });
+
+  it('amount === 0 → 0 (no log magnitude)', () => {
     const c = buildAmountProfiles(
-      rows([{ amount: 10 }, { amount: 10 }, { amount: 10 }])
+      rows([{ amount: 60 }, { amount: 100 }, { amount: 160 }])
     ).get('UAH')!;
-    expect(c.mad).toBe(0);
-    expect(amountAtypicality(10, c)).toBe(0);
-    expect(amountAtypicality(999, c)).toBe(1);
+    expect(amountAtypicality(0, c)).toBe(0);
+  });
+
+  it('per-currency isolation: a tight UAH spread does not see USD magnitudes', () => {
+    const list = rows([
+      ...Array.from({ length: 5 }, () => ({ currency: 'UAH', amount: 100 })),
+      ...Array.from({ length: 5 }, () => ({ currency: 'USD', amount: 3 })),
+    ]);
+    const profiles = buildAmountProfiles(list);
+    expect(profiles.get('UAH')!.rawMedian).toBe(100);
+    expect(profiles.get('USD')!.rawMedian).toBe(3);
   });
 });
 
@@ -208,15 +253,25 @@ describe('informativeFields', () => {
   });
 
   it('an amount currency with < AMOUNT_CURRENCY_FLOOR ops is NOT informative', () => {
-    // AMOUNT_CURRENCY_FLOOR = 5 → 4 USD ops fall short, 5 UAH qualify.
+    // AMOUNT_CURRENCY_FLOOR = 5 → 4 USD ops fall short, 5 UAH qualify. Both
+    // currencies carry a real log spread (≥ MIN_LOG_MAD) so the gate under test
+    // is purely the count floor, not the spread floor.
     const list = rows([
-      ...Array.from({ length: 4 }, () => ({ currency: 'USD', amount: 1 })),
-      ...Array.from({ length: 5 }, () => ({ currency: 'UAH', amount: 1 })),
+      ...[60, 80, 100, 160].map((amount) => ({ currency: 'USD', amount })),
+      ...[60, 80, 100, 125, 160].map((amount) => ({ currency: 'UAH', amount })),
     ]);
     const { informative } = buildBucketProfile(list, none);
     expect(AMOUNT_CURRENCY_FLOOR).toBe(5);
     expect(informative.amountCurrencies.has('USD')).toBe(false);
     expect(informative.amountCurrencies.has('UAH')).toBe(true);
+  });
+
+  it('an amount currency with logMad < MIN_LOG_MAD is NOT informative (spread floor)', () => {
+    // 8 UAH ops, all ≈ constant → zero log spread → point-like → not a signal,
+    // even though the count floor is cleared.
+    const list = rows(Array.from({ length: 8 }, () => ({ currency: 'UAH', amount: 130 })));
+    const { informative } = buildBucketProfile(list, none);
+    expect(informative.amountCurrencies.has('UAH')).toBe(false);
   });
 
   it('text with no token at df ≥ TEXT_CORE_DF is NOT informative', () => {

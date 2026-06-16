@@ -25,6 +25,7 @@ import type { ImportStatementStage3Row } from '../../importStatement/stage3/type
 import {
   AMOUNT_CURRENCY_FLOOR,
   MAD_SIGMA,
+  MIN_LOG_MAD,
   MIN_TOKEN_LEN,
   P_MODE_GATE,
   TEXT_CAP,
@@ -191,18 +192,30 @@ export function categoricalAtypicality(
 
 // ── Amount profile ────────────────────────────────────────────────────────────
 
-/** Per-currency robust centre/spread of the amount field. */
+/**
+ * Per-currency robust centre/spread of the amount field, computed in LOG SPACE.
+ *
+ * Real category spend is ~log-normal, so the robust median + MAD are taken over
+ * `log(|amount|)` — `logMedian` / `logMad` — which tames the natural upper tail
+ * a raw MAD-z over-flags. `count` is the number of NON-ZERO amounts (zero
+ * amounts are excluded: `log(0) = -Infinity`). `rawMedian` is the raw amount
+ * median, kept for the ×N attribution (≈ how many times the typical spend).
+ */
 export interface AmountProfile {
-  readonly median: number;
-  readonly mad: number;
+  readonly logMedian: number;
+  readonly logMad: number;
   readonly count: number;
+  readonly rawMedian: number;
 }
 
 /**
- * Builds one {@link AmountProfile} per currency: the deterministic median and
- * MAD (median of absolute deviations from the median) of that currency's
- * amounts. Currencies are partitioned exactly; a single-currency bucket yields
- * a one-entry map.
+ * Builds one {@link AmountProfile} per currency. The robust centre/spread are
+ * computed in LOG SPACE over `v = log(|amount|)` for each NON-ZERO amount (zero
+ * amounts are skipped — `log(0) = -Infinity` — and excluded from `count`):
+ * `logMedian` is the median of those `v`, `logMad` the median of `|v − logMedian|`.
+ * `rawMedian` is the raw amount median (all amounts), retained for the ×N
+ * attribution. Currencies are partitioned exactly; a single-currency bucket
+ * yields a one-entry map. Deterministic (explicit ascending sorts).
  */
 export function buildAmountProfiles(
   rows: readonly ImportStatementStage3Row[]
@@ -219,27 +232,44 @@ export function buildAmountProfiles(
 
   const profiles = new Map<string, AmountProfile>();
   for (const [currency, amounts] of byCurrency) {
-    const sorted = [...amounts].sort((a, b) => a - b);
-    const median = sortedMedian(sorted);
-    const deviations = sorted.map((x) => Math.abs(x - median)).sort((a, b) => a - b);
-    const mad = sortedMedian(deviations);
-    profiles.set(currency, { median, mad, count: sorted.length });
+    const sortedRaw = [...amounts].sort((a, b) => a - b);
+    const rawMedian = sortedRaw.length === 0 ? 0 : sortedMedian(sortedRaw);
+
+    // Log-space centre/spread over the non-zero magnitudes only.
+    const logs = amounts
+      .filter((x) => x !== 0)
+      .map((x) => Math.log(Math.abs(x)))
+      .sort((a, b) => a - b);
+    if (logs.length === 0) {
+      // All zeros → degenerate; non-informative via the floor (logMad 0).
+      profiles.set(currency, { logMedian: 0, logMad: 0, count: 0, rawMedian });
+      continue;
+    }
+    const logMedian = sortedMedian(logs);
+    const logDeviations = logs
+      .map((v) => Math.abs(v - logMedian))
+      .sort((a, b) => a - b);
+    const logMad = sortedMedian(logDeviations);
+    profiles.set(currency, { logMedian, logMad, count: logs.length, rawMedian });
   }
   return profiles;
 }
 
 /**
- * Amount atypicality of `amount` against its currency profile `c` ∈ [0, 1].
- *
- * With a degenerate spread (`mad === 0`) the bucket is point-like: exactly the
- * median → 0, anything else → 1. Otherwise a MAD-z is scaled by `MAD_SIGMA` and
+ * Amount atypicality of `amount` against its currency profile `c` ∈ [0, 1],
+ * scored in LOG SPACE. A zero amount has no log magnitude → 0. Otherwise a
+ * log-space MAD-z, `z = |log(|amount|) − logMedian| / (MAD_SIGMA · logMad)`, is
  * linearly ramped from `Z0` (→ 0) to `ZMAX` (→ 1).
+ *
+ * No `logMad === 0` branch: a near-zero-spread currency is already gated out as
+ * non-informative (see {@link informativeFields}), so this fn is only ever
+ * called for currencies whose `logMad ≥ MIN_LOG_MAD`.
  */
 export function amountAtypicality(amount: number, c: AmountProfile): number {
-  if (c.mad === 0) {
-    return amount === c.median ? 0 : 1;
+  if (amount === 0) {
+    return 0;
   }
-  const z = Math.abs(amount - c.median) / (MAD_SIGMA * c.mad);
+  const z = Math.abs(Math.log(Math.abs(amount)) - c.logMedian) / (MAD_SIGMA * c.logMad);
   return clamp((z - Z0) / (ZMAX - Z0), 0, 1);
 }
 
@@ -326,7 +356,10 @@ export interface BucketProfiles {
  *   - a categorical field iff coverage ≥ 0.5 AND pMode ≥ `P_MODE_GATE` AND the
  *     field is NOT one of the rule's own `filteredFields` (a constrained field
  *     is identical by construction — no signal);
- *   - an amount currency iff its op count ≥ `AMOUNT_CURRENCY_FLOOR`;
+ *   - an amount currency iff its (non-zero) op count ≥ `AMOUNT_CURRENCY_FLOOR`
+ *     AND its log-space spread `logMad ≥ MIN_LOG_MAD` (a point-like currency
+ *     whose amounts are too tightly clustered carries no signal — every trivial
+ *     deviation would otherwise read as an outlier);
  *   - text iff some token clears `TEXT_CORE_DF` (a shared "core" vocabulary
  *     exists to diverge from).
  */
@@ -347,7 +380,7 @@ export function informativeFields(
 
   const amountCurrencies = new Set<string>();
   for (const [currency, c] of profiles.amount) {
-    if (c.count >= AMOUNT_CURRENCY_FLOOR) {
+    if (c.count >= AMOUNT_CURRENCY_FLOOR && c.logMad >= MIN_LOG_MAD) {
       amountCurrencies.add(currency);
     }
   }

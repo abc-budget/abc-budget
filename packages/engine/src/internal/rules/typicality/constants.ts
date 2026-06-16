@@ -26,6 +26,16 @@ export const N_MIN = 8;
 export const AMOUNT_CURRENCY_FLOOR = 5;
 
 /**
+ * Minimum log-space spread (`logMad`) for the amount field to be a signal for a
+ * currency. Real category spend is ~log-normal, so the robust centre/spread are
+ * computed on `log(|amount|)`; below this floor a currency's amounts are too
+ * tightly clustered (point-like) to score — every trivial deviation would read
+ * as an outlier — so the currency is treated as NON-INFORMATIVE (same philosophy
+ * as a constant categorical field carrying no signal). Tunable.
+ */
+export const MIN_LOG_MAD = 0.1;
+
+/**
  * The consistency constant that scales MAD to a normal-equivalent sigma
  * (`1 / Φ⁻¹(0.75) ≈ 1.4826`). Makes the MAD-based z comparable to a std-dev z for
  * normal-ish data. Tunable only if the distributional assumption changes.
