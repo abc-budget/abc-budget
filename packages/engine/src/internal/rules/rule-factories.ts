@@ -50,82 +50,84 @@ export function createDateRule(operation: DateOperation): Rule {
       const date = row.date;
       if (!date) return false;
 
+      // Story 4.2 Task 5 — UTC basis (PM ruling, ADAPT vs the LOCAL-time prior
+      // art): EVERY date operator reads the UTC calendar day
+      // (getUTCDate/getUTCMonth/getUTCDay/getUTCFullYear). This is consistent
+      // with `deriveFootprint`, which splits year/month via `getUTCFullYear`/
+      // `getUTCMonth` and keys the rate lookup on the UTC date. Local accessors
+      // would let a date-rule and the footprint month DISAGREE at a day/month
+      // boundary under a non-UTC host TZ (e.g. a 02:00Z operation reads as the
+      // previous day locally in the Americas) — they must NEVER disagree.
       switch (operation.type) {
         case 'firstDayOfMonth':
-          return date.getDate() === 1;
+          return date.getUTCDate() === 1;
 
         case 'firstMondayOfMonth': {
-          const day = date.getDay();
-          const dateOfMonth = date.getDate();
+          const day = date.getUTCDay();
+          const dateOfMonth = date.getUTCDate();
           // If it's Monday (1) and it's in the first 7 days of the month
           return day === 1 && dateOfMonth <= 7;
         }
 
         case 'firstSaturdayOfMonth': {
-          const day = date.getDay();
-          const dateOfMonth = date.getDate();
+          const day = date.getUTCDay();
+          const dateOfMonth = date.getUTCDate();
           // If it's Saturday (6) and it's in the first 7 days of the month
           return day === 6 && dateOfMonth <= 7;
         }
 
         case 'firstSundayOfMonth': {
-          const day = date.getDay();
-          const dateOfMonth = date.getDate();
+          const day = date.getUTCDay();
+          const dateOfMonth = date.getUTCDate();
           // If it's Sunday (0) and it's in the first 7 days of the month
           return day === 0 && dateOfMonth <= 7;
         }
 
         case 'lastDayOfMonth': {
-          const currentDate = new Date(date);
-          const month = currentDate.getMonth();
-          // Move to the next month, then back one day
-          currentDate.setMonth(month + 1, 0);
-          return date.getDate() === currentDate.getDate();
+          // Day 0 of the NEXT month (in UTC) is the last day of THIS month.
+          const lastDay = new Date(
+            Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)
+          ).getUTCDate();
+          return date.getUTCDate() === lastDay;
         }
 
         case 'lastMondayOfMonth': {
-          const day = date.getDay();
-          const dateOfMonth = date.getDate();
+          const day = date.getUTCDay();
+          const dateOfMonth = date.getUTCDate();
           const lastDay = new Date(
-            date.getFullYear(),
-            date.getMonth() + 1,
-            0
-          ).getDate();
+            Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)
+          ).getUTCDate();
           // If it's Monday (1) and it's in the last 7 days of the month
           return day === 1 && dateOfMonth > lastDay - 7;
         }
 
         case 'lastSaturdayOfMonth': {
-          const day = date.getDay();
-          const dateOfMonth = date.getDate();
+          const day = date.getUTCDay();
+          const dateOfMonth = date.getUTCDate();
           const lastDay = new Date(
-            date.getFullYear(),
-            date.getMonth() + 1,
-            0
-          ).getDate();
+            Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)
+          ).getUTCDate();
           // If it's Saturday (6) and it's in the last 7 days of the month
           return day === 6 && dateOfMonth > lastDay - 7;
         }
 
         case 'lastSundayOfMonth': {
-          const day = date.getDay();
-          const dateOfMonth = date.getDate();
+          const day = date.getUTCDay();
+          const dateOfMonth = date.getUTCDate();
           const lastDay = new Date(
-            date.getFullYear(),
-            date.getMonth() + 1,
-            0
-          ).getDate();
+            Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)
+          ).getUTCDate();
           // If it's Sunday (0) and it's in the last 7 days of the month
           return day === 0 && dateOfMonth > lastDay - 7;
         }
 
         case 'specificDay':
           // Check if the day of the month matches the specified day (1-31)
-          return date.getDate() === operation.value;
+          return date.getUTCDate() === operation.value;
 
         case 'dayRange': {
           // Check if the day of the month is within the specified range (1-31)
-          const dayOfMonth = date.getDate();
+          const dayOfMonth = date.getUTCDate();
           return dayOfMonth >= operation.start && dayOfMonth <= operation.end;
         }
 
