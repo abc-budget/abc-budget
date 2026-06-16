@@ -26,6 +26,7 @@ import type {
   ImportStatementStage3Row,
   ImportStatementStage3RowField,
 } from '../importStatement/stage3/types';
+import { getLogger } from '../logging';
 import type { Rule } from './rule';
 import { RuleImpl } from './rule';
 import { assertSafeRegex, MAX_MATCH_INPUT } from './safe-regex';
@@ -33,6 +34,7 @@ import type {
   BooleanOperation,
   DateOperation,
   NumberOperation,
+  RuleOperation,
   StringMatchOperation,
   StringOperation,
 } from './operations';
@@ -411,4 +413,75 @@ export function createStringMatchRule(
       }
     }
   );
+}
+
+/** Module logger (engine logger pattern — see row-generator/pseudo-ops). */
+const logger = getLogger('engine.rules.rule-factories');
+
+/**
+ * Rehydration-only field→factory dispatch (Story 4.3b Task 2): reconstructs a
+ * single {@link Rule} from a persisted `{ field, operation }` DTO.
+ *
+ * This is the DESERIALIZE path ONLY. User-facing construction still goes through
+ * the public factories — in particular an amount condition is built via
+ * {@link createAmountCondition} (the Fork-B amount↔currency AND-pair). A persisted
+ * amount condition is ALREADY two DTOs (the bare-amount rule and its
+ * `currency=equals` rule), so on the way back each rehydrates INDEPENDENTLY and
+ * there is no re-pairing to do here — the bare amount DTO maps straight to the
+ * MODULE-PRIVATE {@link createAmountRule}. That is why this dispatch lives in
+ * this module: it needs to reach the private bare-amount builder, which the
+ * public factories never expose.
+ *
+ * `source` is intentionally absent (the row field was removed in 4.1).
+ *
+ * @param field Persisted field name. Typed as `ImportStatementStage3RowField | string`
+ *   because the wire is `string` — unknown fields are tolerated (logged + null).
+ * @param operation Persisted operation; cast to the per-field union the matched
+ *   factory expects (the wire stores the raw discriminated-union object).
+ * @returns The reconstructed {@link Rule}, or `null` for an unsupported field.
+ */
+export function rehydrateRule(
+  field: ImportStatementStage3RowField | string,
+  operation: RuleOperation
+): Rule | null {
+  switch (field) {
+    case 'date':
+      return createDateRule(operation as DateOperation);
+
+    case 'amount':
+      // Persisted amount conditions are already two DTOs (the Fork-B pair was
+      // split at serialize), so the bare amount rule rehydrates ALONE via the
+      // module-private factory — NOT via createAmountCondition (no re-pairing).
+      return createAmountRule(operation as NumberOperation);
+
+    case 'mcc':
+      return createMccRule(operation as StringMatchOperation);
+
+    case 'description':
+      return createDescriptionRule(operation as StringOperation);
+
+    case 'account':
+      return createAccountRule(operation as StringOperation);
+
+    case 'counterparty':
+      return createCounterpartyRule(operation as StringOperation);
+
+    case 'bankCategory':
+      return createBankCategoryRule(operation as StringMatchOperation);
+
+    case 'currency':
+      return createCurrencyRule(operation as StringMatchOperation);
+
+    case 'isBankCommission':
+      return createIsBankCommissionRule(operation as BooleanOperation);
+
+    case 'isCashback':
+      return createIsCashbackRule(operation as BooleanOperation);
+
+    default:
+      // Fallback for unsupported fields (e.g. a removed `source` field from an
+      // older persisted rule): log and drop rather than throw.
+      logger.error(`Unsupported field: ${field}`);
+      return null;
+  }
 }
