@@ -2,7 +2,7 @@
  * Stage 3 types — Task 4 full implementation.
  *
  * PORT of `webapp/libs/engine/src/importStatement/stage3/types.ts` with:
- *   1. `Category` type replaced with `unknown` — categories module not yet ported.
+ *   1. `Category` type imported from the ported categories module (Story 4.2).
  *   2. `DecisionTreeDebugger` and `Rule` replaced with `unknown` — out of Task 4 scope.
  *   3. EXTEND: `counterparty: string | null` added to `ImportStatementStage3Row` (ENT-006).
  *   4. NEW (FEAT-022): `RowError`, `SkippedRow`, `TransactionRow`, and
@@ -18,6 +18,7 @@
  *   - Stage3 interfaces unchanged from stub.
  */
 
+import type { Category } from '../../categories/types';
 import type { Message } from '../../utils/messages/message';
 import type { ImportStatementColumnHeader, ImportStatementStage, ImportStatementStage4 } from '../types';
 
@@ -61,8 +62,8 @@ export interface ImportStatementStage3Row {
   isBankCommission: boolean;
   /** Indicates if the transaction is a cashback */
   isCashback: boolean;
-  /** Budget category of the current operation (opaque until categories module is ported) */
-  category: unknown;
+  /** Budget category of the current operation (null until categorization runs — EP-4) */
+  category: Category | null;
   /** Flag is a user manually set the category */
   isManuallySetCategory: boolean;
 }

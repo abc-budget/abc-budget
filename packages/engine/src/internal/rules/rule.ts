@@ -8,15 +8,17 @@
  * single-rule `evaluate`. `ComplexRule`/`DecisionTree` and their impls are out
  * of scope here (Story 4.2+).
  *
- * The prior-art `evaluate` took an optional `DecisionTreeDebugger`; that lives
- * in 4.2, so the param is typed `unknown` (and not imported) for now. RuleImpl's
- * stored predicate + delegation are kept exactly as the prior art.
+ * The `evaluate` param is the optional `DecisionTreeDebugger` (landed Task 3 of
+ * 4.2). It is brought in via a TYPE-ONLY import from `./decision-tree` to avoid a
+ * runtime cycle (decision-tree.ts already `import type`s `Rule` from here).
+ * RuleImpl's stored predicate + delegation are kept exactly as the prior art.
  */
 
 import type {
   ImportStatementStage3Row,
   ImportStatementStage3RowField,
 } from '../importStatement/stage3/types';
+import type { DecisionTreeDebugger } from './decision-tree';
 import type { RuleOperation } from './operations';
 
 /**
@@ -39,7 +41,7 @@ export interface Rule {
    * @param debug Optional debugger to track rule evaluation
    * @returns True if rule matches, false otherwise
    */
-  evaluate(row: ImportStatementStage3Row, debug?: unknown): boolean;
+  evaluate(row: ImportStatementStage3Row, debug?: DecisionTreeDebugger): boolean;
 }
 
 /**
@@ -58,12 +60,12 @@ export class RuleImpl implements Rule {
    * @param debug Optional debugger to track rule evaluation
    * @returns True if rule matches, false otherwise
    */
-  evaluate(row: ImportStatementStage3Row, debug?: unknown): boolean {
+  evaluate(row: ImportStatementStage3Row, debug?: DecisionTreeDebugger): boolean {
     const result = this.evaluateFn(row);
 
-    // Debugger wiring (DecisionTreeDebugger) lands in 4.2 — the param is kept on
-    // the signature but unused here; do not import the 4.2 debugger.
-    void debug;
+    if (debug) {
+      debug.trackRuleEvaluation(this, result, row);
+    }
 
     return result;
   }
