@@ -12,6 +12,7 @@ describe('Category type', () => {
   it('constructs a valid Category literal with the required fields', () => {
     const category: Category = {
       name: 'Groceries',
+      icon: 'glyph-cart',
       isArchived: false,
       currency: 'UAH',
     };
@@ -21,18 +22,17 @@ describe('Category type', () => {
     expect(category.currency).toBe('UAH');
   });
 
-  it('accepts the optional fields (id, description, image, imageMetadata)', () => {
+  it('accepts the optional fields (id, description)', () => {
     const category: Category = {
-      id: 7,
+      id: 'b3f1c2a4-5e6d-7f80-9a1b-2c3d4e5f6071',
       name: 'Transport',
       description: 'Buses, taxis, fuel',
-      image: 'https://example.invalid/transport.png',
-      imageMetadata: { width: 64, height: 64 },
+      icon: 'glyph-bus',
       isArchived: true,
       currency: 'EUR',
     };
 
-    expect(category.id).toBe(7);
+    expect(category.id).toBe('b3f1c2a4-5e6d-7f80-9a1b-2c3d4e5f6071');
     expect(category.isArchived).toBe(true);
   });
 });

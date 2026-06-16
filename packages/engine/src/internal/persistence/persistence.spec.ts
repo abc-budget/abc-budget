@@ -59,23 +59,25 @@ describe('requestDurability', () => {
 });
 
 describe('engine DB migration anchor', () => {
-  // LEGITIMATE TEST UPDATE (Task 1, Story 3.4): v5 appended for the footprint hash index.
+  // LEGITIMATE TEST UPDATE (Task 2, Story 4.3a): v6 appended for the categories store.
   // Step[0] (v1) remains a no-op anchor byte-identical to its original form.
   // Step[1] (v2) creates 'exchangeRates' — byte-unchanged vs Story 1.6.
   // Step[2] (v3) creates 'userSettings' (keyPath:'key', index:'key' unique) + 'recallPool' (keyPath:'columnName').
   // Step[3] (v4) creates 'footprint' (keyPath:['hash','year','month'], no indexes).
   // Step[4] (v5) adds the 'hash' NON-unique lookup index to the existing 'footprint' store.
-  it('ENGINE_MIGRATIONS has 5 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint + v5 footprint hash index', async () => {
-    expect(ENGINE_MIGRATIONS).toHaveLength(5);
+  // Step[5] (v6) creates 'categories' (keyPath:'id', STRING ids — no autoIncrement; indexes name+isArchived+currency).
+  it('ENGINE_MIGRATIONS has 6 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint + v5 footprint hash index + v6 categories', async () => {
+    expect(ENGINE_MIGRATIONS).toHaveLength(6);
     expect(ENGINE_MIGRATIONS[0].toVersion).toBe(1);
     expect(ENGINE_MIGRATIONS[1].toVersion).toBe(2);
     expect(ENGINE_MIGRATIONS[2].toVersion).toBe(3);
     expect(ENGINE_MIGRATIONS[3].toVersion).toBe(4);
     expect(ENGINE_MIGRATIONS[4].toVersion).toBe(5);
-    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v5`, ENGINE_MIGRATIONS);
-    expect(db.version).toBe(5);
+    expect(ENGINE_MIGRATIONS[5].toVersion).toBe(6);
+    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v6`, ENGINE_MIGRATIONS);
+    expect(db.version).toBe(6);
     const storeNames = Array.from(db.objectStoreNames).sort();
-    expect(storeNames).toEqual(['exchangeRates', 'footprint', 'recallPool', 'userSettings']);
+    expect(storeNames).toEqual(['categories', 'exchangeRates', 'footprint', 'recallPool', 'userSettings']);
     db.close();
   });
 
@@ -203,6 +205,69 @@ describe('engine DB migration anchor', () => {
     expect(tx.objectStore('exchangeRates').keyPath).toEqual(['base', 'date']);
     expect(tx.objectStore('userSettings').keyPath).toBe('key');
     expect(tx.objectStore('recallPool').keyPath).toBe('columnName');
+    db.close();
+  });
+
+  // ── Story 4.3a (Task 2): v6 categories store ────────────────────────────────
+  it('v6 creates categories with keyPath "id", no autoIncrement (STRING ids), and indexes name+isArchived+currency (all non-unique)', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v6-categories`, ENGINE_MIGRATIONS);
+    expect(Array.from(db.objectStoreNames)).toContain('categories');
+    const tx = db.transaction('categories', 'readonly');
+    const store = tx.objectStore('categories');
+    expect(store.keyPath).toBe('id');
+    // STRING ids (service-generated crypto.randomUUID) — archive != delete.
+    expect(store.autoIncrement).toBe(false);
+    const idxNames = Array.from(store.indexNames).sort();
+    expect(idxNames).toEqual(['currency', 'isArchived', 'name']);
+    expect(store.index('name').keyPath).toBe('name');
+    expect(store.index('name').unique).toBe(false);
+    expect(store.index('isArchived').keyPath).toBe('isArchived');
+    expect(store.index('isArchived').unique).toBe(false);
+    expect(store.index('currency').keyPath).toBe('currency');
+    expect(store.index('currency').unique).toBe(false);
+    db.close();
+  });
+
+  it('fresh open ≡ upgrade path: both reach v6 with the categories store + its 3 indexes present', async () => {
+    // fresh open (v1 → v6)
+    const freshDb = await openDatabase(`${ENGINE_DB_NAME}-fresh-v6`, ENGINE_MIGRATIONS);
+    const freshTx = freshDb.transaction('categories', 'readonly');
+    const freshCategories = freshTx.objectStore('categories');
+    expect(freshCategories.keyPath).toBe('id');
+    expect(freshCategories.autoIncrement).toBe(false);
+    expect(Array.from(freshCategories.indexNames).sort()).toEqual(['currency', 'isArchived', 'name']);
+    freshDb.close();
+
+    // upgrade path: open at v5 first (no categories store), then upgrade to v6
+    const v5Steps = ENGINE_MIGRATIONS.slice(0, 5);
+    const v5Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v6`, v5Steps);
+    // assert v5 baseline has NO categories store before upgrading
+    expect(Array.from(v5Db.objectStoreNames)).not.toContain('categories');
+    v5Db.close();
+
+    const v6Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v6`, ENGINE_MIGRATIONS);
+    expect(Array.from(v6Db.objectStoreNames)).toContain('categories');
+    const upTx = v6Db.transaction('categories', 'readonly');
+    const upCategories = upTx.objectStore('categories');
+    expect(upCategories.keyPath).toBe('id');
+    expect(upCategories.autoIncrement).toBe(false);
+    expect(Array.from(upCategories.indexNames).sort()).toEqual(['currency', 'isArchived', 'name']);
+    expect(upCategories.index('name').unique).toBe(false);
+    expect(upCategories.index('isArchived').unique).toBe(false);
+    expect(upCategories.index('currency').unique).toBe(false);
+    v6Db.close();
+  });
+
+  it('v6 upgrade does not regress prior stores (exchangeRates, userSettings, recallPool, footprint incl. v5 hash index)', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v6-noregress`, ENGINE_MIGRATIONS);
+    const tx = db.transaction(['exchangeRates', 'userSettings', 'recallPool', 'footprint'], 'readonly');
+    expect(tx.objectStore('exchangeRates').keyPath).toEqual(['base', 'date']);
+    expect(tx.objectStore('userSettings').keyPath).toBe('key');
+    expect(tx.objectStore('recallPool').keyPath).toBe('columnName');
+    const footprint = tx.objectStore('footprint');
+    expect(footprint.keyPath).toEqual(['hash', 'year', 'month']);
+    expect(Array.from(footprint.indexNames)).toContain('hash');
+    expect(footprint.index('hash').unique).toBe(false);
     db.close();
   });
 

@@ -16,10 +16,17 @@
  */
 export interface Category {
   /**
-   * Unique identifier for the category
-   * Auto-incremented by the database
+   * Unique identifier for the category.
+   *
+   * Service-generated `crypto.randomUUID()` string (Story 4.3a ruling) —
+   * aligns with `footprint.categoryId: string`. Optional because an
+   * unpersisted Category has no id until the service mints one.
+   *
+   * NOTE (EP-6, flag only — do NOT build here): the TOTAL sentinel
+   * `categoryId = -1` becomes a reserved STRING (e.g. `'-1'`) in the
+   * string-id space.
    */
-  id?: number;
+  id?: string;
 
   /**
    * User-defined name for the category
@@ -33,14 +40,12 @@ export interface Category {
   description?: string;
 
   /**
-   * Optional image URL for the category
+   * Glyph identifier for the category — an ALTUS glyph-id (FEAT-026).
+   *
+   * This is a glyph identifier, NEVER an image URL. (Unsplash imagery was
+   * dropped — RISK-008.)
    */
-  image?: string;
-
-  /**
-   * Optional metadata for the image
-   */
-  imageMetadata?: Record<string, unknown>;
+  icon: string;
 
   /**
    * Whether the category is archived
@@ -50,9 +55,11 @@ export interface Category {
   isArchived: boolean;
 
   /**
-   * Currency ISO code for the category
-   * If not provided, the base currency will be used
+   * Currency ISO code for the category.
+   *
+   * Living «base» alias: may hold the literal sentinel `'base'`, which the
+   * categories SERVICE resolves to the base currency AT READ (Story 4.3a
+   * ruling 3). Stays typed `string` for that reason.
    */
-  // TODO(4.3): tighten to CurrencyCode
   currency: string;
 }

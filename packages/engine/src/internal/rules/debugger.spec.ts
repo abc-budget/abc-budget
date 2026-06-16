@@ -26,7 +26,14 @@ import { DecisionTreeDebuggerImpl } from './debugger';
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeCategory(id: number, name = `cat-${id}`): Category {
-  return { id, name, isArchived: false, currency: 'UAH' } as Category;
+  // Story 4.3a: Category.id is a STRING; icon is required.
+  return {
+    id: String(id),
+    name,
+    icon: `glyph-${id}`,
+    isArchived: false,
+    currency: 'UAH',
+  } as Category;
 }
 
 function makeRow(
@@ -78,7 +85,7 @@ describe('DecisionTreeDebuggerImpl — «Why?» path reconstruction', () => {
     const debug = new DecisionTreeDebuggerImpl();
 
     const category = tree.categorizeRow(row, debug);
-    expect(category?.id).toBe(1);
+    expect(category?.id).toBe('1');
 
     const path = debug.getDecisionTreePath(row);
     expect(path).not.toBeNull();
@@ -88,7 +95,7 @@ describe('DecisionTreeDebuggerImpl — «Why?» path reconstruction', () => {
     expect(path?.complexRuleResults).toHaveLength(1);
     const crResult = path!.complexRuleResults[0];
     expect(crResult.result).toBe(true);
-    expect(crResult.complexRule.category.id).toBe(1);
+    expect(crResult.complexRule.category.id).toBe('1');
 
     // rule evaluation result(s) attributed to the matched complexRule
     expect(crResult.ruleResults).toHaveLength(2);
@@ -96,7 +103,7 @@ describe('DecisionTreeDebuggerImpl — «Why?» path reconstruction', () => {
     expect(crResult.ruleResults.map((r) => r.rule)).toEqual([ruleA, ruleB]);
 
     // assigned category
-    expect(path?.category?.id).toBe(1);
+    expect(path?.category?.id).toBe('1');
   });
 
   it('reconstructs the path for an UNMATCHED row (category null)', () => {
@@ -145,8 +152,8 @@ describe('DecisionTreeDebuggerImpl — «Why?» path reconstruction', () => {
 
     const all = debug.getAllDecisionTreePaths();
     expect(all.size).toBe(2);
-    expect(all.get(0)?.category?.id).toBe(1);
-    expect(all.get(1)?.category?.id).toBe(1);
+    expect(all.get(0)?.category?.id).toBe('1');
+    expect(all.get(1)?.category?.id).toBe('1');
   });
 });
 

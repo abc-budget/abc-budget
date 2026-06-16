@@ -21,7 +21,14 @@ import type { Rule } from './rule';
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeCategory(id: number, name = `cat-${id}`): Category {
-  return { id, name, isArchived: false, currency: 'UAH' } as Category;
+  // Story 4.3a: Category.id is a STRING; icon is required.
+  return {
+    id: String(id),
+    name,
+    icon: `glyph-${id}`,
+    isArchived: false,
+    currency: 'UAH',
+  } as Category;
 }
 
 function makeRule(): Rule {
