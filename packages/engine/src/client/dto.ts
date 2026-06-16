@@ -205,7 +205,6 @@ export function serializeColumnRejection(rejection: ColumnTransformRejection): C
 export interface TransactionRowDTO {
   readonly rowIndex: number;
   readonly hash: string;
-  readonly source: string | null;
   readonly date: string; // ISO 8601
   readonly amount: number;
   readonly currency: string;
@@ -231,7 +230,6 @@ function serializeRow(row: TransactionRow): TransactionRowDTO {
   return {
     rowIndex: row.rowIndex,
     hash: row.hash,
-    source: row.source,
     date: row.date instanceof Date ? row.date.toISOString() : String(row.date),
     amount: row.amount,
     currency: row.currency,

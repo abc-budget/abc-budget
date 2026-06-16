@@ -70,7 +70,6 @@ function rowWith(date: Date): TransactionRow {
   return {
     rowIndex: 0,
     hash: 'seam-hash',
-    source: null,
     date,
     amount: 100,
     currency: 'UAH',

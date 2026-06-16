@@ -6,7 +6,7 @@
  *   the spawn scope), inspects BANK_COMMISSION and CASHBACK columns. For every
  *   non-null, non-error cell it spawns an independent TransactionRow (pseudo-op)
  *   with:
- *     - date/account/source from the original row
+ *     - date/account from the original row
  *     - abs(amount) from the respective cell
  *     - currency per the column's ENT-011 CurrencyDetectOptions params
  *     - synthetic description via the $t catalog key (hash-stable; translated at 2.8)
@@ -184,7 +184,6 @@ async function tryBuildPseudoOp(
     const op: TransactionRow = {
       rowIndex: row.rowIndex, // re-index pass in generateRows will sync this
       hash,
-      source: null,
       date,
       amount,
       currency,

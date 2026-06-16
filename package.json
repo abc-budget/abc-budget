@@ -12,7 +12,8 @@
     "test:functions": "npm --prefix functions run test",
     "typecheck": "tsc -b",
     "lint": "eslint .",
-    "make-icons": "node tools/make-icons.mjs"
+    "make-icons": "node tools/make-icons.mjs",
+    "gen:mcc": "node tools/gen-mcc-reference.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

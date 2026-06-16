@@ -170,7 +170,6 @@ describe('ImportStatementStage3 Row Generator', () => {
     expect(result.rows[0].amount).toBe(100.5);
     expect(result.rows[0].currency).toBe('USD');
     expect(result.rows[0].description).toBe('Coffee shop');
-    expect(result.rows[0].source).toBeNull();
     expect(result.rows[0].account).toBeNull();
     expect(result.rows[0].bankCategory).toBeNull();
     expect(result.rows[0].mcc).toBeNull();
