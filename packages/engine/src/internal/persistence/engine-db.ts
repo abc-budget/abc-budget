@@ -37,6 +37,11 @@ export const ENGINE_DB_NAME = 'abc-budget';
  * v7: creates the `complexRules` object store (Story 4.3b, FEAT-019). keyPath:'id' with NUMBER
  *     ids — autoIncrement TRUE (CONTRAST v6 categories: string id, NO autoInc). Indexes:
  *     `order` (eval sequence) + `categoryId` (STRING FK), both NON-unique.
+ *
+ * v8: adds the `year_month_isManual` compound NON-unique index to the existing `footprint`
+ *     store (Story 4.4, Q-012 — sticky manual override) and backfills pre-4.4 rows to
+ *     isManual:0. `isManual` is stored 0|1 (NOT boolean — a boolean keyPath drops the tuple
+ *     from a compound index). The index powers the period-scoped override-map load.
  */
 export const ENGINE_MIGRATIONS: MigrationStep[] = [
   {
@@ -109,6 +114,32 @@ export const ENGINE_MIGRATIONS: MigrationStep[] = [
           { name: 'categoryId', keyPath: 'categoryId', options: { unique: false } },
         ],
       });
+    },
+  },
+  {
+    toVersion: 8,
+    migrate: (ctx) => {
+      // Story 4.4 (Q-012): sticky manual override. isManual is stored 0|1 (NOT boolean —
+      // a boolean keyPath drops the tuple from a compound index). Compound non-unique
+      // index [year, month, isManual] powers the period-scoped override-map load.
+      ctx.createIndex('footprint', {
+        name: 'year_month_isManual',
+        keyPath: ['year', 'month', 'isManual'],
+        options: { unique: false },
+      });
+      // Backfill existing footprints (pre-4.4) to isManual: 0. Iterate the STORE
+      // (not the to-be-built index — see migration.ts CURSOR-OVER-MUTATED-INDEX caveat).
+      // Fresh install has no rows (no-op). The wrapped store proxy tracks this cursor
+      // walk to exhaustion before the version-change tx commits.
+      const store = ctx.store('footprint');
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cursor = req.result as IDBCursorWithValue | null;
+        if (!cursor) return;
+        const value = cursor.value as { isManual?: number };
+        if (value.isManual === undefined) cursor.update({ ...value, isManual: 0 });
+        cursor.continue();
+      };
     },
   },
 ];

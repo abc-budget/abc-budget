@@ -9,8 +9,10 @@
  *
  * The calendar split (year/month) comes from the OPERATION date (`row.date`),
  * read via UTC accessors. `amountUSD` is passed in (not computed here) so this
- * stays rate-free; `categoryId` is null until EP-4 populates it; `hash` is the
- * 3.2 dup-wrapped final hash, carried through verbatim.
+ * stays rate-free; `categoryId` is the RESOLVED category id (default null until
+ * a categorized commit supplies one); `isManual` records the categorization
+ * SOURCE (1=manual, 0=derived; default 0); `hash` is the 3.2 dup-wrapped final
+ * hash, carried through verbatim.
  */
 
 import type { FootprintRecord } from './types';
@@ -27,12 +29,18 @@ import type { TransactionRow } from '../importStatement/stage3/types';
  * non-UTC host TZ (e.g. a 02:00Z operation reads as the previous day locally in
  * the Americas), silently desyncing the two.
  */
-export function deriveFootprint(row: TransactionRow, amountUSD: number): FootprintRecord {
+export function deriveFootprint(
+  row: TransactionRow,
+  amountUSD: number,
+  categoryId: string | null = null,
+  isManual: 0 | 1 = 0
+): FootprintRecord {
   return {
     year: row.date.getUTCFullYear(),
     month: row.date.getUTCMonth() + 1, // getUTCMonth() is 0-based; footprint month is 1–12
     amountUSD, // kept separate so derive stays rate-free and synchronous
-    categoryId: null, // EP-4 populates later — do not invent a value
+    categoryId, // RESOLVED id; defaults null until a categorized commit supplies one
     hash: row.hash, // already the 3.2 dup-wrapped final hash — do NOT re-hash
+    isManual, // categorization SOURCE: defaults 0 (derived) — EP-3 callers stay unchanged
   };
 }

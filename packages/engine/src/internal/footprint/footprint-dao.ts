@@ -78,6 +78,71 @@ export class FootprintDao extends IDBDao<FootprintKey, FootprintRecord> {
   }
 
   /**
+   * Loads the MANUAL (isManual=1) footprints for a set of periods via the
+   * compound `year_month_isManual` index (migration v8). Powers the Story 4.4
+   * load-once override map: each period is an EXACT compound point-query
+   * (`IDBKeyRange.only([year, month, 1])`), so we touch only the matching rows —
+   * no scan of non-matching (other-period / derived) rows.
+   *
+   * Periods are de-duped by (year,month) before querying. Results across periods
+   * are concatenated; periods partition the store, so there are no cross-period
+   * duplicate rows. Empty `periods` resolves to `[]` without opening a tx.
+   */
+  async getManualByPeriods(
+    periods: ReadonlyArray<{ year: number; month: number }>
+  ): Promise<FootprintRecord[]> {
+    if (periods.length === 0) {
+      return [];
+    }
+
+    // De-dupe by (year,month) so a repeated period isn't queried twice.
+    const distinct = new Map<string, { year: number; month: number }>();
+    for (const { year, month } of periods) {
+      distinct.set(`${year}-${month}`, { year, month });
+    }
+
+    const perPeriod = await Promise.all(
+      [...distinct.values()].map(({ year, month }) =>
+        this.getManualForPeriod(year, month)
+      )
+    );
+    return perPeriod.flat();
+  }
+
+  /**
+   * Single-period manual load: opens the `year_month_isManual` index in a
+   * readonly tx and point-queries the manual tuple for the month
+   * (`[year, month, 1]`). Mirrors the readonly-tx + index seam from
+   * IDBDao.findByIndex, but with a compound key range (which findByIndex's
+   * single-value equality cannot express).
+   */
+  private getManualForPeriod(
+    year: number,
+    month: number
+  ): Promise<FootprintRecord[]> {
+    const db = this.getDatabase();
+
+    return new Promise<FootprintRecord[]>((resolve, reject) => {
+      const transaction = db.transaction(this.storeName, 'readonly');
+      const store = transaction.objectStore(this.storeName);
+      const index = store.index('year_month_isManual');
+
+      const request = index.getAll(IDBKeyRange.only([year, month, 1]));
+
+      request.onerror = () => {
+        reject(
+          new Error(
+            `Failed to load manual footprints for ${year}-${month}: ${request.error?.message}`
+          )
+        );
+      };
+      request.onsuccess = () => {
+        resolve(request.result as FootprintRecord[]);
+      };
+    });
+  }
+
+  /**
    * Writes every record in ONE readwrite transaction (ATOMIC: a mid-batch
    * failure aborts the whole tx → zero writes). Uses native [hash,year,month]
    * upsert, so a repeated triple overwrites in place (last write wins). An empty
