@@ -29,6 +29,10 @@ export const ENGINE_DB_NAME = 'abc-budget';
  * v5: adds the `hash` NON-unique lookup index to the existing `footprint` store (Story 3.4).
  *     Native compound-keyPath upsert needs no lookup; this index serves forward-looking
  *     findByHash (EP-4/EP-6). No `rebuildStore` — the store already exists from v4.
+ *
+ * v6: creates the `categories` object store (Story 4.3a, ENT-018). keyPath:'id' with STRING
+ *     ids (service-generated crypto.randomUUID) — NO autoIncrement. Indexes: `name`,
+ *     `isArchived` (archive != delete — soft-archive is indexed), `currency`, all NON-unique.
  */
 export const ENGINE_MIGRATIONS: MigrationStep[] = [
   {
@@ -71,6 +75,21 @@ export const ENGINE_MIGRATIONS: MigrationStep[] = [
       // footprint hash lookup index (Story 3.4) — NON-unique. Native compound-keyPath
       // upsert needs no lookup; this index serves forward-looking findByHash (EP-4/EP-6).
       ctx.createIndex('footprint', { name: 'hash', keyPath: 'hash', options: { unique: false } });
+    },
+  },
+  {
+    toVersion: 6,
+    migrate: (ctx) => {
+      // categories store (Story 4.3a, ENT-018) — STRING ids (service-generated
+      // crypto.randomUUID), so NO autoIncrement. archive != delete: isArchived is indexed.
+      ctx.createStore('categories', {
+        keyPath: 'id',
+        indexes: [
+          { name: 'name', keyPath: 'name', options: { unique: false } },
+          { name: 'isArchived', keyPath: 'isArchived', options: { unique: false } },
+          { name: 'currency', keyPath: 'currency', options: { unique: false } },
+        ],
+      });
     },
   },
 ];

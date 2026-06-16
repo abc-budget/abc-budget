@@ -23,7 +23,14 @@ import type { Rule } from './rule';
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeCategory(id: number, name = `cat-${id}`): Category {
-  return { id, name, isArchived: false, currency: 'UAH' } as Category;
+  // Story 4.3a: Category.id is a STRING; icon is required.
+  return {
+    id: String(id),
+    name,
+    icon: `glyph-${id}`,
+    isArchived: false,
+    currency: 'UAH',
+  } as Category;
 }
 
 function makeRow(
@@ -86,7 +93,7 @@ describe('DecisionTreeImpl.categorizeRow', () => {
 
     const result = tree.categorizeRow(makeRow());
 
-    expect(result?.id).toBe(1);
+    expect(result?.id).toBe('1');
   });
 
   it('short-circuit: once a complexRule matches, later complexRules are NOT evaluated', () => {
@@ -138,7 +145,7 @@ describe('DecisionTreeImpl.categorizeRow', () => {
       makeRow({ isManuallySetCategory: true, category: null })
     );
 
-    expect(result?.id).toBe(5);
+    expect(result?.id).toBe('5');
   });
 });
 
@@ -164,7 +171,7 @@ describe('DecisionTreeImpl.categorize — DELTA', () => {
     const delta = tree.categorize([row]);
 
     expect(delta.has(0)).toBe(true);
-    expect(delta.get(0)?.id).toBe(1);
+    expect(delta.get(0)?.id).toBe('1');
   });
 
   it('cat → null: present', () => {
@@ -186,7 +193,7 @@ describe('DecisionTreeImpl.categorize — DELTA', () => {
     const delta = tree.categorize([row]);
 
     expect(delta.has(0)).toBe(true);
-    expect(delta.get(0)?.id).toBe(2);
+    expect(delta.get(0)?.id).toBe('2');
   });
 
   it('mixed batch: only changed rows in the map, keyed by rowIndex', () => {
@@ -199,7 +206,7 @@ describe('DecisionTreeImpl.categorize — DELTA', () => {
 
     expect(delta.has(0)).toBe(false);
     expect(delta.has(1)).toBe(true);
-    expect(delta.get(1)?.id).toBe(1);
+    expect(delta.get(1)?.id).toBe('1');
     expect(delta.size).toBe(1);
   });
 });
