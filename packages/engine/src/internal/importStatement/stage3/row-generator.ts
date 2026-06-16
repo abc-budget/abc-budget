@@ -272,7 +272,6 @@ async function generateSingleRow(
   return {
     rowIndex: row.rowIndex,
     hash,
-    source: null,
     date,
     amount,
     currency,

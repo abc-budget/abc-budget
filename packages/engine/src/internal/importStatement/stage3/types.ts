@@ -13,7 +13,7 @@
  *   - `counterparty` field added to `ImportStatementStage3Row`
  *   - `ImportStatementStage3RowField` Exclude updated to also exclude 'counterparty'
  *     from the field-name type (counterparty is a distinct output field, not a
- *     stage-column-header field — mirrors how 'source' is not a column-header field).
+ *     stage-column-header field).
  *   - New types: `RowError`, `SkippedRow`, `TransactionRow`, `GenerateRowsResult`
  *   - Stage3 interfaces unchanged from stub.
  */
@@ -38,8 +38,6 @@ export interface ImportStatementStage3Row {
   rowIndex: number;
   /** Unique hash for the row */
   hash: string;
-  /** Source file information */
-  source: string | null;
   /** Transaction date */
   date: Date;
   /** Transaction amount */

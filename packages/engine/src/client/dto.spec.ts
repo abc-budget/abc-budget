@@ -253,7 +253,6 @@ describe('serializeRowWindow', () => {
   const makeRow = (rowIndex: number): TransactionRow => ({
     rowIndex,
     hash: `hash-${rowIndex}`,
-    source: null,
     date: new Date('2024-01-15T00:00:00.000Z'),
     amount: 42,
     currency: 'USD',
@@ -293,7 +292,6 @@ describe('serializeGenerateResult', () => {
   const makeRow = (rowIndex: number): TransactionRow => ({
     rowIndex,
     hash: `h${rowIndex}`,
-    source: null,
     date: new Date('2024-03-01T00:00:00.000Z'),
     amount: 10,
     currency: 'UAH',

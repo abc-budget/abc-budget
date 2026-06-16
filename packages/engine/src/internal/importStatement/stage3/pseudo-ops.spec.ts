@@ -2,7 +2,7 @@
  * pseudo-ops.spec.ts — TDD suite for expandPseudoOps (ENT-013, Story 2.5 Task 3).
  *
  * Tests (all failing-first, per the plan checklist):
- *   P1.  Commission cell → one op: flags, description key, date/account/source from original,
+ *   P1.  Commission cell → one op: flags, description key, date/account from original,
  *        abs amount, currency per params (auto / use_base / {code}), nulls, hash discriminator.
  *   P2.  Cashback cell → one op: flags, description key, currency, hash discriminator.
  *   P3.  Both cells → 2 ops, ordered commission-then-cashback.
@@ -145,7 +145,7 @@ describe('P1: commission cell → single commission op', () => {
     );
   });
 
-  it('P1c: date, account, source taken from original row', async () => {
+  it('P1c: date, account taken from original row', async () => {
     const commCell = makeCellData(75.0, SupportedDataType.NUMBER);
     const row = makeBaseRow(7, { commCol: commCell });
     const columns = makeBaseColumns([
@@ -158,7 +158,6 @@ describe('P1: commission cell → single commission op', () => {
 
     expect(ops[0].date).toEqual(TEST_DATE);
     expect(ops[0].account).toBe('UA12345');
-    expect(ops[0].source).toBeNull(); // source always null in current row-generator
   });
 
   it('P1d: amount = abs(cell) — positive cell', async () => {

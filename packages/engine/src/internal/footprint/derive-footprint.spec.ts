@@ -20,7 +20,6 @@ function makeRow(overrides: Partial<TransactionRow> = {}): TransactionRow {
   return {
     rowIndex: 0,
     hash: 'h',
-    source: null,
     date: new Date('2024-06-15T12:00:00.000Z'),
     amount: 0,
     currency: 'USD',

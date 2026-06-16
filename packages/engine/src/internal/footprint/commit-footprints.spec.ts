@@ -36,7 +36,6 @@ function rowWith(overrides: Partial<TransactionRow>): TransactionRow {
   return {
     rowIndex: 0,
     hash: 'h',
-    source: null,
     date: new Date('2026-06-10T09:00:00Z'),
     amount: 100,
     currency: 'UAH',
