@@ -100,6 +100,9 @@ export enum SettingKeys {
   ENGINE_ACCEPTABLE_COLUMN_ERROR_PERCENTAGE = 'engineConfig.acceptableColumnErrorPercentage',
   ENGINE_SUCCESS_STATUS_THRESHOLD = 'engineConfig.successStatusThreshold',
   ENGINE_RECALL_AUTO_DETECT_ENABLED = 'engineConfig.recallAutoDetectEnabled',
+
+  // Story 4.6 (decision C) — the «Решту → Інше» picker default (last-write-wins).
+  LAST_REMAINDER_CATEGORY_ID = 'lastRemainderCategoryId',
 }
 
 // ── Abstract base ─────────────────────────────────────────────────────────────
