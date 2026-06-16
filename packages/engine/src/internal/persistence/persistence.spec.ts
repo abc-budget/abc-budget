@@ -59,25 +59,27 @@ describe('requestDurability', () => {
 });
 
 describe('engine DB migration anchor', () => {
-  // LEGITIMATE TEST UPDATE (Task 2, Story 4.3a): v6 appended for the categories store.
+  // LEGITIMATE TEST UPDATE (Task 1, Story 4.3b): v7 appended for the complexRules store.
   // Step[0] (v1) remains a no-op anchor byte-identical to its original form.
   // Step[1] (v2) creates 'exchangeRates' — byte-unchanged vs Story 1.6.
   // Step[2] (v3) creates 'userSettings' (keyPath:'key', index:'key' unique) + 'recallPool' (keyPath:'columnName').
   // Step[3] (v4) creates 'footprint' (keyPath:['hash','year','month'], no indexes).
   // Step[4] (v5) adds the 'hash' NON-unique lookup index to the existing 'footprint' store.
   // Step[5] (v6) creates 'categories' (keyPath:'id', STRING ids — no autoIncrement; indexes name+isArchived+currency).
-  it('ENGINE_MIGRATIONS has 6 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint + v5 footprint hash index + v6 categories', async () => {
-    expect(ENGINE_MIGRATIONS).toHaveLength(6);
+  // Step[6] (v7) creates 'complexRules' (keyPath:'id', NUMBER ids — autoIncrement TRUE; indexes order+categoryId).
+  it('ENGINE_MIGRATIONS has 7 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint + v5 footprint hash index + v6 categories + v7 complexRules', async () => {
+    expect(ENGINE_MIGRATIONS).toHaveLength(7);
     expect(ENGINE_MIGRATIONS[0].toVersion).toBe(1);
     expect(ENGINE_MIGRATIONS[1].toVersion).toBe(2);
     expect(ENGINE_MIGRATIONS[2].toVersion).toBe(3);
     expect(ENGINE_MIGRATIONS[3].toVersion).toBe(4);
     expect(ENGINE_MIGRATIONS[4].toVersion).toBe(5);
     expect(ENGINE_MIGRATIONS[5].toVersion).toBe(6);
-    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v6`, ENGINE_MIGRATIONS);
-    expect(db.version).toBe(6);
+    expect(ENGINE_MIGRATIONS[6].toVersion).toBe(7);
+    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v7`, ENGINE_MIGRATIONS);
+    expect(db.version).toBe(7);
     const storeNames = Array.from(db.objectStoreNames).sort();
-    expect(storeNames).toEqual(['categories', 'exchangeRates', 'footprint', 'recallPool', 'userSettings']);
+    expect(storeNames).toEqual(['categories', 'complexRules', 'exchangeRates', 'footprint', 'recallPool', 'userSettings']);
     db.close();
   });
 
@@ -268,6 +270,74 @@ describe('engine DB migration anchor', () => {
     expect(footprint.keyPath).toEqual(['hash', 'year', 'month']);
     expect(Array.from(footprint.indexNames)).toContain('hash');
     expect(footprint.index('hash').unique).toBe(false);
+    db.close();
+  });
+
+  // ── Story 4.3b (Task 1): v7 complexRules store ──────────────────────────────
+  it('v7 creates complexRules with keyPath "id" and autoIncrement TRUE (NUMBER ids) — contrast v6 categories (string id, autoIncrement false) — and indexes order+categoryId (all non-unique)', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v7-complexRules`, ENGINE_MIGRATIONS);
+    expect(Array.from(db.objectStoreNames)).toContain('complexRules');
+    const tx = db.transaction(['complexRules', 'categories'], 'readonly');
+    const store = tx.objectStore('complexRules');
+    expect(store.keyPath).toBe('id');
+    // NUMBER ids (autoIncrement) — the v6-vs-v7 contrast asserted LIVE on adjacent stores.
+    expect(store.autoIncrement).toBe(true);
+    expect(tx.objectStore('categories').autoIncrement).toBe(false);
+    const idxNames = Array.from(store.indexNames).sort();
+    expect(idxNames).toEqual(['categoryId', 'order']);
+    expect(store.index('order').keyPath).toBe('order');
+    expect(store.index('order').unique).toBe(false);
+    expect(store.index('categoryId').keyPath).toBe('categoryId');
+    expect(store.index('categoryId').unique).toBe(false);
+    db.close();
+  });
+
+  it('fresh open ≡ upgrade path: both reach v7 with the complexRules store + its 2 indexes (autoIncrement true) present', async () => {
+    // fresh open (v1 → v7)
+    const freshDb = await openDatabase(`${ENGINE_DB_NAME}-fresh-v7`, ENGINE_MIGRATIONS);
+    const freshTx = freshDb.transaction('complexRules', 'readonly');
+    const freshRules = freshTx.objectStore('complexRules');
+    expect(freshRules.keyPath).toBe('id');
+    expect(freshRules.autoIncrement).toBe(true);
+    expect(Array.from(freshRules.indexNames).sort()).toEqual(['categoryId', 'order']);
+    freshDb.close();
+
+    // upgrade path: open at v6 first (no complexRules store), then upgrade to v7
+    const v6Steps = ENGINE_MIGRATIONS.slice(0, 6);
+    const v6Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v7`, v6Steps);
+    // assert v6 baseline has NO complexRules store before upgrading
+    expect(Array.from(v6Db.objectStoreNames)).not.toContain('complexRules');
+    v6Db.close();
+
+    const v7Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v7`, ENGINE_MIGRATIONS);
+    expect(Array.from(v7Db.objectStoreNames)).toContain('complexRules');
+    const upTx = v7Db.transaction('complexRules', 'readonly');
+    const upRules = upTx.objectStore('complexRules');
+    expect(upRules.keyPath).toBe('id');
+    expect(upRules.autoIncrement).toBe(true);
+    expect(Array.from(upRules.indexNames).sort()).toEqual(['categoryId', 'order']);
+    expect(upRules.index('order').unique).toBe(false);
+    expect(upRules.index('categoryId').unique).toBe(false);
+    v7Db.close();
+  });
+
+  it('v7 upgrade does not regress prior stores (exchangeRates, userSettings, recallPool, footprint incl. v5 hash index, categories incl. its 3 indexes)', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v7-noregress`, ENGINE_MIGRATIONS);
+    const tx = db.transaction(
+      ['exchangeRates', 'userSettings', 'recallPool', 'footprint', 'categories'],
+      'readonly'
+    );
+    expect(tx.objectStore('exchangeRates').keyPath).toEqual(['base', 'date']);
+    expect(tx.objectStore('userSettings').keyPath).toBe('key');
+    expect(tx.objectStore('recallPool').keyPath).toBe('columnName');
+    const footprint = tx.objectStore('footprint');
+    expect(footprint.keyPath).toEqual(['hash', 'year', 'month']);
+    expect(Array.from(footprint.indexNames)).toContain('hash');
+    expect(footprint.index('hash').unique).toBe(false);
+    const categories = tx.objectStore('categories');
+    expect(categories.keyPath).toBe('id');
+    expect(categories.autoIncrement).toBe(false);
+    expect(Array.from(categories.indexNames).sort()).toEqual(['currency', 'isArchived', 'name']);
     db.close();
   });
 

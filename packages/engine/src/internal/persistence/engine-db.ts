@@ -33,6 +33,10 @@ export const ENGINE_DB_NAME = 'abc-budget';
  * v6: creates the `categories` object store (Story 4.3a, ENT-018). keyPath:'id' with STRING
  *     ids (service-generated crypto.randomUUID) — NO autoIncrement. Indexes: `name`,
  *     `isArchived` (archive != delete — soft-archive is indexed), `currency`, all NON-unique.
+ *
+ * v7: creates the `complexRules` object store (Story 4.3b, FEAT-019). keyPath:'id' with NUMBER
+ *     ids — autoIncrement TRUE (CONTRAST v6 categories: string id, NO autoInc). Indexes:
+ *     `order` (eval sequence) + `categoryId` (STRING FK), both NON-unique.
  */
 export const ENGINE_MIGRATIONS: MigrationStep[] = [
   {
@@ -88,6 +92,21 @@ export const ENGINE_MIGRATIONS: MigrationStep[] = [
           { name: 'name', keyPath: 'name', options: { unique: false } },
           { name: 'isArchived', keyPath: 'isArchived', options: { unique: false } },
           { name: 'currency', keyPath: 'currency', options: { unique: false } },
+        ],
+      });
+    },
+  },
+  {
+    toVersion: 7,
+    migrate: (ctx) => {
+      // complexRules store (Story 4.3b, FEAT-019) — rule id is a NUMBER (autoIncrement),
+      // CONTRAST v6 categories (string id, no autoInc). order = eval sequence; categoryId = STRING FK.
+      ctx.createStore('complexRules', {
+        keyPath: 'id',
+        autoIncrement: true,
+        indexes: [
+          { name: 'order', keyPath: 'order', options: { unique: false } },
+          { name: 'categoryId', keyPath: 'categoryId', options: { unique: false } },
         ],
       });
     },
