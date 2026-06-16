@@ -59,7 +59,8 @@ describe('requestDurability', () => {
 });
 
 describe('engine DB migration anchor', () => {
-  // LEGITIMATE TEST UPDATE (Task 1, Story 4.3b): v7 appended for the complexRules store.
+  // LEGITIMATE TEST UPDATE (Task 1b, Story 4.4): v8 appended for the footprint
+  // [year,month,isManual] compound index + isManual:0 backfill.
   // Step[0] (v1) remains a no-op anchor byte-identical to its original form.
   // Step[1] (v2) creates 'exchangeRates' — byte-unchanged vs Story 1.6.
   // Step[2] (v3) creates 'userSettings' (keyPath:'key', index:'key' unique) + 'recallPool' (keyPath:'columnName').
@@ -67,8 +68,9 @@ describe('engine DB migration anchor', () => {
   // Step[4] (v5) adds the 'hash' NON-unique lookup index to the existing 'footprint' store.
   // Step[5] (v6) creates 'categories' (keyPath:'id', STRING ids — no autoIncrement; indexes name+isArchived+currency).
   // Step[6] (v7) creates 'complexRules' (keyPath:'id', NUMBER ids — autoIncrement TRUE; indexes order+categoryId).
-  it('ENGINE_MIGRATIONS has 7 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint + v5 footprint hash index + v6 categories + v7 complexRules', async () => {
-    expect(ENGINE_MIGRATIONS).toHaveLength(7);
+  // Step[7] (v8) adds the 'year_month_isManual' NON-unique compound index to 'footprint' + backfills isManual:0.
+  it('ENGINE_MIGRATIONS has 8 steps: v1 no-op + v2 exchangeRates + v3 userSettings+recallPool + v4 footprint + v5 footprint hash index + v6 categories + v7 complexRules + v8 footprint year_month_isManual index', async () => {
+    expect(ENGINE_MIGRATIONS).toHaveLength(8);
     expect(ENGINE_MIGRATIONS[0].toVersion).toBe(1);
     expect(ENGINE_MIGRATIONS[1].toVersion).toBe(2);
     expect(ENGINE_MIGRATIONS[2].toVersion).toBe(3);
@@ -76,8 +78,9 @@ describe('engine DB migration anchor', () => {
     expect(ENGINE_MIGRATIONS[4].toVersion).toBe(5);
     expect(ENGINE_MIGRATIONS[5].toVersion).toBe(6);
     expect(ENGINE_MIGRATIONS[6].toVersion).toBe(7);
-    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v7`, ENGINE_MIGRATIONS);
-    expect(db.version).toBe(7);
+    expect(ENGINE_MIGRATIONS[7].toVersion).toBe(8);
+    const db = await openDatabase(`${ENGINE_DB_NAME}-anchor-test-v8`, ENGINE_MIGRATIONS);
+    expect(db.version).toBe(8);
     const storeNames = Array.from(db.objectStoreNames).sort();
     expect(storeNames).toEqual(['categories', 'complexRules', 'exchangeRates', 'footprint', 'recallPool', 'userSettings']);
     db.close();
@@ -338,6 +341,159 @@ describe('engine DB migration anchor', () => {
     expect(categories.keyPath).toBe('id');
     expect(categories.autoIncrement).toBe(false);
     expect(Array.from(categories.indexNames).sort()).toEqual(['currency', 'isArchived', 'name']);
+    db.close();
+  });
+
+  // ── Story 4.4 (Task 1b): v8 footprint [year,month,isManual] compound index + backfill ──
+  it('v8 adds a non-unique "year_month_isManual" compound index on footprint (keyPath [year,month,isManual]); the v5 hash index + composite keyPath remain intact', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v8-ymim-index`, ENGINE_MIGRATIONS);
+    const tx = db.transaction('footprint', 'readonly');
+    const store = tx.objectStore('footprint');
+    // the new compound index
+    expect(Array.from(store.indexNames)).toContain('year_month_isManual');
+    const idx = store.index('year_month_isManual');
+    expect(idx.keyPath).toEqual(['year', 'month', 'isManual']);
+    expect(idx.unique).toBe(false);
+    // composite keyPath unchanged + the v5 hash index intact
+    expect(store.keyPath).toEqual(['hash', 'year', 'month']);
+    expect(Array.from(store.indexNames)).toContain('hash');
+    expect(store.index('hash').keyPath).toBe('hash');
+    expect(store.index('hash').unique).toBe(false);
+    db.close();
+  });
+
+  it('v8 INDEX FUNCTIONAL: isManual stored 0|1 (not boolean) — a row with isManual:1 is retrievable via only([year,month,1])', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v8-index-functional`, ENGINE_MIGRATIONS);
+    const year = 2026;
+    const month = 6;
+    // RAW store-level write (type-agnostic): a 6-field footprint with isManual:1.
+    const rawRow = {
+      hash: 'h-manual-1',
+      year,
+      month,
+      amountUSD: 4200,
+      categoryId: 'cat-x',
+      isManual: 1,
+    } as unknown;
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('footprint', 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.objectStore('footprint').put(rawRow as never);
+    });
+    // Read back via the compound index with the integer 1 — proves 0|1 (a boolean
+    // keyPath would have been DROPPED from the index, so getAll would be empty).
+    const rows = await new Promise<unknown[]>((resolve, reject) => {
+      const tx = db.transaction('footprint', 'readonly');
+      const req = tx
+        .objectStore('footprint')
+        .index('year_month_isManual')
+        .getAll(IDBKeyRange.only([year, month, 1]));
+      req.onsuccess = () => resolve(req.result as unknown[]);
+      req.onerror = () => reject(req.error);
+    });
+    expect(rows).toHaveLength(1);
+    expect((rows[0] as { hash: string }).hash).toBe('h-manual-1');
+    expect((rows[0] as { isManual: number }).isManual).toBe(1);
+    db.close();
+  });
+
+  it('v8 BACKFILL: a pre-v8 footprint (no isManual) is backfilled to isManual:0 on upgrade', async () => {
+    const dbName = `${ENGINE_DB_NAME}-v8-backfill`;
+    // Open at v7 (pre-4.4) and write a RAW 5-field footprint with NO isManual.
+    const v7Steps = ENGINE_MIGRATIONS.slice(0, 7);
+    const v7Db = await openDatabase(dbName, v7Steps);
+    expect(v7Db.version).toBe(7);
+    await new Promise<void>((resolve, reject) => {
+      const tx = v7Db.transaction('footprint', 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.objectStore('footprint').put({
+        hash: 'h-legacy',
+        year: 2025,
+        month: 12,
+        amountUSD: 1000,
+        categoryId: 'cat-legacy',
+      } as never);
+    });
+    v7Db.close();
+
+    // Upgrade to v8 → the backfill cursor walk runs.
+    const v8Db = await openDatabase(dbName, ENGINE_MIGRATIONS);
+    expect(v8Db.version).toBe(8);
+    const row = await new Promise<unknown>((resolve, reject) => {
+      const tx = v8Db.transaction('footprint', 'readonly');
+      const req = tx.objectStore('footprint').get(['h-legacy', 2025, 12]);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    expect((row as { isManual: number }).isManual).toBe(0);
+    v8Db.close();
+  });
+
+  it('fresh open ≡ upgrade path: both reach v8 with the footprint year_month_isManual index present', async () => {
+    // fresh open (v1 → v8)
+    const freshDb = await openDatabase(`${ENGINE_DB_NAME}-fresh-v8`, ENGINE_MIGRATIONS);
+    const freshTx = freshDb.transaction('footprint', 'readonly');
+    const freshFootprint = freshTx.objectStore('footprint');
+    expect(Array.from(freshFootprint.indexNames)).toContain('year_month_isManual');
+    expect(freshFootprint.index('year_month_isManual').keyPath).toEqual(['year', 'month', 'isManual']);
+    expect(freshFootprint.index('year_month_isManual').unique).toBe(false);
+    // the v5 hash index survives the fresh path too
+    expect(Array.from(freshFootprint.indexNames)).toContain('hash');
+    freshDb.close();
+
+    // upgrade path: open at v7 first (no compound index), then upgrade to v8
+    const v7Steps = ENGINE_MIGRATIONS.slice(0, 7);
+    const v7Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v8`, v7Steps);
+    // assert v7 baseline has NO year_month_isManual index before upgrading
+    expect(Array.from(v7Db.transaction('footprint', 'readonly').objectStore('footprint').indexNames)).not.toContain(
+      'year_month_isManual'
+    );
+    v7Db.close();
+
+    const v8Db = await openDatabase(`${ENGINE_DB_NAME}-upgrade-v8`, ENGINE_MIGRATIONS);
+    const upTx = v8Db.transaction('footprint', 'readonly');
+    const upFootprint = upTx.objectStore('footprint');
+    expect(upFootprint.keyPath).toEqual(['hash', 'year', 'month']);
+    expect(Array.from(upFootprint.indexNames)).toContain('year_month_isManual');
+    expect(upFootprint.index('year_month_isManual').keyPath).toEqual(['year', 'month', 'isManual']);
+    expect(upFootprint.index('year_month_isManual').unique).toBe(false);
+    // the v5 hash index intact on the upgrade path
+    expect(Array.from(upFootprint.indexNames)).toContain('hash');
+    expect(upFootprint.index('hash').unique).toBe(false);
+    v8Db.close();
+  });
+
+  it('v8 upgrade does not regress prior stores (exchangeRates, userSettings, recallPool, footprint incl. v5 hash index, categories incl. its 3 indexes, complexRules incl. its 2 indexes)', async () => {
+    const db = await openDatabase(`${ENGINE_DB_NAME}-v8-noregress`, ENGINE_MIGRATIONS);
+    expect(Array.from(db.objectStoreNames).sort()).toEqual([
+      'categories',
+      'complexRules',
+      'exchangeRates',
+      'footprint',
+      'recallPool',
+      'userSettings',
+    ]);
+    const tx = db.transaction(
+      ['exchangeRates', 'userSettings', 'recallPool', 'footprint', 'categories', 'complexRules'],
+      'readonly'
+    );
+    expect(tx.objectStore('exchangeRates').keyPath).toEqual(['base', 'date']);
+    expect(tx.objectStore('userSettings').keyPath).toBe('key');
+    expect(tx.objectStore('recallPool').keyPath).toBe('columnName');
+    const footprint = tx.objectStore('footprint');
+    expect(footprint.keyPath).toEqual(['hash', 'year', 'month']);
+    expect(Array.from(footprint.indexNames).sort()).toEqual(['hash', 'year_month_isManual']);
+    expect(footprint.index('hash').unique).toBe(false);
+    const categories = tx.objectStore('categories');
+    expect(categories.keyPath).toBe('id');
+    expect(categories.autoIncrement).toBe(false);
+    expect(Array.from(categories.indexNames).sort()).toEqual(['currency', 'isArchived', 'name']);
+    const complexRules = tx.objectStore('complexRules');
+    expect(complexRules.keyPath).toBe('id');
+    expect(complexRules.autoIncrement).toBe(true);
+    expect(Array.from(complexRules.indexNames).sort()).toEqual(['categoryId', 'order']);
     db.close();
   });
 

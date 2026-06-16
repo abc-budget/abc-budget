@@ -55,6 +55,7 @@ describe('FootprintDao', () => {
       amountUSD: 123.45,
       categoryId: 'cat-groceries',
       hash: 'hash-abc',
+      isManual: 0,
     };
 
     await dao.put(record);
@@ -71,6 +72,7 @@ describe('FootprintDao', () => {
       amountUSD: 100,
       categoryId: 'cat-old',
       hash: 'same-hash',
+      isManual: 0,
     };
     // Same composite key triple; non-key fields differ (amountUSD + categoryId).
     const second: FootprintRecord = {
@@ -79,6 +81,7 @@ describe('FootprintDao', () => {
       amountUSD: 250,
       categoryId: 'cat-new',
       hash: 'same-hash',
+      isManual: 0,
     };
 
     await dao.put(first);
@@ -97,6 +100,7 @@ describe('FootprintDao', () => {
       amountUSD: 10,
       categoryId: null,
       hash: 'h',
+      isManual: 0,
     };
 
     // Different hash.
@@ -117,9 +121,9 @@ describe('FootprintDao', () => {
   describe('findByHash', () => {
     it('returns the single row whose hash matches', async () => {
       const records: FootprintRecord[] = [
-        { year: 2026, month: 1, amountUSD: 10, categoryId: null, hash: 'h-a' },
-        { year: 2026, month: 2, amountUSD: 20, categoryId: null, hash: 'h-b' },
-        { year: 2026, month: 3, amountUSD: 30, categoryId: null, hash: 'h-c' },
+        { year: 2026, month: 1, amountUSD: 10, categoryId: null, hash: 'h-a', isManual: 0 },
+        { year: 2026, month: 2, amountUSD: 20, categoryId: null, hash: 'h-b', isManual: 0 },
+        { year: 2026, month: 3, amountUSD: 30, categoryId: null, hash: 'h-c', isManual: 0 },
       ];
       await dao.putBatch(records);
 
@@ -131,7 +135,7 @@ describe('FootprintDao', () => {
 
     it('returns [] for an absent hash', async () => {
       await dao.putBatch([
-        { year: 2026, month: 1, amountUSD: 10, categoryId: null, hash: 'h-a' },
+        { year: 2026, month: 1, amountUSD: 10, categoryId: null, hash: 'h-a', isManual: 0 },
       ]);
 
       expect(await dao.findByHash('nope')).toEqual([]);
@@ -142,10 +146,10 @@ describe('FootprintDao', () => {
   describe('putBatch', () => {
     it('writes N records in ONE call → getAll().length === N', async () => {
       const records: FootprintRecord[] = [
-        { year: 2026, month: 1, amountUSD: 1, categoryId: null, hash: 'h-1' },
-        { year: 2026, month: 2, amountUSD: 2, categoryId: null, hash: 'h-2' },
-        { year: 2026, month: 3, amountUSD: 3, categoryId: null, hash: 'h-3' },
-        { year: 2026, month: 4, amountUSD: 4, categoryId: null, hash: 'h-4' },
+        { year: 2026, month: 1, amountUSD: 1, categoryId: null, hash: 'h-1', isManual: 0 },
+        { year: 2026, month: 2, amountUSD: 2, categoryId: null, hash: 'h-2', isManual: 0 },
+        { year: 2026, month: 3, amountUSD: 3, categoryId: null, hash: 'h-3', isManual: 0 },
+        { year: 2026, month: 4, amountUSD: 4, categoryId: null, hash: 'h-4', isManual: 0 },
       ];
 
       await dao.putBatch(records);
@@ -155,16 +159,16 @@ describe('FootprintDao', () => {
 
     it('is idempotent: re-putting the SAME triples keeps the count and applies last-write-wins on non-key fields', async () => {
       const first: FootprintRecord[] = [
-        { year: 2026, month: 1, amountUSD: 1, categoryId: null, hash: 'h-1' },
-        { year: 2026, month: 2, amountUSD: 2, categoryId: null, hash: 'h-2' },
+        { year: 2026, month: 1, amountUSD: 1, categoryId: null, hash: 'h-1', isManual: 0 },
+        { year: 2026, month: 2, amountUSD: 2, categoryId: null, hash: 'h-2', isManual: 0 },
       ];
       await dao.putBatch(first);
       expect(await dao.getAll()).toHaveLength(2);
 
       // Same [hash,year,month] triples; amountUSD changed on the second batch.
       const second: FootprintRecord[] = [
-        { year: 2026, month: 1, amountUSD: 111, categoryId: null, hash: 'h-1' },
-        { year: 2026, month: 2, amountUSD: 222, categoryId: null, hash: 'h-2' },
+        { year: 2026, month: 1, amountUSD: 111, categoryId: null, hash: 'h-1', isManual: 0 },
+        { year: 2026, month: 2, amountUSD: 222, categoryId: null, hash: 'h-2', isManual: 0 },
       ];
       await dao.putBatch(second);
 
@@ -179,12 +183,67 @@ describe('FootprintDao', () => {
 
     it('putBatch([]) is a no-op (no throw, count unchanged)', async () => {
       await dao.putBatch([
-        { year: 2026, month: 1, amountUSD: 1, categoryId: null, hash: 'h-1' },
+        { year: 2026, month: 1, amountUSD: 1, categoryId: null, hash: 'h-1', isManual: 0 },
       ]);
       expect(await dao.getAll()).toHaveLength(1);
 
       await expect(dao.putBatch([])).resolves.toBeUndefined();
       expect(await dao.getAll()).toHaveLength(1);
+    });
+  });
+
+  // ── Story 4.4 (Task 2): getManualByPeriods over the year_month_isManual index ─
+  describe('getManualByPeriods', () => {
+    // Seed: manual + derived rows spread across three distinct periods.
+    const seed: FootprintRecord[] = [
+      { year: 2026, month: 6, amountUSD: 10, categoryId: 'c-1', hash: 'm-6a', isManual: 1 },
+      { year: 2026, month: 6, amountUSD: 20, categoryId: 'c-2', hash: 'm-6b', isManual: 1 },
+      { year: 2026, month: 6, amountUSD: 30, categoryId: 'c-3', hash: 'd-6', isManual: 0 },
+      { year: 2026, month: 7, amountUSD: 40, categoryId: 'c-4', hash: 'm-7', isManual: 1 },
+      { year: 2025, month: 12, amountUSD: 50, categoryId: 'c-5', hash: 'm-12', isManual: 1 },
+    ];
+
+    beforeEach(async () => {
+      await dao.putBatch(seed);
+    });
+
+    it('returns ONLY the manual rows for the requested period (drops isManual:0 + other periods)', async () => {
+      const found = await dao.getManualByPeriods([{ year: 2026, month: 6 }]);
+
+      expect(found).toHaveLength(2);
+      expect(found.map((r) => r.hash).sort()).toEqual(['m-6a', 'm-6b']);
+      // teeth: the isManual:0 row, 2026-07, and 2025-12 are all excluded.
+      expect(found.every((r) => r.isManual === 1)).toBe(true);
+      expect(found.some((r) => r.hash === 'd-6')).toBe(false);
+    });
+
+    it('concatenates manual rows across multiple periods', async () => {
+      const found = await dao.getManualByPeriods([
+        { year: 2026, month: 6 },
+        { year: 2026, month: 7 },
+      ]);
+
+      expect(found).toHaveLength(3);
+      expect(found.map((r) => r.hash).sort()).toEqual(['m-6a', 'm-6b', 'm-7']);
+    });
+
+    it('de-dupes duplicate periods in the input → no duplicate rows', async () => {
+      const found = await dao.getManualByPeriods([
+        { year: 2026, month: 6 },
+        { year: 2026, month: 6 },
+      ]);
+
+      expect(found).toHaveLength(2);
+      expect(found.map((r) => r.hash).sort()).toEqual(['m-6a', 'm-6b']);
+    });
+
+    it('returns [] for empty periods (no query issued)', async () => {
+      expect(await dao.getManualByPeriods([])).toEqual([]);
+    });
+
+    it('returns [] for a period with no manual rows', async () => {
+      // 2026-08 has no rows at all; 2025-12 has a manual row but isn't requested.
+      expect(await dao.getManualByPeriods([{ year: 2026, month: 8 }])).toEqual([]);
     });
   });
 });

@@ -4,8 +4,9 @@
  * @internal
  *
  * Pure derivation: TransactionRow + amountUSD → FootprintRecord. Pins the
- * UTC operation-date split (year/month), the EXACT 5-field shape, the
- * categoryId=null / hash-passthrough contract, and the host-TZ invariance
+ * UTC operation-date split (year/month), the EXACT 6-field shape, the
+ * default categoryId=null / isManual=0 source-flag / hash-passthrough contract,
+ * the resolved-categoryId + isManual=1 path, and the host-TZ invariance
  * (isolated hostile-TZ describe, mirrored from stage2 tz-determinism.spec.ts).
  */
 
@@ -39,21 +40,47 @@ function makeRow(overrides: Partial<TransactionRow> = {}): TransactionRow {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('deriveFootprint — pure operation-date split (UTC)', () => {
-  it('derives UTC year + 1-based month, null category, hash passthrough, amountUSD passthrough, exact 5-field shape', () => {
+  it('derives UTC year + 1-based month, null category, isManual=0 default, hash passthrough, amountUSD passthrough, exact 6-field shape', () => {
     const row = makeRow({ hash: 'wrapped-hash', date: new Date('2024-06-15T12:00:00.000Z') });
     const result = deriveFootprint(row, 42.5);
 
     expect(result.year).toBe(2024);
     expect(result.month).toBe(6);
     expect(result.categoryId).toBeNull();
+    expect(result.isManual).toBe(0); // default source: derived, not manual
     expect(result.hash).toBe('wrapped-hash');
     expect(result.amountUSD).toBe(42.5);
 
-    // EXACTLY 5 fields — no 6th field leaks through (ENT-001 minimization).
+    // EXACTLY 6 fields — no 7th field leaks through (ENT-001 minimization).
     expect(Object.keys(result).sort()).toEqual([
       'amountUSD',
       'categoryId',
       'hash',
+      'isManual',
+      'month',
+      'year',
+    ]);
+  });
+
+  it('a call with a resolved categoryId + isManual=1 emits those values in the 6-field record', () => {
+    const row = makeRow({ hash: 'cat-hash', date: new Date('2024-06-15T12:00:00.000Z') });
+    const result = deriveFootprint(row, 9.99, 'cat-groceries', 1);
+
+    // The resolved id and manual source flow through verbatim.
+    expect(result.categoryId).toBe('cat-groceries');
+    expect(result.isManual).toBe(1); // manual categorization SOURCE
+    // Everything else still derives exactly as the default path.
+    expect(result.year).toBe(2024);
+    expect(result.month).toBe(6);
+    expect(result.hash).toBe('cat-hash');
+    expect(result.amountUSD).toBe(9.99);
+
+    // Still EXACTLY 6 fields — the categorized path adds no extra key.
+    expect(Object.keys(result).sort()).toEqual([
+      'amountUSD',
+      'categoryId',
+      'hash',
+      'isManual',
       'month',
       'year',
     ]);
