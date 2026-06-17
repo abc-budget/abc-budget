@@ -263,3 +263,16 @@ tr.op-atyp { background: rgba(225, 173, 1, .07); }
 .sb-review:disabled{ opacity:.4; cursor:default; }
 /* engaged frame on the three working panels */
 .sandbox-on .opspanel, .sandbox-on .s3c-side{ box-shadow:var(--shadow-panel),0 0 0 1.5px rgba(204,85,0,.4); }
+
+/* ── 4.9b Task 5: rule-row edit/delete/reorder affordances ──────────────── */
+.rule-handle{ color:var(--gray-warm); cursor:grab; flex:none; }
+.rule-row.dragging{ opacity:.5; }
+.rule-row.overdrop{ border-color:var(--gold); box-shadow:0 -2px 0 var(--gold); }
+.rule-move{ appearance:none; cursor:pointer; border:1px solid rgba(5,12,22,.2); background:transparent;
+  color:var(--ebony-soft); width:22px; height:22px; border-radius:var(--r-xs); font-size:12px; }
+.rule-move:disabled{ opacity:.35; cursor:default; }
+.rule-edit-btn{ appearance:none; cursor:pointer; border:1px solid rgba(5,12,22,.2); background:transparent;
+  color:var(--ebony-soft); font-size:9px; letter-spacing:.06em; text-transform:uppercase; padding:3px 8px; border-radius:var(--r-xs); }
+.rule-del-btn{ appearance:none; cursor:pointer; border:1px solid rgba(204,85,0,.28); background:transparent;
+  color:var(--orange-deep); width:22px; height:22px; border-radius:var(--r-xs); font-size:10px; }
+.key.orange{ background:linear-gradient(180deg, var(--orange), #A8470B); color:var(--cream); border-color:rgba(0,0,0,.42); }

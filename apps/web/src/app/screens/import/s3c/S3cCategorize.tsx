@@ -89,6 +89,12 @@ export function S3cCategorize({ session }: S3cCategorizeProps) {
             onSave={() => void session.saveRule()}
             onCreateCategory={(name) => session.openCreateCategory(name, true)}
             lang={lang}
+            editingId={null}
+            onEditRule={() => {}}
+            onDeleteRule={() => {}}
+            onReorder={() => {}}
+            saveLane="live"
+            engaged={false}
           />
         )}
       </div>
