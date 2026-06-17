@@ -4,7 +4,7 @@ import { OpsPanel } from './OpsPanel';
 import { LangProvider } from '../../../i18n/LangProvider';
 import type { Lang } from '../../../i18n/i18n';
 import { mccTitle } from '../../../mcc/mcc-lookup';
-import { cat, categoryMap, row, FIELDS, FIELDS_MULTI_CURRENCY, cond } from './fixtures';
+import { cat, categoryMap, row, diffRow, CAT_GROCERIES, CAT_TRANSPORT, FIELDS, FIELDS_MULTI_CURRENCY, cond } from './fixtures';
 import type { CategorizedRowDTO, ConditionDTO, ConditionFieldDTO } from '@abc-budget/engine';
 
 afterEach(() => {
@@ -16,6 +16,7 @@ function renderPanel(
   over: {
     rows?: CategorizedRowDTO[];
     fields?: ConditionFieldDTO[];
+    categories?: Map<string, import('@abc-budget/engine').CategoryDTO>;
     draft?: ConditionDTO[];
     lang?: Lang;
     onCellClick?: (i: number) => void;
@@ -28,7 +29,7 @@ function renderPanel(
       <OpsPanel
         rows={rows}
         fields={over.fields ?? FIELDS}
-        categories={categoryMap(cat(), cat({ id: 'shipping', name: 'Доставка', icon: 'shopping' }))}
+        categories={over.categories ?? categoryMap(cat(), cat({ id: 'shipping', name: 'Доставка', icon: 'shopping' }))}
         total={42}
         matchCount={2}
         segment="all"
@@ -138,6 +139,15 @@ describe('OpsPanel', () => {
     const headers = Array.from(container.querySelectorAll('thead .th-lab')).map((n) => n.textContent);
     expect(headers).not.toContain('Валюта');
     expect(headers).not.toContain('Currency');
+  });
+
+  it('passes previousCategoryId → CategoryCell.previous (old→new) for changed rows', () => {
+    const rows = [diffRow({ rowIndex: 5 })]; // categoryId transport, previousCategoryId groceries
+    const cats = new Map([[CAT_GROCERIES.id, CAT_GROCERIES], [CAT_TRANSPORT.id, CAT_TRANSPORT]]);
+    const { container } = renderPanel({ rows, categories: cats });
+    expect(container.querySelector('.catcell-diff')).toBeTruthy();
+    expect(screen.getByText('Продукти')).toBeTruthy();
+    expect(screen.getByText('Транспорт')).toBeTruthy();
   });
 
   it('shows the filter-strip with condition tokens only when a draft is present', () => {

@@ -61,11 +61,18 @@
   border: 1px solid rgba(204, 85, 0, .35); padding: 1px 5px; border-radius: var(--r-xs); }
 
 /* 4.9b seam — changed-category cell (before → after diff) */
+.catcell.changed{ border-radius:var(--r-md); align-items:center; padding:8px 10px;
+  border-color:rgba(204,85,0,.35); background:rgba(204,85,0,.05); }
 .catcell-diff { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; flex: 1; }
 .catcell-diff .catchip { opacity: 1; max-width: 100%; }
 .catcell-diff > .catchip:first-child { opacity: .55; }
 .catcell-diff .catchip-name { overflow: hidden; text-overflow: ellipsis; }
 .catcell-arrow { color: var(--orange-deep); font-weight: 700; transform: rotate(90deg); margin: -1px 0; font-size: 12px; }
+.nocat-pill{ display:inline-flex; align-items:center; gap:6px; font-size:10px; color:var(--gray-warm);
+  background:repeating-linear-gradient(135deg,rgba(138,134,116,.08) 0 5px,transparent 5px 10px);
+  border:1px dashed rgba(138,134,116,.55); border-radius:var(--r-pill); padding:3px 10px 3px 8px; white-space:nowrap; }
+.nocat-pill.lost{ color:var(--orange-deep); border-color:rgba(204,85,0,.5);
+  background:repeating-linear-gradient(135deg,rgba(204,85,0,.08) 0 5px,transparent 5px 10px); }
 
 /* 4.9c seam — atypicality marker (gold hollow ring) */
 .atyp-ring { flex: none; }
