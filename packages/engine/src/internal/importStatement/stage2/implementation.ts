@@ -398,6 +398,41 @@ export class ImportStatementStage2Impl implements ImportStatementStage2 {
   }
 
   /**
+   * Install a RECALL-PARSED column (Story 4.9a.1) — the parse-only seam.
+   *
+   * The recall mount prefills `definition`/`params`/`recallState:'guessed'` but
+   * leaves the cells as raw strings. `service.stage2` re-runs the parse via
+   * `ImportStatementColumn.parseFromRecall`, which lands HERE to install the
+   * now-typed column. UNLIKE {@link applyColumn} this does the swap ONLY:
+   *   - NO `guessed → confirmed` transition (the mapping stays GUESSED — the user
+   *     hasn't endorsed it yet; a re-import is not a confirmation), and
+   *   - NO `_stagedRecallWrites` staging (the mount must not warm the pool — the
+   *     learning loop still fires on the user's NEXT advance via applyColumn).
+   *
+   * Replaces the same-id column in place (recall columns always pre-exist by id).
+   *
+   * @param column The recall-parsed column to install.
+   */
+  installParsedRecallColumn(column: ImportStatementColumnHeaderStage2): void {
+    if (column instanceof ImportStatementColumn) {
+      column.associateWith(this);
+    }
+
+    const currentColumns = this._columns.getValue();
+    const columnIndex = currentColumns.findIndex((c) => c.id === column.id);
+
+    if (columnIndex !== -1) {
+      const newColumns = [...currentColumns];
+      newColumns[columnIndex] = column;
+      this._columns.next(newColumns);
+    } else {
+      // A recall-parsed column should always pre-exist by id (the mount created
+      // it); append defensively rather than silently drop (HC-7).
+      this._columns.next([...currentColumns, column]);
+    }
+  }
+
+  /**
    * Flush all staged recall writes to the pool (2.8 decision #4).
    *
    * Called on importNext (the advance = the user's endorsement). Commits each

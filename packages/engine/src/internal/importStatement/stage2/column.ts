@@ -117,6 +117,21 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
   private readonly _settingsDao: UserSettingsDAO | null;
 
   /**
+   * RECALL-PARSE mode (Story 4.9a.1). Set ONLY for the duration of
+   * {@link parseFromRecall}: it re-runs the SAME `parseAsX` transform on a column
+   * whose `definition` was already prefilled from the recall pool (so the cells
+   * become typed values — a `Date`, a `number` — instead of raw strings), while
+   * PRESERVING `recallState:'guessed'` and staging NO pool write. When set:
+   *   - {@link validateTransformation} does NOT early-return on the
+   *     already-set definition and does NOT throw the already-transformed guard;
+   *   - {@link parseGeneric} skips its same-definition early-return and installs
+   *     the parsed column via `stage2.installParsedRecallColumn` (which keeps the
+   *     recallState and stages nothing) instead of `stage2.applyColumn` (which
+   *     would confirm + stage). The interactive path leaves this `false`.
+   */
+  private _recallParseInProgress = false;
+
+  /**
    * Recall state for this column's definition (FEAT-013 / 2.3).
    * 'guessed'   — prefilled from pool or auto-detect; awaiting user confirmation.
    * 'confirmed' — user explicitly confirmed the mapping.
@@ -183,6 +198,14 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     targetDefinition: ColumnDefinition,
     errorMessageKey: string
   ): boolean {
+    // RECALL-PARSE (4.9a.1): the recalled column's definition was prefilled to
+    // the target already, but its cells are STILL raw strings — we MUST proceed
+    // to parse. Bypass BOTH the same-definition early-return AND the
+    // already-transformed guard for the duration of parseFromRecall.
+    if (this._recallParseInProgress) {
+      return false;
+    }
+
     // If current column already has the target definition - nothing to do
     if (this.definition === targetDefinition) {
       return true;
@@ -244,8 +267,11 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       );
     }
 
-    // If current column already has the target definition - nothing to do
-    if (this.definition === targetDefinition) {
+    // If current column already has the target definition - nothing to do.
+    // EXCEPTION (4.9a.1): during a recall-parse the definition is already the
+    // target (prefilled at mount) but the cells are UN-parsed — we must NOT
+    // early-return, we must parse them.
+    if (this.definition === targetDefinition && !this._recallParseInProgress) {
       logger.debug('Column already has target definition, returning early');
       logger.groupEnd();
       return;
@@ -341,12 +367,76 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
       data: newData,
     });
 
-    // Apply new column to the stage
+    // Apply new column to the stage (recall-aware install — see _installColumn).
     logger.debug('Applying new column to stage');
-    stage2.applyColumn(newColumn);
+    this._installColumn(stage2, newColumn);
 
     logger.debug('parseGeneric completed successfully');
     logger.groupEnd();
+  }
+
+  /**
+   * Install a freshly-transformed column into the stage (4.9a.1).
+   *
+   * INTERACTIVE path (default): `stage2.applyColumn` — does the 2.3 learning
+   * loop (guessed→confirmed transition + staged pool write).
+   *
+   * RECALL-PARSE path (`_recallParseInProgress`): `stage2.installParsedRecallColumn`
+   * — swaps the parsed column in while PRESERVING recallState:'guessed' and
+   * staging NO pool write. Used by every transform install site so the
+   * parse/confirm separation is holistic across all typed columns (DATE,
+   * AMOUNT, CURRENCY, DESCRIPTION, COUNTERPARTY, MERCHANT, CATEGORY, BALANCE,
+   * STATUS, …), not date-only.
+   *
+   * @param stage2 The associated stage2 instance.
+   * @param column The transformed column to install.
+   * @private
+   */
+  private _installColumn(
+    stage2: ImportStatementStage2,
+    column: ImportStatementColumn
+  ): void {
+    if (this._recallParseInProgress) {
+      stage2.installParsedRecallColumn(column);
+    } else {
+      stage2.applyColumn(column);
+    }
+  }
+
+  /**
+   * Re-run the column's `parseAsX` transform from the RECALL MOUNT (4.9a.1).
+   *
+   * The recall mount (stage2 constructor `applyRecall`) prefills `definition` +
+   * `params` + `recallState:'guessed'` but does NOT parse the cells — so DATE
+   * cells stay raw strings and AMOUNT cells stay raw strings. This drives the
+   * SAME shared dispatcher the interactive path uses, but in PARSE-ONLY mode:
+   * the cells become typed values while `recallState` stays `'guessed'` and NO
+   * pool write is staged (separation of parse from confirm — Ruling 2).
+   *
+   * No-op when the column carries no definition (an UNKNOWN column has nothing
+   * to parse). The 2.4 threshold gate still fires (ColumnTransformRejection) —
+   * a recalled mapping that no longer fits the data rejects exactly as the
+   * interactive parse would; the caller (service.stage2) handles it.
+   *
+   * @param definition The prefilled definition (the recall mount set it).
+   * @param params     The prefilled params.
+   */
+  async parseFromRecall(
+    definition: ColumnDefinition,
+    params: ColumnParams | null
+  ): Promise<void> {
+    // Lazy import to avoid a column ↔ dispatcher module cycle at load time.
+    const { parseColumnByDefinition } = await import('./parse-by-definition');
+    this._recallParseInProgress = true;
+    try {
+      await parseColumnByDefinition(
+        this,
+        definition,
+        params as Record<string, unknown> | null
+      );
+    } finally {
+      this._recallParseInProgress = false;
+    }
   }
 
   /**
@@ -1291,7 +1381,7 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
 
       // Apply new column to the stage
       logger.debug('Applying status column to stage');
-      stage2.applyColumn(statusColumn);
+      this._installColumn(stage2, statusColumn);
       logger.debug(
         'parseAsTransactionStatus completed successfully with explicit success value'
       );
@@ -1390,7 +1480,7 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
 
     // Apply new column to the stage
     logger.debug('Applying status column to stage');
-    stage2.applyColumn(statusColumn);
+    this._installColumn(stage2, statusColumn);
 
     logger.debug(
       'parseAsTransactionStatus completed successfully with auto-detected success value'
@@ -1871,7 +1961,7 @@ export class ImportStatementColumn implements ImportStatementColumnHeaderStage2 
     });
 
     logger.debug('Applying time column to stage');
-    stage2.applyColumn(timeColumn);
+    this._installColumn(stage2, timeColumn);
 
     logger.debug('parseAsTime completed successfully');
     logger.groupEnd();

@@ -118,6 +118,20 @@ export interface ImportStatementStage2
   applyColumn(column: ImportStatementColumnHeaderStage2): void;
 
   /**
+   * Installs a RECALL-PARSED column (Story 4.9a.1) — the parse-only seam.
+   *
+   * Swaps a same-id column into the live set like {@link applyColumn} but WITHOUT
+   * the 2.3 learning loop: it does NOT transition `recallState` guessed→confirmed
+   * and stages NO pool write. Used by the recall mount (`service.stage2` via
+   * `ImportStatementColumn.parseFromRecall`) to turn recalled DATE/AMOUNT/… cells
+   * into typed values while keeping the mapping `guessed` and unwritten — the
+   * learning loop still fires later on the interactive advance, unchanged.
+   *
+   * @param column The recall-parsed column to install (same id as the recalled one).
+   */
+  installParsedRecallColumn(column: ImportStatementColumnHeaderStage2): void;
+
+  /**
    * Resets a column to its initial state or removes it if it wasn't in the initial state
    * @param columnId The id of the column to reset
    * @returns Promise that resolves when the operation is complete
