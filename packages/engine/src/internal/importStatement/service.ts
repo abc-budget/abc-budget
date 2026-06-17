@@ -73,6 +73,7 @@ import type { RecallPool, RecallResult } from './recall/recall';
 import { ImportStatementStage1Impl } from './stage1';
 import type { ImportStatementStage1 } from './stage1';
 import { ImportStatementColumn } from './stage2/column';
+import { ColumnDefinition } from './types';
 import { ImportStatementStage2Impl } from './stage2/implementation';
 import type { CellData, ImportStatementStage2 } from './stage2/types';
 import { SupportedDataType } from './stage2/types';
@@ -192,7 +193,7 @@ export class ImportStatementServiceImpl
       recallResult = await this._recallPool.recallFor(names);
     }
 
-    return new ImportStatementStage2Impl(
+    const stage2 = new ImportStatementStage2Impl(
       stage1,
       this,
       initialColumns,
@@ -200,6 +201,43 @@ export class ImportStatementServiceImpl
       recallResult,
       this._recallPool
     );
+
+    // ── Recall cell-parse (Story 4.9a.1) ─────────────────────────────────────
+    // The mount above prefills definition/params/recallState:'guessed' for each
+    // recalled column but does NOT parse the cells — DATE cells stay raw strings,
+    // AMOUNT cells stay raw strings. extractDate casts `.value as Date` (a runtime
+    // lie) → footprintYearMonth(row.date).getUTCFullYear() crashes, and amountUSD
+    // math (EP-5) would multiply a string. So, BEFORE returning, run the SAME
+    // shared parse dispatcher the interactive path uses — but in PARSE-ONLY mode
+    // (recallState stays 'guessed', NO pool write staged). Holistic: every typed
+    // recalled column (DATE/AMOUNT/CURRENCY/DESCRIPTION/COUNTERPARTY/MERCHANT/
+    // CATEGORY/BALANCE/STATUS/…), not date-only. IGNORE/TIME have no typed cells
+    // to fix and are skipped (their cells never reach row generation).
+    if (recallResult !== null && recallResult.prefills.size > 0) {
+      const mountedColumns = await firstValueFrom(stage2.columns);
+      for (const column of mountedColumns) {
+        if (!(column instanceof ImportStatementColumn)) continue;
+        if (column.recallState !== 'guessed' || column.definition === null) continue;
+        if (column.definition === ColumnDefinition.IGNORE) continue;
+        if (column.definition === ColumnDefinition.TIME) continue;
+        // The 2.4 threshold gate (ColumnTransformRejection) can fire here when a
+        // recalled mapping no longer fits the new statement's data. Surfacing it
+        // loud over the mount would abort the whole import for one stale column;
+        // instead, log loud and leave that column UN-parsed (it surfaces as a
+        // re-mappable column in the UI) — NON-FATAL but NEVER SILENT (HC-7).
+        try {
+          await column.parseFromRecall(column.definition, column.params);
+        } catch (err) {
+          this._logger.error(
+            'recall cell-parse failed for a prefilled column — it will surface for re-mapping, not crash the import:',
+            column.originalName.getText(),
+            err,
+          );
+        }
+      }
+    }
+
+    return stage2;
   }
 
   private async _createInitialColumns(
