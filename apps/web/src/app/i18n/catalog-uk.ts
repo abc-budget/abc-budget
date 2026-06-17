@@ -214,6 +214,7 @@ export const CATALOG_UK = {
   s3cColAmount: 'Сума',
   s3cColCat: 'Категорія',
   s3cColMcc: 'MCC',
+  s3cColCurrency: 'Валюта',
   s3cColAccount: 'рахунок',
   s3cColCounterparty: 'контрагент',
   s3cSegAll: 'Усі',

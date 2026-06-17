@@ -54,6 +54,27 @@ export const FIELDS: ConditionFieldDTO[] = [
   field({ field: 'bankCategory', valueKind: 'optset', operators: ['equals', 'oneOf'] }),
 ];
 
+/**
+ * A MULTI-CURRENCY field set — when the import has >1 distinct currency, the
+ * engine surfaces the `currency` field (valueKind `'optone'` per the grammar).
+ * Used to assert the currency column renders its localized header + the verbatim
+ * code (UAH/USD), NOT `—`.
+ */
+export const FIELDS_MULTI_CURRENCY: ConditionFieldDTO[] = [
+  field({ field: 'date', valueKind: 'day', operators: ['specificDay', 'dayRange'] }),
+  field({ field: 'description', valueKind: 'text', operators: ['contains', 'equals'] }),
+  field({
+    field: 'currency',
+    valueKind: 'optone',
+    operators: ['equals', 'notEquals', 'oneOf'],
+    options: [
+      { value: 'UAH', label: 'UAH' },
+      { value: 'USD', label: 'USD' },
+    ],
+  }),
+  field({ field: 'amount', valueKind: 'num', operators: ['greaterThan', 'lessThan', 'between'] }),
+];
+
 export function cond(over: Partial<ConditionDTO> = {}): ConditionDTO {
   return { field: 'description', operator: 'contains', value: 'МАРКЕТ', ...over };
 }

@@ -21,7 +21,11 @@
 
 /* ── ops panel + table ───────────────────────────────────────────────────── */
 .opspanel { overflow: hidden; }
-.opsscroll { overflow-x: auto; }
+/* max-width:100% (4.9a re-QA MINOR-2): the scroll container is the table's width
+   boundary — the wide .op-desc (min-width:200px) table scrolls INSIDE .opsscroll,
+   never the page. Mirrors the proven S3b .rawscroll fix (a flex/grid track's
+   default min-width:auto otherwise lets the wide table push the page past 390px). */
+.opsscroll { overflow-x: auto; max-width: 100%; }
 .opstable { width: 100%; border-collapse: collapse; }
 .opstable thead th { text-align: left; font-family: var(--f-mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase;
   color: var(--gray-warm); padding: 10px 14px; border-bottom: 1px solid rgba(5, 12, 22, .14); white-space: nowrap; }
@@ -231,3 +235,12 @@ tr.op-atyp { background: rgba(225, 173, 1, .07); }
 .icon-cell:hover { background: var(--beige); }
 .icon-cell.on { background: rgba(225, 173, 1, .2); border-color: var(--gold); box-shadow: 0 0 0 1.5px rgba(225, 173, 1, .4); }
 .create-modal .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; padding-top: 13px; border-top: 1px dashed rgba(5, 12, 22, .16); }
+
+/* ── responsive (4.9a re-QA MINOR-2) — mirrors the proven S3b split stack ──── */
+/* Two side-by-side panels can't fit a 390px viewport; stack to one column so the
+   right panel (RUL/LOG) drops below OPS and neither forces a page-level scroll.
+   The OPS table's own h-scroll stays INTERNAL to .opsscroll (max-width:100%). */
+@media (max-width: 1000px) {
+  .s3c-split { grid-template-columns: 1fr; }
+  .s3c-side { position: static; }
+}

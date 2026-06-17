@@ -50,7 +50,9 @@ function fmtAmount(amount: number, currency: string): string {
   return `${amount < 0 ? '−' : ''}${v} ${CURRENCY_SYMBOL[currency] ?? currency}`;
 }
 
-function colHeaderKey(field: string): 's3cColDate' | 's3cColDesc' | 's3cColAmount' | 's3cColMcc' | 's3cColAccount' | 's3cColCounterparty' | null {
+function colHeaderKey(
+  field: string,
+): 's3cColDate' | 's3cColDesc' | 's3cColAmount' | 's3cColMcc' | 's3cColAccount' | 's3cColCounterparty' | 's3cColCurrency' | null {
   switch (field) {
     case 'date':
       return 's3cColDate';
@@ -64,6 +66,8 @@ function colHeaderKey(field: string): 's3cColDate' | 's3cColDesc' | 's3cColAmoun
       return 's3cColAccount';
     case 'counterparty':
       return 's3cColCounterparty';
+    case 'currency':
+      return 's3cColCurrency';
     default:
       return null;
   }
@@ -80,6 +84,8 @@ function cellValue(row: CategorizedRowDTO, field: string, lang: 'uk' | 'en'): st
       return row.description ?? '—';
     case 'mcc':
       return mccTitle(row.mcc, lang);
+    case 'currency':
+      return row.currency; // the code (UAH/USD) — content, never i18n
     case 'account':
       return row.account ?? '—';
     case 'counterparty':

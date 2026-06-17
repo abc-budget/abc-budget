@@ -207,6 +207,7 @@ export const CATALOG_EN = {
   s3cColAmount: 'Amount',
   s3cColCat: 'Category',
   s3cColMcc: 'MCC',
+  s3cColCurrency: 'Currency',
   s3cColAccount: 'account',
   s3cColCounterparty: 'counterparty',
   s3cSegAll: 'All',

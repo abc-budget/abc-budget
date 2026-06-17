@@ -4,8 +4,8 @@ import { OpsPanel } from './OpsPanel';
 import { LangProvider } from '../../../i18n/LangProvider';
 import type { Lang } from '../../../i18n/i18n';
 import { mccTitle } from '../../../mcc/mcc-lookup';
-import { cat, categoryMap, row, FIELDS, cond } from './fixtures';
-import type { CategorizedRowDTO, ConditionDTO } from '@abc-budget/engine';
+import { cat, categoryMap, row, FIELDS, FIELDS_MULTI_CURRENCY, cond } from './fixtures';
+import type { CategorizedRowDTO, ConditionDTO, ConditionFieldDTO } from '@abc-budget/engine';
 
 afterEach(() => {
   cleanup();
@@ -15,6 +15,7 @@ afterEach(() => {
 function renderPanel(
   over: {
     rows?: CategorizedRowDTO[];
+    fields?: ConditionFieldDTO[];
     draft?: ConditionDTO[];
     lang?: Lang;
     onCellClick?: (i: number) => void;
@@ -26,7 +27,7 @@ function renderPanel(
     <LangProvider initialLang={over.lang ?? 'uk'}>
       <OpsPanel
         rows={rows}
-        fields={FIELDS}
+        fields={over.fields ?? FIELDS}
         categories={categoryMap(cat(), cat({ id: 'shipping', name: 'Доставка', icon: 'shopping' }))}
         total={42}
         matchCount={2}
@@ -103,6 +104,40 @@ describe('OpsPanel', () => {
     const { container } = renderPanel({ lang: 'en' });
     expect(container.textContent).toContain(en);
     expect(uk).not.toBe(en);
+  });
+
+  it('renders the currency column header (localized) + the verbatim code, NOT — (multi-currency)', () => {
+    // MINOR-1 red→green: when >1 distinct currency surfaces the `currency` field,
+    // the header resolves the localized label AND the cell shows the code (the
+    // same class of bug as the `desc` header — no colHeaderKey/cellValue case).
+    const rows = [
+      row({ rowIndex: 0, currency: 'UAH', description: 'АТБ' }),
+      row({ rowIndex: 1, currency: 'USD', description: 'NETFLIX' }),
+    ];
+    const { container } = renderPanel({ rows, fields: FIELDS_MULTI_CURRENCY, lang: 'uk' });
+    // header: the localized uk label, never the raw field id
+    const headers = Array.from(container.querySelectorAll('thead .th-lab')).map((n) => n.textContent);
+    expect(headers).toContain('Валюта');
+    expect(headers).not.toContain('currency');
+    // cells: the verbatim codes, never the — placeholder
+    const cellTexts = Array.from(container.querySelectorAll('tbody tr')).map((tr) => tr.textContent ?? '');
+    expect(cellTexts.some((t) => t.includes('UAH'))).toBe(true);
+    expect(cellTexts.some((t) => t.includes('USD'))).toBe(true);
+  });
+
+  it('renders the currency header label in en (Currency)', () => {
+    const rows = [row({ rowIndex: 0, currency: 'UAH' }), row({ rowIndex: 1, currency: 'USD' })];
+    const { container } = renderPanel({ rows, fields: FIELDS_MULTI_CURRENCY, lang: 'en' });
+    const headers = Array.from(container.querySelectorAll('thead .th-lab')).map((n) => n.textContent);
+    expect(headers).toContain('Currency');
+  });
+
+  it('single-currency: no currency field → no currency column (placement unaffected)', () => {
+    // the default FIELDS has no `currency` field — no such header renders.
+    const { container } = renderPanel();
+    const headers = Array.from(container.querySelectorAll('thead .th-lab')).map((n) => n.textContent);
+    expect(headers).not.toContain('Валюта');
+    expect(headers).not.toContain('Currency');
   });
 
   it('shows the filter-strip with condition tokens only when a draft is present', () => {
