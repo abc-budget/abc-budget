@@ -154,4 +154,20 @@ describe('RulePanel — edit / delete / reorder (4.9b)', () => {
     renderBuild({ editingId: 1, saveLane: 'live', engaged: false, draft: [cond()], draftCategoryId: 'groceries' });
     expect(screen.getByText('Оновити правило').closest('button')!.className).toContain('gold');
   });
+
+  it('↑↓ buttons are disabled when a search query filters the list (no partial-order emission)', () => {
+    const onReorder = vi.fn();
+    const { container } = renderRules({ rules: RULES_MULTI, onReorder });
+    // Type a query that matches only rule 1 (АТБ)
+    const searchInput = container.querySelector('.rules-search input') as HTMLInputElement;
+    fireEvent.change(searchInput, { target: { value: 'АТБ' } });
+    // Only one rule row should be visible
+    expect(container.querySelectorAll('.rule-row').length).toBe(1);
+    // All ↑↓ buttons on the filtered row must be disabled
+    const moveBtns = container.querySelectorAll<HTMLButtonElement>('.rule-move');
+    moveBtns.forEach((btn) => expect(btn.disabled).toBe(true));
+    // Attempting to click one must not call onReorder
+    moveBtns.forEach((btn) => fireEvent.click(btn));
+    expect(onReorder).not.toHaveBeenCalled();
+  });
 });

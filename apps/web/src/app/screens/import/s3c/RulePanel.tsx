@@ -178,16 +178,19 @@ export function RulePanel({
                           (draggingIdx === i ? ' dragging' : '') +
                           (overIdx === i ? ' overdrop' : '')
                         }
-                        draggable
+                        draggable={query === ''}
                         onDragStart={() => {
+                          if (query !== '') return;
                           dragIdx.current = i;
                           setDraggingIdx(i);
                         }}
                         onDragOver={(e) => {
+                          if (query !== '') return;
                           e.preventDefault();
                           setOverIdx(i);
                         }}
                         onDrop={() => {
+                          if (query !== '') return;
                           if (dragIdx.current !== null && dragIdx.current !== i) {
                             const ids = rules.map((x) => x.ruleId);
                             const [removed] = ids.splice(dragIdx.current, 1);
@@ -230,25 +233,29 @@ export function RulePanel({
                             <span className="rule-applied f-mono">{t('s3cApplied', { n: r.appliedCount })}</span>
                             {/* mobile ↑↓ reorder */}
                             <button
+                              type="button"
                               className="rule-move"
                               aria-label={t('s3cMoveUp')}
-                              disabled={i === 0}
+                              disabled={i === 0 || query !== ''}
                               onClick={() => onReorder(moved(rules, i, -1))}
                             >↑</button>
                             <button
+                              type="button"
                               className="rule-move"
                               aria-label={t('s3cMoveDown')}
-                              disabled={i === rules.length - 1}
+                              disabled={i === rules.length - 1 || query !== ''}
                               onClick={() => onReorder(moved(rules, i, +1))}
                             >↓</button>
                             {!isCatchAll && (
                               <button
+                                type="button"
                                 className="rule-edit-btn f-mono"
                                 onClick={() => onEditRule(r)}
                               >✎ {t('s3cEdit')}</button>
                             )}
                             {!isCatchAll && (
                               <button
+                                type="button"
                                 className="rule-del-btn f-mono"
                                 aria-label={t('s3cDelete')}
                                 onClick={() => onDeleteRule(r.ruleId)}
