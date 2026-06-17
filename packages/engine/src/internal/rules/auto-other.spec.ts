@@ -65,6 +65,9 @@ function openTestDb(name: string): Promise<IDBDatabase> {
 function row(over: Partial<ImportStatementStage3Row>): ImportStatementStage3Row {
   return {
     rowIndex: 0,
+    // Default UTC date (2026-06) so resolveCategory's composite override key
+    // (${hash}|${year}|${month}, 4.4.1) is always derivable.
+    date: new Date(Date.UTC(2026, 5, 15)),
     amount: 0,
     description: null,
     counterparty: null,

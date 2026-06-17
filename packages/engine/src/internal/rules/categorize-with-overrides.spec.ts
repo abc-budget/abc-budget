@@ -27,6 +27,8 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   loadOverrideMap,
+  overrideKey,
+  overrideKeyForRow,
   resetToRules,
   resolveCategory,
   type OverrideContext,
@@ -140,8 +142,8 @@ describe('categorize-with-overrides', () => {
       tree: treeFor(await makeCategory('Other'), 'SOMETHING-ELSE'),
     };
 
-    // A FRESH re-imported row: same hash, NOT manually set in-session.
-    const fresh = row({ hash, isManuallySetCategory: false, description: null });
+    // A FRESH re-imported row: same hash + SAME period date, NOT manual in-session.
+    const fresh = row({ hash, date, isManuallySetCategory: false, description: null });
     const resolved = resolveCategory(fresh, ctx);
 
     expect(resolved?.id).toBe(c.id);
@@ -153,8 +155,9 @@ describe('categorize-with-overrides', () => {
     const x = await makeCategory('X');
     const y = await makeCategory('Y');
     const hash = 'hash-l1-wins';
+    const date = new Date(Date.UTC(2026, 5, 15)); // 2026-06
 
-    const overrideMap = new Map<string, string>([[hash, y.id!]]);
+    const overrideMap = new Map<string, string>([[overrideKey(hash, 2026, 6), y.id!]]);
     const categoriesById = new Map<string, Category>([
       [x.id!, x],
       [y.id!, y],
@@ -165,8 +168,8 @@ describe('categorize-with-overrides', () => {
       tree: treeFor(await makeCategory('R'), 'NEVER'),
     };
 
-    // Row is manually set to X in-session, but the map says hash → Y.
-    const r = row({ hash, isManuallySetCategory: true, category: x });
+    // Row is manually set to X in-session, but the map says (hash,2026,6) → Y.
+    const r = row({ hash, date, isManuallySetCategory: true, category: x });
     expect(resolveCategory(r, ctx)?.id).toBe(x.id);
   });
 
@@ -174,6 +177,7 @@ describe('categorize-with-overrides', () => {
 
   it('PROOF 3 — a non-override row re-evaluates through the live tree (not frozen)', async () => {
     const rCat = await makeCategory('R');
+    const date = new Date(Date.UTC(2026, 5, 15)); // 2026-06
     const ctx: OverrideContext = {
       overrideMap: new Map(),
       categoriesById: new Map([[rCat.id!, rCat]]),
@@ -181,7 +185,7 @@ describe('categorize-with-overrides', () => {
     };
 
     // Not in the override map, not manual in-session, matches the rule → R.
-    const r = row({ hash: 'h-rules', description: 'GROCERIES' });
+    const r = row({ hash: 'h-rules', date, description: 'GROCERIES' });
     expect(resolveCategory(r, ctx)?.id).toBe(rCat.id);
 
     // Swap the tree (a different rule) → the SAME row re-resolves to the new
@@ -191,7 +195,7 @@ describe('categorize-with-overrides', () => {
     expect(resolveCategory(r, ctx)?.id).toBe(sCat.id);
 
     // A row matching neither rule resolves to null (L4 — no match).
-    expect(resolveCategory(row({ hash: 'h-none', description: 'OTHER' }), ctx)).toBeNull();
+    expect(resolveCategory(row({ hash: 'h-none', date, description: 'OTHER' }), ctx)).toBeNull();
   });
 
   // ── PROOF 4: loaded ONCE — no per-op DAO read ──────────────────────────────
@@ -227,7 +231,7 @@ describe('categorize-with-overrides', () => {
     // Resolve over N rows — synchronous, no DB.
     const N = 50;
     for (let i = 0; i < N; i++) {
-      resolveCategory(row({ hash: `h-${i % 3}` }), ctx);
+      resolveCategory(row({ hash: `h-${i % 3}`, date }), ctx);
     }
 
     // ZERO additional footprint reads during the N resolves.
@@ -242,8 +246,9 @@ describe('categorize-with-overrides', () => {
     const c = await makeCategory('Coffee');
     const ruleCat = await makeCategory('RuleCat');
     const hash = 'hash-sandbox';
+    const date = new Date(Date.UTC(2026, 5, 15)); // 2026-06
 
-    const overrideMap = new Map<string, string>([[hash, c.id!]]);
+    const overrideMap = new Map<string, string>([[overrideKey(hash, 2026, 6), c.id!]]);
     const categoriesById = new Map<string, Category>([
       [c.id!, c],
       [ruleCat.id!, ruleCat],
@@ -256,7 +261,7 @@ describe('categorize-with-overrides', () => {
       tree: treeFor(ruleCat, 'COFFEE-SHOP'),
     };
 
-    const r = row({ hash, description: 'COFFEE-SHOP' });
+    const r = row({ hash, date, description: 'COFFEE-SHOP' });
     // Even though the tree matches, L2 short-circuits → the override category.
     expect(resolveCategory(r, ctx)?.id).toBe(c.id);
 
@@ -270,8 +275,11 @@ describe('categorize-with-overrides', () => {
   it('PROOF 5b — a dangling override categoryId falls through to the rules and logs', async () => {
     const rCat = await makeCategory('R');
     const hash = 'hash-dangling';
+    const date = new Date(Date.UTC(2026, 5, 15)); // 2026-06
 
-    const overrideMap = new Map<string, string>([[hash, 'no-such-category']]);
+    const overrideMap = new Map<string, string>([
+      [overrideKey(hash, 2026, 6), 'no-such-category'],
+    ]);
     const categoriesById = new Map<string, Category>([[rCat.id!, rCat]]);
     const ctx: OverrideContext = {
       overrideMap,
@@ -279,7 +287,7 @@ describe('categorize-with-overrides', () => {
       tree: treeFor(rCat, 'GROCERIES'),
     };
 
-    const r = row({ hash, description: 'GROCERIES' });
+    const r = row({ hash, date, description: 'GROCERIES' });
     // The dangling id is not in categoriesById → fall through to L3 (rules).
     expect(resolveCategory(r, ctx)?.id).toBe(rCat.id);
   });
@@ -290,8 +298,11 @@ describe('categorize-with-overrides', () => {
     const overrideCat = await makeCategory('Override');
     const ruleCat = await makeCategory('RuleCat');
     const hash = 'hash-reset';
+    const date = new Date(Date.UTC(2026, 5, 15)); // 2026-06
 
-    const overrideMap = new Map<string, string>([[hash, overrideCat.id!]]);
+    const overrideMap = new Map<string, string>([
+      [overrideKey(hash, 2026, 6), overrideCat.id!],
+    ]);
     const categoriesById = new Map<string, Category>([
       [overrideCat.id!, overrideCat],
       [ruleCat.id!, ruleCat],
@@ -305,6 +316,7 @@ describe('categorize-with-overrides', () => {
     // Resolves via L1 (manual in-session) before reset.
     const r = row({
       hash,
+      date,
       isManuallySetCategory: true,
       category: overrideCat,
       description: 'GROCERIES',
@@ -315,16 +327,56 @@ describe('categorize-with-overrides', () => {
     const cleared = resetToRules(r, ctx);
     expect(cleared.isManuallySetCategory).toBe(false);
     expect(cleared.category).toBeNull();
-    expect(overrideMap.has(hash)).toBe(false);
+    expect(overrideMap.has(overrideKey(hash, 2026, 6))).toBe(false);
 
     // Now it resolves via the RULE (L3).
     expect(resolveCategory(cleared, ctx)?.id).toBe(ruleCat.id);
 
     // And a reset row with no matching rule resolves to null.
     const r2 = resetToRules(
-      row({ hash: 'h-noreset', isManuallySetCategory: true, category: overrideCat, description: 'NOPE' }),
+      row({ hash: 'h-noreset', date, isManuallySetCategory: true, category: overrideCat, description: 'NOPE' }),
       ctx
     );
     expect(resolveCategory(r2, ctx)).toBeNull();
+  });
+
+  // ── PROOF 7: composite key narrows by month (same hash, different month) ────
+
+  it('PROOF 7 — an override is month-scoped: same hash, DIFFERENT month does NOT match', async () => {
+    const overrideCat = await makeCategory('Override');
+    const hash = 'hash-month-narrow';
+
+    // Override persisted for (hash, 2026, 6) ONLY.
+    const overrideMap = new Map<string, string>([
+      [overrideKey(hash, 2026, 6), overrideCat.id!],
+    ]);
+    const categoriesById = new Map<string, Category>([
+      [overrideCat.id!, overrideCat],
+    ]);
+    const ctx: OverrideContext = {
+      overrideMap,
+      categoriesById,
+      // Empty tree → no rule match; the ONLY way to a category is the override.
+      tree: new DecisionTreeBuilder().withName('Empty Tree').build(),
+    };
+
+    // Same hash, but date in 2026-07 → composite key (hash,2026,7) is NOT in the
+    // map → falls through to rules/null (hash-alone would have mis-applied it).
+    const julyRow = row({ hash, date: new Date(Date.UTC(2026, 6, 15)) }); // 2026-07
+    expect(resolveCategory(julyRow, ctx)).toBeNull();
+
+    // Same hash, date in 2026-06 → composite key matches → gets the override.
+    const juneRow = row({ hash, date: new Date(Date.UTC(2026, 5, 15)) }); // 2026-06
+    expect(resolveCategory(juneRow, ctx)?.id).toBe(overrideCat.id);
+  });
+
+  // ── PROOF 8: derivation byte-match (row key === footprint key) ──────────────
+
+  it('PROOF 8 — overrideKeyForRow(row) === overrideKey(fp.hash, fp.year, fp.month)', () => {
+    const sample = txRow('hash-bytematch', new Date(Date.UTC(2026, 5, 15)));
+    const fp = deriveFootprint(sample, 0);
+    expect(overrideKeyForRow(sample)).toBe(
+      overrideKey(fp.hash, fp.year, fp.month)
+    );
   });
 });

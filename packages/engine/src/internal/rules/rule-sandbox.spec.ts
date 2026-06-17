@@ -30,6 +30,7 @@ import {
 } from './rule-sandbox';
 import { DecisionTreeBuilder, ComplexRuleBuilder } from './decision-tree-builder';
 import { createDescriptionRule, createAmountCondition } from './rule-factories';
+import { overrideKey } from './categorize-with-overrides';
 import { RulePersistenceService } from './rule-persistence-service';
 import type { ComplexRule, DecisionTree } from './decision-tree';
 import type { Category } from '../categories/types';
@@ -48,6 +49,9 @@ function row(over: Partial<ImportStatementStage3Row>): ImportStatementStage3Row 
   return {
     rowIndex: 0,
     hash: `hash-${Math.random()}`,
+    // Default UTC date (2026-06) so resolveCategory's composite override key
+    // (${hash}|${year}|${month}, 4.4.1) is always derivable.
+    date: new Date(Date.UTC(2026, 5, 15)),
     amount: 0,
     currency: 'UAH',
     description: null,
@@ -332,8 +336,9 @@ describe('RuleSandboxSession.computeDiff — override independence', () => {
     });
     const persistence = spyPersistence();
     const deps = depsFor(tree, [overriddenRow], [coffee, override], persistence);
-    // L2: hash → override category — beats the rule under BOTH trees.
-    deps.overrideMap.set('h-overridden', 'c-override');
+    // L2: (hash, 2026, 6) → override category — beats the rule under BOTH trees.
+    // The row's default date is 2026-06, so the composite key (4.4.1) matches.
+    deps.overrideMap.set(overrideKey('h-overridden', 2026, 6), 'c-override');
 
     const session = new RuleSandboxSession(deps);
     return session.submit({ kind: 'delete', ruleId: 1 }).then(() => {
