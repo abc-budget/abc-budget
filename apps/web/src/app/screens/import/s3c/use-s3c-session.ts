@@ -333,6 +333,22 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
 
   // ── Sandbox / rule-editing (4.9b) ──────────────────────────────────────────
 
+  /**
+   * Clear the edit-open anchors without triggering a window reload.
+   * Called from cancelEdit (which handles its own reload) AND from
+   * applySandbox / cancelSandbox (which handle the single authoritative reload
+   * with changedOnly=false).  Keeping the reset separate avoids a double
+   * importCategorizedRows call.
+   */
+  const clearEditAnchors = useCallback(() => {
+    setEditingId(null);
+    setEditBefore([]);
+    setEditBeforeCategoryId(null);
+    setDraftState([]);
+    setDraftCategoryId(null);
+    setSaveLane('live');
+  }, []);
+
   /** Enter edit mode for an existing rule: mirror its conditions + category into the draft. */
   const openEdit = useCallback(
     (rule: RuleSummaryDTO) => {
@@ -350,14 +366,9 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
 
   /** Leave edit mode without submitting: clear the draft + drop the edit anchors. */
   const cancelEdit = useCallback(() => {
-    setEditingId(null);
-    setEditBefore([]);
-    setEditBeforeCategoryId(null);
-    setDraftState([]);
-    setDraftCategoryId(null);
-    setSaveLane('live');
+    clearEditAnchors();
     void reloadWindow(segment, []);
-  }, [reloadWindow, segment]);
+  }, [clearEditAnchors, reloadWindow, segment]);
 
   /**
    * Keep `saveLane` fresh while editing — drives the RulePanel button LABEL only.
@@ -446,16 +457,23 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     await client.sandboxApply(sessionId);
     setSandbox(null);
     setChangedOnly(false);
+    // Clear any open edit so a stale draft cannot mirror a now-changed rule.
+    // clearEditAnchors resets editingId/editBefore/editBeforeCategoryId/draft/
+    // draftCategoryId/saveLane WITHOUT triggering an extra window reload; the
+    // single authoritative reload (changedOnly=false) follows immediately below.
+    clearEditAnchors();
     await Promise.all([reloadWindow(segment, [], false), reloadRules()]);
-  }, [client, sessionId, segment, reloadWindow, reloadRules]);
+  }, [client, sessionId, segment, clearEditAnchors, reloadWindow, reloadRules]);
 
   /** Discard the sandbox → tear down the banner + reload live. */
   const cancelSandbox = useCallback(async () => {
     await client.sandboxCancel(sessionId);
     setSandbox(null);
     setChangedOnly(false);
+    // Same reasoning as applySandbox: clear stale draft before the single reload.
+    clearEditAnchors();
     await Promise.all([reloadWindow(segment, [], false), reloadRules()]);
-  }, [client, sessionId, segment, reloadWindow, reloadRules]);
+  }, [client, sessionId, segment, clearEditAnchors, reloadWindow, reloadRules]);
 
   /** Toggle the changed-only filter → reload the window with the next value. */
   const toggleChangedOnly = useCallback(() => {

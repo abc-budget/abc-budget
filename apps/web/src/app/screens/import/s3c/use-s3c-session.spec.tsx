@@ -365,6 +365,46 @@ describe('useS3cSession', () => {
     expect(result.current.sandbox).toBeNull();
   });
 
+  it('applySandbox clears edit-open anchors (editingId → null, draft → [])', async () => {
+    const client = makeClient({
+      sandboxApply: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    // Open an edit so editingId and draft are populated.
+    act(() => result.current.openEdit(RULES_MULTI[0]));
+    expect(result.current.editingId).toBe(1);
+    expect(result.current.draft).toHaveLength(1);
+    // Apply the sandbox — must clear the edit anchors.
+    await act(async () => {
+      await result.current.applySandbox();
+    });
+    expect(result.current.editingId).toBeNull();
+    expect(result.current.draft).toHaveLength(0);
+    expect(result.current.sandbox).toBeNull();
+    expect(result.current.changedOnly).toBe(false);
+  });
+
+  it('cancelSandbox clears edit-open anchors (editingId → null, draft → [])', async () => {
+    const client = makeClient({
+      sandboxCancel: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    // Open an edit so editingId and draft are populated.
+    act(() => result.current.openEdit(RULES_MULTI[1]));
+    expect(result.current.editingId).toBe(2);
+    expect(result.current.draft).toHaveLength(1);
+    // Cancel the sandbox — must clear the edit anchors.
+    await act(async () => {
+      await result.current.cancelSandbox();
+    });
+    expect(result.current.editingId).toBeNull();
+    expect(result.current.draft).toHaveLength(0);
+    expect(result.current.sandbox).toBeNull();
+    expect(result.current.changedOnly).toBe(false);
+  });
+
   it('toggleChangedOnly threads changedOnly into importCategorizedRows', async () => {
     const importCategorizedRows = vi.fn(
       async (_s: string, opts: { changedOnly?: boolean }): Promise<CategorizedWindowDTO> => {
