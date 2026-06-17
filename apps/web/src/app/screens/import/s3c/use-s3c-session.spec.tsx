@@ -87,11 +87,11 @@ describe('useS3cSession', () => {
     await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
 
     act(() => {
-      result.current.addCondition('desc', 'contains');
+      result.current.addCondition('description', 'contains');
     });
 
     await waitFor(() => expect(result.current.draft).toHaveLength(1));
-    expect(result.current.draft[0]).toMatchObject({ field: 'desc', operator: 'contains' });
+    expect(result.current.draft[0]).toMatchObject({ field: 'description', operator: 'contains' });
     // reloaded WITH the draft (preview) → matchCount reflects the sandbox eval
     await waitFor(() => expect(result.current.window.matchCount).toBe(5));
     const lastCall = importCategorizedRows.mock.calls.at(-1);
@@ -119,7 +119,7 @@ describe('useS3cSession', () => {
     await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
 
     // build a draft + pick a category
-    act(() => result.current.addCondition('desc', 'contains'));
+    act(() => result.current.addCondition('description', 'contains'));
     await waitFor(() => expect(result.current.draft).toHaveLength(1));
     act(() => result.current.pickCategory('dining'));
     await waitFor(() => expect(result.current.draftCategoryId).toBe('dining'));

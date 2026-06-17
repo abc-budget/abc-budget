@@ -39,6 +39,22 @@ const OP_KEY: Record<string, ChromeKey> = {
   oneof: 's3cOpOneof',
 };
 
+/**
+ * Formats a CategorizedRowDTO ISO date (full-ISO, e.g. `2023-09-30T00:00:00.000Z`)
+ * to the design's display format `MM-DD` (zero-padded).  Uses UTC accessors so it
+ * matches the UTC-keyed footprint date and never TZ-shifts the day.  This is
+ * chrome formatting, NOT content — so it is not i18n'd (HC-6).  Malformed/empty
+ * input falls back to the raw string (or '—' when empty).
+ */
+export function formatOpDate(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${mm}-${dd}`;
+}
+
 export function fieldLabel(field: string, t: Translate): string {
   const key = FIELD_KEY[field];
   return key ? t(key) : field;

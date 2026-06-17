@@ -34,7 +34,7 @@ export function ConditionBuilder({ conditions, fields, onChange, lang }: Conditi
   const update = (i: number, next: ConditionDTO) => onChange(conditions.map((c, j) => (j === i ? next : c)));
   const remove = (i: number) => onChange(conditions.filter((_, j) => j !== i));
   const add = () => {
-    const preferred = fields.find((f) => f.field === 'desc') ?? fields[0];
+    const preferred = fields.find((f) => f.field === 'description') ?? fields[0];
     if (!preferred) return;
     onChange([
       ...conditions,

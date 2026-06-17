@@ -393,18 +393,18 @@ describe('CategorizationServiceImpl', () => {
   describe('importConditionFields', () => {
     it('derives the fields from the mapped columns (rows non-null), NOT a hardcoded universal list', async () => {
       // Rows map description + mcc, but NOT counterparty/account/bankCategory.
+      // Single currency (no CURRENCY column mapped → forced baseCurrency on every row).
       sessionRows = [
-        row({ rowIndex: 0, hash: 'a', description: 'X', mcc: 5411, counterparty: null, account: null, bankCategory: null }),
-        row({ rowIndex: 1, hash: 'b', description: 'Y', mcc: 5812, counterparty: null, account: null, bankCategory: null }),
+        row({ rowIndex: 0, hash: 'a', description: 'X', mcc: 5411, currency: 'UAH', counterparty: null, account: null, bankCategory: null }),
+        row({ rowIndex: 1, hash: 'b', description: 'Y', mcc: 5812, currency: 'UAH', counterparty: null, account: null, bankCategory: null }),
       ];
 
       const fields = await svc.importConditionFields(SESSION);
       const names = fields.map((f) => f.field);
 
-      // Always-present structural fields.
+      // Always-present structural fields (a valid import always maps date + amount).
       expect(names).toContain('date');
       expect(names).toContain('amount');
-      expect(names).toContain('currency');
       // Mapped optional fields present.
       expect(names).toContain('description');
       expect(names).toContain('mcc');
@@ -412,6 +412,14 @@ describe('CategorizationServiceImpl', () => {
       expect(names).not.toContain('counterparty');
       expect(names).not.toContain('account');
       expect(names).not.toContain('bankCategory');
+      // currency NOT mapped (single-currency import) → ABSENT (FINDING-C teeth:
+      // currency is forced to baseCurrency on every row, so it must NOT be
+      // surfaced just because the row carries a value).
+      expect(names).not.toContain('currency');
+      // The derived boolean markers are NOT user-mappable condition fields → ABSENT
+      // from the field surface entirely (FINDING-C teeth).
+      expect(names).not.toContain('isBankCommission');
+      expect(names).not.toContain('isCashback');
 
       // mcc is categorical → carries its distinct present values as options.
       const mcc = fields.find((f) => f.field === 'mcc')!;
@@ -428,6 +436,37 @@ describe('CategorizationServiceImpl', () => {
       expect(fields.map((f) => f.field)).toContain('bankCategory');
       const bc = fields.find((f) => f.field === 'bankCategory')!;
       expect(bc.options?.map((o) => o.value)).toEqual(['GROCERIES']);
+    });
+
+    it('currency is present (with its distinct options) ONLY when a currency column was mapped (>1 currency)', async () => {
+      // A multi-currency import: a CURRENCY column was mapped → rows carry >1
+      // distinct currency. THAT is the row-derivable signal of a mapped column.
+      sessionRows = [
+        row({ rowIndex: 0, hash: 'a', currency: 'UAH' }),
+        row({ rowIndex: 1, hash: 'b', currency: 'USD' }),
+        row({ rowIndex: 2, hash: 'c', currency: 'UAH' }),
+      ];
+      const fields = await svc.importConditionFields(SESSION);
+      const names = fields.map((f) => f.field);
+      expect(names).toContain('currency');
+      const cur = fields.find((f) => f.field === 'currency')!;
+      expect(cur.valueKind).toBe('optone');
+      expect(cur.operators).toContain('oneOf');
+      // categorical → distinct present values as options.
+      expect(cur.options?.map((o) => o.value).sort()).toEqual(['UAH', 'USD']);
+    });
+
+    it('NEVER surfaces the derived boolean markers, even though every row always carries them', async () => {
+      // isBankCommission/isCashback are ALWAYS set (false) on every row — the very
+      // trap FINDING-C describes. They are derived booleans, not user-mapped
+      // condition-grammar columns → must be ABSENT from the field surface.
+      sessionRows = [
+        row({ rowIndex: 0, hash: 'a', isBankCommission: false, isCashback: false }),
+        row({ rowIndex: 1, hash: 'b', isBankCommission: true, isCashback: true }),
+      ];
+      const names = (await svc.importConditionFields(SESSION)).map((f) => f.field);
+      expect(names).not.toContain('isBankCommission');
+      expect(names).not.toContain('isCashback');
     });
   });
 });

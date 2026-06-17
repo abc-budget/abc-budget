@@ -56,6 +56,27 @@ describe('OpsPanel', () => {
     expect(container.querySelector('.panel')).toBeTruthy();
   });
 
+  it('renders the description column header + the description cell content (field id `description`)', () => {
+    // FINDING-B red→green: with the real DTO field id `description` (not the
+    // prototype `desc`), the column header resolves AND the cell shows content.
+    const { container } = renderPanel({ rows: [row({ description: 'АТБ МАРКЕТ' })] });
+    // the header label key resolves (uk chrome) — not the raw field id
+    const headers = Array.from(container.querySelectorAll('thead .th-lab')).map((n) => n.textContent);
+    expect(headers).not.toContain('description');
+    // the description cell carries the .op-desc class AND the verbatim content
+    const descCell = container.querySelector('.op-desc .desc-val');
+    expect(descCell).toBeTruthy();
+    expect(descCell?.textContent).toBe('АТБ МАРКЕТ');
+  });
+
+  it('renders the operation date as formatted MM-DD, never the raw full-ISO (FINDING-A)', () => {
+    // FINDING-A red→green: date is full-ISO (2023-09-30T00:00:00.000Z). The old
+    // slice(5) rendered "09-30T00:00:00.000Z"; formatOpDate renders "09-30".
+    const { container } = renderPanel({ rows: [row({ date: '2023-09-30T00:00:00.000Z' })] });
+    expect(container.textContent).toContain('09-30');
+    expect(container.textContent).not.toContain('T00:00:00');
+  });
+
   it('keys rows on rowIndex, not the array index (stable across a sliding window)', () => {
     // rows whose rowIndex differs from their array position
     const rows = [row({ rowIndex: 17, description: 'A' }), row({ rowIndex: 4, description: 'B' })];

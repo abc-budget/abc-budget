@@ -51,6 +51,19 @@ describe('WhyPanel', () => {
     expect(container.querySelector('.why-reset')).toBeNull();
   });
 
+  it('renders the operation date as formatted MM-DD, never the raw full-ISO (FINDING-A)', () => {
+    // FINDING-A red→green: the op row date is full-ISO; the old slice(5) rendered
+    // "09-30T00:00:00.000Z" — formatOpDate renders "09-30".
+    const { container } = renderWhy();
+    expect(container.querySelector('.why-op')?.textContent).toContain('09-30');
+    expect(container.querySelector('.why-op')?.textContent).not.toContain('T00:00:00');
+  });
+
+  it('renders the operation description content verbatim (HC-6 content)', () => {
+    const { container } = renderWhy();
+    expect(container.querySelector('.why-op')?.textContent).toContain('АТБ МАРКЕТ');
+  });
+
   it('carries the ALTUS .panel / .logchip / .whyrow pixel classes', () => {
     const { container } = renderWhy();
     expect(container.querySelector('.panel')).toBeTruthy();

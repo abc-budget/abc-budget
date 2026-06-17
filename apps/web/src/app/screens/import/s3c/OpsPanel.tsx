@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { CategoryCell } from './CategoryCell';
 import { ColumnFunnel } from './ColumnFunnel';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
-import { condText } from './labels';
+import { condText, formatOpDate } from './labels';
 import { Panel, PanelHeader } from '../../../../ui/altus/components/Panel';
 import { useT } from '../../../i18n/LangProvider';
 import { mccTitle } from '../../../mcc/mcc-lookup';
@@ -54,7 +54,7 @@ function colHeaderKey(field: string): 's3cColDate' | 's3cColDesc' | 's3cColAmoun
   switch (field) {
     case 'date':
       return 's3cColDate';
-    case 'desc':
+    case 'description':
       return 's3cColDesc';
     case 'amount':
       return 's3cColAmount';
@@ -73,10 +73,10 @@ function colHeaderKey(field: string): 's3cColDate' | 's3cColDesc' | 's3cColAmoun
 function cellValue(row: CategorizedRowDTO, field: string, lang: 'uk' | 'en'): string {
   switch (field) {
     case 'date':
-      return row.date.slice(5); // MM-DD — chrome formatting, not content
+      return formatOpDate(row.date); // MM-DD — chrome formatting, not content
     case 'amount':
       return fmtAmount(row.amount, row.currency);
-    case 'desc':
+    case 'description':
       return row.description ?? '—';
     case 'mcc':
       return mccTitle(row.mcc, lang);
@@ -204,12 +204,12 @@ export function OpsPanel({
                         className={
                           f.field === 'amount'
                             ? 'op-amt amount'
-                            : f.field === 'desc'
+                            : f.field === 'description'
                               ? 'op-desc f-mono'
                               : 'op-cell f-mono'
                         }
                       >
-                        {f.field === 'desc' ? (
+                        {f.field === 'description' ? (
                           <span className="desc-wrap">
                             <span className="desc-val">{cellValue(row, f.field, lang)}</span>
                           </span>

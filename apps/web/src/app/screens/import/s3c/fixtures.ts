@@ -19,7 +19,7 @@ export function categoryMap(...cats: CategoryDTO[]): Map<string, CategoryDTO> {
 export function row(over: Partial<CategorizedRowDTO> = {}): CategorizedRowDTO {
   return {
     rowIndex: 0,
-    date: '2026-03-14',
+    date: '2023-09-30T00:00:00.000Z',
     amount: -249.5,
     currency: 'UAH',
     description: 'АТБ МАРКЕТ',
@@ -35,18 +35,27 @@ export function row(over: Partial<CategorizedRowDTO> = {}): CategorizedRowDTO {
 }
 
 export function field(over: Partial<ConditionFieldDTO> = {}): ConditionFieldDTO {
-  return { field: 'desc', valueKind: 'text', operators: ['contains', 'eq'], ...over };
+  return { field: 'description', valueKind: 'text', operators: ['contains', 'equals'], ...over };
 }
 
+/**
+ * A realistic MAPPED field set — the engine emits OUR field ids (description, not
+ * the prototype `desc`), and only the structural + import-mapped fields (no
+ * currency / isBankCommission / isCashback), mirroring the corrected engine
+ * output.  `bankCategory` is the UI "category" name-trap (the BANK category).
+ */
 export const FIELDS: ConditionFieldDTO[] = [
-  field({ field: 'date', valueKind: 'day', operators: ['eq', 'between'] }),
-  field({ field: 'desc', valueKind: 'text', operators: ['contains', 'eq'] }),
-  field({ field: 'amount', valueKind: 'num', operators: ['gt', 'lt', 'between'] }),
-  field({ field: 'mcc', valueKind: 'code', operators: ['eq'], options: [{ value: '5411', label: '5411' }] }),
+  field({ field: 'date', valueKind: 'day', operators: ['specificDay', 'dayRange'] }),
+  field({ field: 'description', valueKind: 'text', operators: ['contains', 'equals'] }),
+  field({ field: 'amount', valueKind: 'num', operators: ['greaterThan', 'lessThan', 'between'] }),
+  field({ field: 'mcc', valueKind: 'code', operators: ['equals'], options: [{ value: '5411', label: '5411' }] }),
+  field({ field: 'account', valueKind: 'text', operators: ['contains', 'equals'] }),
+  field({ field: 'counterparty', valueKind: 'text', operators: ['contains', 'equals'] }),
+  field({ field: 'bankCategory', valueKind: 'optset', operators: ['equals', 'oneOf'] }),
 ];
 
 export function cond(over: Partial<ConditionDTO> = {}): ConditionDTO {
-  return { field: 'desc', operator: 'contains', value: 'МАРКЕТ', ...over };
+  return { field: 'description', operator: 'contains', value: 'МАРКЕТ', ...over };
 }
 
 export function rule(over: Partial<RuleSummaryDTO> = {}): RuleSummaryDTO {
@@ -68,13 +77,13 @@ export function whyTree(over: Partial<WhyTreeDTO> = {}): WhyTreeDTO {
         ruleId: 1,
         status: 'win',
         categoryId: 'groceries',
-        conditions: [{ field: 'desc', operator: 'contains', value: 'МАРКЕТ', met: true }],
+        conditions: [{ field: 'description', operator: 'contains', value: 'МАРКЕТ', met: true }],
       },
       {
         ruleId: 2,
         status: 'miss',
         categoryId: 'dining',
-        conditions: [{ field: 'desc', operator: 'contains', value: 'КАВА', met: false }],
+        conditions: [{ field: 'description', operator: 'contains', value: 'КАВА', met: false }],
       },
       {
         ruleId: 3,

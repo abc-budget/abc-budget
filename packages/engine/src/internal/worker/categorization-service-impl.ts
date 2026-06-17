@@ -111,9 +111,15 @@ interface FieldGrammar {
  * the UI "category" condition field IS `bankCategory` (the BANK category), never
  * the assigned budget category.
  *
- * Booleans (isBankCommission/isCashback) + the always-present structural fields
- * (date/amount/currency) anchor the list; the optional fields appear only when
- * the import mapped them (derived from the rows' non-null values).
+ * This is the GRAMMAR table only — what valueKind/operators a field would carry
+ * IF it appears on the surface. WHICH fields appear is decided by
+ * {@link CategorizationServiceImpl.importConditionFields} from the import's mapped
+ * columns: date/amount anchor, the optional fields appear only when the rows carry
+ * them, and `currency` appears only when the rows carry >1 distinct currency.
+ *
+ * The boolean entries (isBankCommission/isCashback) exist here for the rule
+ * grammar (`conditionsToRules`) ONLY — they are derived markers, NOT user-mapped
+ * condition columns, so importConditionFields NEVER surfaces them (re-QA FINDING-C).
  */
 const FIELD_GRAMMAR: Record<string, FieldGrammar> = {
   date: {
@@ -214,14 +220,24 @@ const FIELD_GRAMMAR: Record<string, FieldGrammar> = {
   },
 };
 
-/** The structural fields a generated row ALWAYS carries (always mappable). */
-const ALWAYS_PRESENT_FIELDS: ReadonlyArray<string> = [
-  'date',
-  'amount',
-  'currency',
-  'isBankCommission',
-  'isCashback',
-];
+/**
+ * The structural fields a valid import ALWAYS maps (so they always anchor the
+ * field surface): date + amount. NOTHING else is forced here.
+ *
+ * Deliberately EXCLUDED (re-QA FINDING-C):
+ *   - `currency` — the row-generator forces it to the base currency on EVERY row
+ *     even when NO currency column was mapped (see amount-currency-detector's
+ *     `use_base`/`auto`-with-no-column fallbacks). So a non-null `currency` is NOT
+ *     proof of a mapped column. It is handled as a conditional field below: present
+ *     only when the rows actually carry MORE THAN ONE distinct currency (the
+ *     row-derivable signal that a CURRENCY column was mapped — ENT-009/010).
+ *   - `isBankCommission` / `isCashback` — derived booleans, ALWAYS set (false/true,
+ *     never null) on every row. They are NOT user-mappable condition-grammar columns,
+ *     so they are NOT OPS columns / filter fields. The `conditionsToRules` boolean
+ *     factories stay (the rule grammar can still build them for other uses), but they
+ *     never appear on the importConditionFields surface.
+ */
+const ALWAYS_PRESENT_FIELDS: ReadonlyArray<string> = ['date', 'amount'];
 
 /** The optional fields — present in the grammar only when the rows carry them. */
 const OPTIONAL_FIELDS: ReadonlyArray<keyof ImportStatementStage3Row> = [
@@ -385,11 +401,28 @@ export class CategorizationServiceImpl implements CategorizationService {
   async importConditionFields(sessionId: string): Promise<ConditionFieldDTO[]> {
     const rows = await this.getSessionRows(sessionId);
 
-    // The fields the import actually mapped: the always-present structural
-    // fields + every optional field that is non-null on at least one row (a
-    // field is non-null on a row iff a column mapped to it). NOT a hardcoded
-    // universal list (ENT-009/010).
+    // The fields the import actually mapped (ENT-009/010) — NOT a hardcoded
+    // universal list. The mapped-column DEFINITIONS are not reachable through the
+    // session-rows accessor seam (it serves only stage3 rows), so the mapped set
+    // is derived from the rows themselves:
+    //
+    //   - date + amount  — structural; a valid import always maps them.
+    //   - the OPTIONAL fields (description/counterparty/account/bankCategory/mcc)
+    //     — present iff non-null on at least one row (the row-generator leaves an
+    //     unmapped optional field null, so non-null ⇒ a column mapped to it).
+    //   - currency       — SPECIAL (re-QA FINDING-C): the row-generator forces it
+    //     to the base currency on every row even when no CURRENCY column was
+    //     mapped, so non-null is NOT proof of mapping. The honest row-derivable
+    //     signal of a mapped CURRENCY column is that the rows carry MORE THAN ONE
+    //     distinct currency. Only then is `currency` a real mapped condition field.
+    //   - isBankCommission/isCashback — derived booleans, never surfaced here.
     const fields: string[] = [...ALWAYS_PRESENT_FIELDS];
+
+    // currency: mapped iff the rows carry >1 distinct currency value.
+    if (distinctCount(rows, 'currency') > 1) {
+      fields.push('currency');
+    }
+
     for (const f of OPTIONAL_FIELDS) {
       if (rows.some((r) => r[f] !== null && r[f] !== undefined)) {
         fields.push(f);
@@ -633,6 +666,20 @@ function toCategorizedRowDTO(
     ruleId,
     // previousCategoryId / atypical: 4.9b/c seams — left UNSET here.
   };
+}
+
+/** Counts the distinct non-null values of a field across the rows. */
+function distinctCount(
+  rows: ImportStatementStage3Row[],
+  field: keyof ImportStatementStage3Row,
+): number {
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const raw = row[field];
+    if (raw === null || raw === undefined) continue;
+    seen.add(String(raw));
+  }
+  return seen.size;
 }
 
 /** The distinct non-null values of a categorical field across the rows. */

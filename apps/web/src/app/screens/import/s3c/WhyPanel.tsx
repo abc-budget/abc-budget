@@ -8,7 +8,7 @@
  * Bound to WhyTreeDTO + CategorizedRowDTO + a category Map.
  */
 import { CatChip } from './CatChip';
-import { condText } from './labels';
+import { condText, formatOpDate } from './labels';
 import { Panel, PanelHeader, PanelBody } from '../../../../ui/altus/components/Panel';
 import { Lamp } from '../../../../ui/altus/components/Lamp';
 import { Chip } from '../../../../ui/altus/components/Chip';
@@ -50,7 +50,7 @@ export function WhyPanel({ why, row, categories, onClose, lang }: WhyPanelProps)
         <div className="crt why-op f-mono">
           {t('s3cWhyOp')}&nbsp;{' '}
           <span style={{ color: 'var(--cream)' }}>{row.description ?? '—'}</span> ·{' '}
-          <span style={{ color: '#F2C637' }}>{fmtAmount(row.amount, row.currency)}</span> · {row.date.slice(5)}
+          <span style={{ color: '#F2C637' }}>{fmtAmount(row.amount, row.currency)}</span> · {formatOpDate(row.date)}
         </div>
 
         {why.manual && (

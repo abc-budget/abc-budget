@@ -34,7 +34,7 @@ describe('ConditionBuilder', () => {
   });
 
   it('non-amount conditions show neither the currency input nor the pairing note', () => {
-    renderBuilder([cond({ field: 'desc', operator: 'contains', value: 'X' })]);
+    renderBuilder([cond({ field: 'description', operator: 'contains', value: 'X' })]);
     expect(screen.queryByTestId('amount-currency-row')).toBeNull();
     expect(screen.queryByTestId('currency-pair-note')).toBeNull();
   });
