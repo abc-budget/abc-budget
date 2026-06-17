@@ -89,6 +89,33 @@ export function rule(over: Partial<RuleSummaryDTO> = {}): RuleSummaryDTO {
   };
 }
 
+// ── 4.9b sandbox / rule-editing fixtures ──
+
+/** A changed row in the sandbox diff: previousCategoryId set + differs from categoryId. */
+export function diffRow(over: Partial<CategorizedRowDTO> = {}): CategorizedRowDTO {
+  return row({ categoryId: 'transport', previousCategoryId: 'groceries', ruleId: 2, ...over });
+}
+
+export const CAT_GROCERIES = cat({ id: 'groceries', name: 'Продукти', icon: 'groceries', currency: 'UAH' });
+export const CAT_TRANSPORT = cat({ id: 'transport', name: 'Транспорт', icon: 'transport', currency: 'UAH' });
+export const CAT_TRAVEL = cat({ id: 'travel', name: 'Подорожі', icon: 'travel', currency: 'USD' });
+
+export const RULES_MULTI: RuleSummaryDTO[] = [
+  rule({ ruleId: 1, conditions: [cond({ field: 'description', operator: 'contains', value: 'АТБ' })], categoryId: 'groceries', appliedCount: 7 }),
+  rule({ ruleId: 2, conditions: [cond({ field: 'amount', operator: 'lessThan', value: -1000, currency: 'UAH' })], categoryId: 'transport', appliedCount: 3 }),
+  rule({ ruleId: 3, conditions: [cond({ field: 'currency', operator: 'equals', value: 'USD' })], categoryId: 'travel', appliedCount: 2 }),
+];
+
+export const ROWS_MULTI_CURRENCY: CategorizedRowDTO[] = [
+  row({ rowIndex: 0, currency: 'UAH', amount: -249.5, description: 'АТБ МАРКЕТ', categoryId: 'groceries', ruleId: 1 }),
+  row({ rowIndex: 1, currency: 'USD', amount: -42, description: 'BOOKING.COM', categoryId: 'travel', ruleId: 3 }),
+  row({ rowIndex: 2, currency: 'UAH', amount: -1500, description: 'УКЛОН', categoryId: 'transport', ruleId: 2 }),
+];
+
+export function sandboxState(over: Partial<{ engaged: boolean; count: number }> = {}) {
+  return { engaged: true, count: 2, ...over };
+}
+
 export function whyTree(over: Partial<WhyTreeDTO> = {}): WhyTreeDTO {
   return {
     manual: null,

@@ -290,4 +290,19 @@ export const CATALOG_EN = {
   s3cBaseAlias: 'base',
   s3cCreate: 'Create',
   s3cCancel: 'Cancel',
-} satisfies Record<ChromeKey, string>;
+  // ── S3c — 4.9b sandbox / rule-editing chrome ──
+  s3cSbTag: '▸ VIRTUAL RULE TREE · UNSAVED',
+  s3cSbCount: (n: number): string =>
+    n === 0 ? 'no categories change' : `${n} operation${n === 1 ? '' : 's'} will change category`,
+  s3cSbReview: 'Review changes',
+  s3cSbReviewOff: 'All operations',
+  s3cSbApply: 'Apply',
+  s3cSbDiscard: 'Cancel',
+  s3cUpdateRule: 'Update rule',
+  s3cReviewEdit: 'Review changes ▸',
+  s3cEdit: 'Edit',
+  s3cDelete: 'Delete',
+  s3cDragHint: 'Drag to reorder',
+  s3cMoveUp: 'Up',
+  s3cMoveDown: 'Down',
+} satisfies Record<ChromeKey, string | ((n: number) => string)>;

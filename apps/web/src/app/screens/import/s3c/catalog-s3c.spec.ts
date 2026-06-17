@@ -19,11 +19,29 @@ describe('S3c catalog keys', () => {
     for (const key of S3C_KEYS) {
       const uk = CATALOG_UK[key];
       const en = CATALOG_EN[key];
+      // function-valued keys are tested separately; skip them here
+      if (typeof uk === 'function' || typeof en === 'function') continue;
       expect(typeof uk, `uk ${key} not a string`).toBe('string');
       expect(typeof en, `en ${key} not a string`).toBe('string');
-      expect(uk.length, `uk ${key} empty`).toBeGreaterThan(0);
-      expect(en.length, `en ${key} empty`).toBeGreaterThan(0);
+      expect((uk as string).length, `uk ${key} empty`).toBeGreaterThan(0);
+      expect((en as string).length, `en ${key} empty`).toBeGreaterThan(0);
     }
+  });
+
+  it('4.9b sandbox keys present + uk/en parity', () => {
+    const uk = CATALOG_UK;
+    const en = CATALOG_EN;
+    const keys = ['s3cSbTag','s3cSbReview','s3cSbReviewOff','s3cSbApply','s3cSbDiscard',
+      's3cUpdateRule','s3cReviewEdit','s3cEdit','s3cDelete','s3cDragHint','s3cMoveUp','s3cMoveDown'];
+    for (const k of keys) {
+      expect(uk[k as keyof typeof uk], `uk missing ${k}`).toBeTruthy();
+      expect(en[k as keyof typeof en], `en missing ${k}`).toBeTruthy();
+    }
+    // s3cSbCount is a pluralizing function:
+    expect(typeof uk.s3cSbCount).toBe('function');
+    expect(uk.s3cSbCount(0)).toContain('не змінюються');
+    expect(uk.s3cSbCount(1)).toContain('операція змінить');
+    expect(uk.s3cSbCount(5)).toContain('операцій змінять');
   });
 
   it('parameterized keys interpolate {n}/{m}/{q}', () => {
