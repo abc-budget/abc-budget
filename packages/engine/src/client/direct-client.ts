@@ -53,15 +53,7 @@ import { composeEngine } from '../internal/worker/composition-root';
 import type { ComposedEngine } from '../internal/worker/composition-root';
 import { decode } from '../internal/ingest/decode';
 import type { DecodeResult } from '../internal/ingest/types';
-import { ColumnDefinition } from '../internal/importStatement/types';
-import type {
-  AmountColumnParams,
-  BalanceColumnParams,
-  BankCommissionColumnParams,
-  CashbackColumnParams,
-  DateColumnParams,
-  TransactionStatusColumnParams,
-} from '../internal/importStatement/types';
+import { parseColumnByDefinition } from '../internal/importStatement/stage2/parse-by-definition';
 import { ImportStatementColumn } from '../internal/importStatement/stage2/column';
 import type { ImportStatementColumnHeaderStage2, ImportStatementRowData } from '../internal/importStatement/stage2/types';
 import type { ImportStatementStage2Impl } from '../internal/importStatement/stage2/implementation';
@@ -157,53 +149,6 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       throw new SessionUnknownError(`${sessionId}:column:${columnId}`);
     }
     return col;
-  }
-
-  /**
-   * Dispatch a column definition to the real ImportStatementColumn transform.
-   * This is the SAME parse path the ported suites exercise (parseAs*), so the
-   * 2.4 threshold gate (ColumnTransformRejection) and the 2.3 recall learning
-   * loop (savePool at applyColumn time) both fire.
-   */
-  async function applyDefinition(
-    col: ImportStatementColumn,
-    definition: string,
-    params: Record<string, unknown> | null,
-  ): Promise<void> {
-    switch (definition as ColumnDefinition) {
-      case ColumnDefinition.DATE:
-        return col.parseAsDate((params as unknown as DateColumnParams) ?? { format: 'auto' });
-      case ColumnDefinition.AMOUNT:
-        return col.parseAsAmount(params as unknown as AmountColumnParams);
-      case ColumnDefinition.CURRENCY:
-        return col.parseAsCurrency();
-      case ColumnDefinition.DESCRIPTION:
-        return col.parseAsDescription();
-      case ColumnDefinition.COUNTERPARTY:
-        return col.parseAsCounterparty();
-      case ColumnDefinition.MERCHANT_CATEGORY:
-        return col.parseAsMerchant();
-      case ColumnDefinition.CATEGORY:
-        return col.parseAsBankCategory();
-      case ColumnDefinition.BALANCE:
-        return col.parseAsBalance(params as unknown as BalanceColumnParams);
-      case ColumnDefinition.BANK_ACCOUNT:
-        return col.parseAsBankAccount();
-      case ColumnDefinition.STATUS:
-        return col.parseAsTransactionStatus(params as unknown as TransactionStatusColumnParams);
-      case ColumnDefinition.EXCHANGE_RATE:
-        return col.parseAsExchangeRate();
-      case ColumnDefinition.BANK_COMMISSION:
-        return col.parseAsBankCommission(params as unknown as BankCommissionColumnParams);
-      case ColumnDefinition.CASHBACK:
-        return col.parseAsCashback(params as unknown as CashbackColumnParams);
-      case ColumnDefinition.TIME:
-        return col.parseAsTime();
-      case ColumnDefinition.IGNORE:
-        return col.ignore();
-      default:
-        throw new Error(`[abc-engine] Unknown column definition: '${definition}'`);
-    }
   }
 
   /**
@@ -303,7 +248,7 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       const col = await findColumn(stage2, sessionId, columnId);
 
       try {
-        await applyDefinition(col, definition, params);
+        await parseColumnByDefinition(col, definition, params);
         entry.generatedRows = null; // column state changed — typed-row cache is stale
         entry.generatedSourceTotal = null;
         entry.lastAppliedColumnName = col.originalName.getText(); // collision key
