@@ -1,8 +1,9 @@
 /**
  * EngineClient — the public interface for interacting with the engine.
  *
- * Contract v3: explicit session protocol; out-of-band progress/blocked/dead
- * events; base-currency surface (2.7 decision 1).
+ * Contract v4: explicit session protocol; out-of-band progress/blocked/dead
+ * events; base-currency surface (2.7 decision 1); categorization surface
+ * (4.9a S3c — EP-4).
  * NO RxJS on this surface (NFR-003 boundary holds).
  * All types are DTO imports — no internal class instances cross this boundary.
  */
@@ -13,6 +14,12 @@ import type {
   RowWindowDTO,
   GenerateResultDTO,
   UnmappedColumnsDTO,
+  CategoryDTO,
+  ConditionDTO,
+  ConditionFieldDTO,
+  CategorizedWindowDTO,
+  WhyTreeDTO,
+  RuleSummaryDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -185,6 +192,60 @@ export interface EngineClient {
    * cannot persist must never look successful.
    */
   setBaseCurrency(iso: string): Promise<void>;
+
+  // ── Categorization (contract v4 — Story 4.9a S3c, EP-4) ───────────────────
+
+  /**
+   * Get a windowed slice of categorized rows for the live session.
+   *
+   * @param opts.offset  First row index in the (segment-filtered) result set.
+   * @param opts.count   Window size (row economy — full data flows only here).
+   * @param opts.segment 'all' = every row; 'uncat' = only uncategorized rows.
+   * @param opts.draft   Optional draft conditions to preview a not-yet-saved
+   *                     rule against the window (sandbox eval) without persisting.
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importCategorizedRows(
+    sessionId: string,
+    opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+  ): Promise<CategorizedWindowDTO>;
+
+  /**
+   * List the condition fields available for rule-building against the session's
+   * rows (field + value-kind + valid operators + enumerated options).
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importConditionFields(sessionId: string): Promise<ConditionFieldDTO[]>;
+
+  /**
+   * Explain why a row is categorized the way it is: the manual override (if
+   * any), every evaluated rule's win/miss/neutral status with per-condition
+   * met-state, and the winning rule id.
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importWhy(sessionId: string, rowIndex: number): Promise<WhyTreeDTO>;
+
+  /**
+   * List the rules currently applied to the session, each with its conditions,
+   * target category, and applied-row count.
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importRulesList(sessionId: string): Promise<RuleSummaryDTO[]>;
+
+  /**
+   * Persist a new rule (conditions → categoryId). Returns the new rule id.
+   */
+  rulesCreate(conditions: ConditionDTO[], categoryId: string): Promise<{ ruleId: number }>;
+
+  /** List all categories (id + display fields). */
+  categoriesList(): Promise<CategoryDTO[]>;
+
+  /** Create a new category. Returns the created category (with its new id). */
+  categoriesCreate(input: { name: string; icon: string; currency: string }): Promise<CategoryDTO>;
 
   // ── Out-of-band events ─────────────────────────────────────────────────────
 

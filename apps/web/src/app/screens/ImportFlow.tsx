@@ -11,8 +11,11 @@ import { S3aSource } from './import/s3a/S3aSource';
 import { useS3aSession } from './import/s3a/use-s3a-session';
 import { S3bMapping } from './import/s3b/S3bMapping';
 import { useS3bSession } from './import/s3b/use-s3b-session';
+import { S3cCategorize } from './import/s3c/S3cCategorize';
+import { useS3cSession } from './import/s3c/use-s3c-session';
 import './import/s3a/s3a.css';
 import './import/s3b/s3b.css';
+import './import/s3c/s3c.css';
 
 /**
  * A placeholder snapshot for the S3b hook BEFORE S3a establishes a session.
@@ -88,6 +91,14 @@ export function ImportFlow() {
    * sessionId changes (S3a replace → fresh importStart → all-UNKNOWN).
    */
   const s3b = useS3bSession(client, session.sessionId ?? '', session.snapshot ?? EMPTY_SNAPSHOT);
+
+  /**
+   * S3c session (Story 4.9a) — the categorization surface over the SAME live
+   * worker session (importNext kept it alive — engine-client.ts contract).  Lives
+   * HERE alongside s3b so it survives step changes; loads its surfaces on mount /
+   * re-seeds when the sessionId changes (S3a replace → fresh session).
+   */
+  const s3c = useS3cSession(client, session.sessionId ?? '', stepIndex === 2);
 
   /**
    * S3b gate state (Option A): «Далі» is always active at step 2; the press
@@ -205,6 +216,15 @@ export function ImportFlow() {
                 progress={s3bProgress}
                 onReturnToMapping={returnToMapping}
               />
+            </>
+          ) : step.id === 's3c' && session.sessionId !== null ? (
+            <>
+              <div className="s3-head">
+                <div className="f-mono ob-eyebrow">{t('s3cEyebrow')}</div>
+                <h1 className="f-disp s3-title">{t('s3cTitle')}</h1>
+                <p className="body-p s3-lead">{t('s3cLead')}</p>
+              </div>
+              <S3cCategorize session={s3c} />
             </>
           ) : (
             <Panel screws>

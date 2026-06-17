@@ -12,8 +12,8 @@ describe('EngineClient contract (direct transport)', () => {
     const client = createDirectEngineClient();
     const version = await client.getVersion();
     expect(typeof version.engine).toBe('string');
-    // DECLARED UPDATE (2.7): contract 2 → 3 (base-currency surface + structural channel)
-    expect(version.contract).toBe(3);
+    // DECLARED UPDATE (4.9a S3c): contract 3 -> 4 (categorization wire surface)
+    expect(version.contract).toBe(4);
   });
 });
 

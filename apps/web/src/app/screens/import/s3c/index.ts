@@ -1,0 +1,25 @@
+/** S3c categorization review surface — presentational components (Story 4.9a Task 3). */
+export { Ring } from './Ring';
+export { CatChip } from './CatChip';
+export type { CatChipProps } from './CatChip';
+export { CategoryCell } from './CategoryCell';
+export type { CategoryCellProps } from './CategoryCell';
+export { ValueInput } from './ValueInput';
+export type { ValueInputProps } from './ValueInput';
+export { ConditionRow, defaultValueFor } from './ConditionRow';
+export type { ConditionRowProps } from './ConditionRow';
+export { ConditionBuilder } from './ConditionBuilder';
+export type { ConditionBuilderProps } from './ConditionBuilder';
+export { ColumnFunnel } from './ColumnFunnel';
+export type { ColumnFunnelProps } from './ColumnFunnel';
+export { CategoryPicker } from './CategoryPicker';
+export type { CategoryPickerProps } from './CategoryPicker';
+export { OpsPanel } from './OpsPanel';
+export type { OpsPanelProps, OpsSegment } from './OpsPanel';
+export { RulePanel } from './RulePanel';
+export type { RulePanelProps, RuleTab } from './RulePanel';
+export { WhyPanel } from './WhyPanel';
+export type { WhyPanelProps } from './WhyPanel';
+export { CreateCategoryDialog } from './CreateCategoryDialog';
+export type { CreateCategoryDialogProps } from './CreateCategoryDialog';
+export { condText, fieldLabel, operatorLabel } from './labels';

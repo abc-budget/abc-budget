@@ -1,7 +1,7 @@
 /**
  * Engine worker host (Story 2.6, Task 4 — the worker side of the thread hop).
  *
- * `attachEngineHost(scope)` wires the contract-v3 message loop onto a worker
+ * `attachEngineHost(scope)` wires the contract-v4 message loop onto a worker
  * global scope:
  *
  *   - handshake: `hello {contract}` → `helloAck {contract: CONTRACT_VERSION}`
@@ -47,7 +47,7 @@ export interface WorkerScopeLike {
 
 // ── Method allowlist ──────────────────────────────────────────────────────────
 
-/** The exact contract-v3 method set — anything else is rejected loudly. */
+/** The exact contract-v4 method set — anything else is rejected loudly. */
 const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'ping',
   'getVersion',
@@ -64,6 +64,16 @@ const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   // client this host shims over; settingsDao comes from the shared composition root.
   'getBaseCurrency',
   'setBaseCurrency',
+  // v4 (4.9a S3c): the EP-4 categorization surface — same generic dispatch over
+  // the direct client (the host calls client[method].apply); the impls land in
+  // sibling Task 2.
+  'importCategorizedRows',
+  'importConditionFields',
+  'importWhy',
+  'importRulesList',
+  'rulesCreate',
+  'categoriesList',
+  'categoriesCreate',
 ]);
 
 // ── attachEngineHost ──────────────────────────────────────────────────────────

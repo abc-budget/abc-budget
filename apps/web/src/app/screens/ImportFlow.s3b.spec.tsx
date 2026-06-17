@@ -101,6 +101,14 @@ function makeClient(over?: Record<string, unknown>): EngineClient {
     importAbort: vi.fn(async () => undefined),
     getBaseCurrency: vi.fn(async () => 'UAH'),
     setBaseCurrency: vi.fn(async () => undefined),
+    // v4 categorization surface (S3c mounts its session hook alongside S3b)
+    importCategorizedRows: vi.fn(async () => ({ rows: [], total: 0, matchCount: 0 })),
+    importConditionFields: vi.fn(async () => []),
+    importWhy: vi.fn(async () => ({ manual: null, rules: [], winnerRuleId: null })),
+    importRulesList: vi.fn(async () => []),
+    rulesCreate: vi.fn(async () => ({ ruleId: 1 })),
+    categoriesList: vi.fn(async () => []),
+    categoriesCreate: vi.fn(async () => ({ id: 'c', name: 'C', icon: 'other', currency: 'UAH' })),
     onEvent: vi.fn(() => () => {}),
     ...over,
   } as unknown as EngineClient;
@@ -324,6 +332,51 @@ describe('ImportFlow — gate #2 (Option A, fails closed)', () => {
 
     resolveNext({ ok: true, result: { rows: [], rowErrors: [], skipped: [], structuralErrors: [] } });
     await waitFor(() => expect(screen.getByText('КРОК 3 / 4')).toBeTruthy());
+    void router;
+  });
+
+  it('zero-UNKNOWN → advance renders the S3c categorize surface (the slot wiring)', async () => {
+    const client = makeClient({
+      importStart: vi.fn(async () => ({ sessionId: 'sess-s3c', stage2: mappedSnapshot() })),
+      importCategorizedRows: vi.fn(async () => ({
+        rows: [
+          {
+            rowIndex: 0,
+            date: '2026-03-14',
+            amount: -10,
+            currency: 'UAH',
+            description: 'АТБ',
+            counterparty: null,
+            account: null,
+            bankCategory: null,
+            mcc: 5411,
+            categoryId: 'g',
+            isManual: 0 as const,
+            ruleId: 1,
+          },
+        ],
+        total: 1,
+        matchCount: 1,
+      })),
+      importConditionFields: vi.fn(async () => [{ field: 'desc', valueKind: 'text' as const, operators: ['contains'] }]),
+      categoriesList: vi.fn(async () => [{ id: 'g', name: 'Продукти', icon: 'groceries', currency: 'UAH' }]),
+    });
+    const router = renderFlow(client);
+    await dropFile();
+    await waitFor(() => expect(screen.getByTestId('s3a-recognized')).toBeTruthy());
+    fireEvent.click(nextKey());
+    await waitFor(() => expect(screen.getByTestId('s3b-mapping')).toBeTruthy());
+    fireEvent.click(nextKey());
+    // S3c renders after S3b (the stepper advanced + the categorize body mounted)
+    await waitFor(() => expect(screen.getByText('КРОК 3 / 4')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('s3c-categorize')).toBeTruthy());
+    // it loaded its window against the LIVE session id
+    expect(client.importCategorizedRows).toHaveBeenCalledWith('sess-s3c', {
+      offset: 0,
+      count: 240,
+      segment: 'all',
+    });
+    await waitFor(() => expect(screen.getByText('Продукти')).toBeTruthy());
     void router;
   });
 

@@ -45,6 +45,15 @@ vi.mock('../engine', () => ({
     // the wizard walks never see the dialog (ImportFlow.spec owns the gate).
     getBaseCurrency: async () => 'UAH',
     setBaseCurrency: async () => undefined,
+    // v4 categorization surface — the router walk reaches S3c, which mounts its
+    // session hook and loads these on step entry.
+    importCategorizedRows: async () => ({ rows: [], total: 0, matchCount: 0 }),
+    importConditionFields: async () => [],
+    importWhy: async () => ({ manual: null, rules: [], winnerRuleId: null }),
+    importRulesList: async () => [],
+    rulesCreate: async () => ({ ruleId: 1 }),
+    categoriesList: async () => [],
+    categoriesCreate: async () => ({ id: 'c', name: 'C', icon: 'other', currency: 'UAH' }),
   },
   engineReady: Promise.resolve({ state: 'ready' }),
 }));

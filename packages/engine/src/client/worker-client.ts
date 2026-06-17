@@ -1,5 +1,5 @@
 /**
- * Production WorkerTransport (Task 3, contract v3 since 2.7).
+ * Production WorkerTransport (Task 3, contract v4 since 4.9a S3c).
  *
  * Creates an EngineClient backed by a Web Worker over postMessage.
  * Implements: handshake gate, drain semantics, per-request timeouts with
@@ -55,7 +55,16 @@ import {
   rehydrateEngineError,
 } from './errors';
 import type { WireError } from './errors';
-import type { Stage2SnapshotDTO, RowWindowDTO } from './dto';
+import type {
+  Stage2SnapshotDTO,
+  RowWindowDTO,
+  CategoryDTO,
+  ConditionDTO,
+  ConditionFieldDTO,
+  CategorizedWindowDTO,
+  WhyTreeDTO,
+  RuleSummaryDTO,
+} from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
 // ── WorkerLike ─────────────────────────────────────────────────────────────────
@@ -462,6 +471,33 @@ export function createWorkerEngineClient(
     getBaseCurrency: () => call('getBaseCurrency', []) as Promise<string | null>,
 
     setBaseCurrency: (iso: string) => call('setBaseCurrency', [iso]) as Promise<void>,
+
+    // ── Categorization (contract v4 — Story 4.9a S3c, EP-4) ──────────────────
+    // Each forwards over the generic call() — post {kind:'req', method, args},
+    // await the response — exactly like every method above. The host dispatches
+    // generically over the direct client; the impls land in sibling Task 2.
+
+    importCategorizedRows: (
+      sessionId: string,
+      opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+    ) => call('importCategorizedRows', [sessionId, opts]) as Promise<CategorizedWindowDTO>,
+
+    importConditionFields: (sessionId: string) =>
+      call('importConditionFields', [sessionId]) as Promise<ConditionFieldDTO[]>,
+
+    importWhy: (sessionId: string, rowIndex: number) =>
+      call('importWhy', [sessionId, rowIndex]) as Promise<WhyTreeDTO>,
+
+    importRulesList: (sessionId: string) =>
+      call('importRulesList', [sessionId]) as Promise<RuleSummaryDTO[]>,
+
+    rulesCreate: (conditions: ConditionDTO[], categoryId: string) =>
+      call('rulesCreate', [conditions, categoryId]) as Promise<{ ruleId: number }>,
+
+    categoriesList: () => call('categoriesList', []) as Promise<CategoryDTO[]>,
+
+    categoriesCreate: (input: { name: string; icon: string; currency: string }) =>
+      call('categoriesCreate', [input]) as Promise<CategoryDTO>,
 
     onEvent(cb: (event: EngineEventPayload) => void): () => void {
       listeners.add(cb);
