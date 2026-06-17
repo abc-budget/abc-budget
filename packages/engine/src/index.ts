@@ -54,6 +54,17 @@ export type {
   SkippedRowDTO,
   GenerateResultDTO,
   UnmappedColumnsDTO,
+  // ── Categorization DTOs (contract v4 — Story 4.9a S3c, EP-4) ──────────────
+  // TYPE-ONLY: the UI imports these to render the review surface. They add NO
+  // runtime symbol — boundary.spec.ts still asserts exactly 3 runtime keys.
+  CategoryDTO,
+  ConditionDTO,
+  ConditionFieldDTO,
+  CategorizedRowDTO,
+  CategorizedWindowDTO,
+  WhyRuleDTO,
+  WhyTreeDTO,
+  RuleSummaryDTO,
 } from './client/dto';
 
 // ── Decode result types (2.1 surface — now via EngineClient.decode) ──────────

@@ -1,6 +1,7 @@
 /**
  * Data Transfer Objects + pure serializer functions for the EngineClient session
- * protocol (contract v3 — GenerateResultDTO gained `structuralErrors` at 2.7).
+ * protocol (contract v4 — the EP-4 S3c categorization DTOs joined at 4.9a; v3
+ * gained GenerateResultDTO.structuralErrors at 2.7).
  *
  * All types are JSON-safe by design (no Date, no class instances, no RxJS).
  * Serializers are pure functions over internal objects — no worker required.
@@ -318,4 +319,114 @@ export function serializeUnmappedColumns(
   return {
     unmappedColumns: unmappedColumns.map((u) => ({ id: u.id, name: u.name })),
   };
+}
+
+// ── Categorization surface (contract v4 — Story 4.9a S3c, EP-4) ────────────────
+//
+// SERIALIZABLE wire DTOs for the S3c categorization review surface. Plain types
+// (no methods, no class instances, no Date) — JSON-safe by design, like every
+// other DTO above. The worker-side IMPLEMENTATIONS that PRODUCE these shapes are
+// sibling Task 2; this file declares the contract TYPES only.
+
+/** A category as the UI renders it (id + display fields). */
+export interface CategoryDTO {
+  readonly id: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly currency: string;
+}
+
+/** A single rule condition (field/operator/value) crossing the wire. */
+export interface ConditionDTO {
+  readonly field: string;
+  readonly operator: string;
+  readonly value: unknown;
+  readonly currency?: string;
+}
+
+/**
+ * Describes a condition field the UI can build a rule against: the value kind
+ * (drives the input widget), the operators valid for it, and — for enumerated
+ * fields — the option set.
+ */
+export interface ConditionFieldDTO {
+  readonly field: string;
+  readonly valueKind:
+    | 'text'
+    | 'num'
+    | 'num2'
+    | 'day'
+    | 'day2'
+    | 'code'
+    | 'optone'
+    | 'optset'
+    | 'regex'
+    | 'bool';
+  readonly operators: string[];
+  readonly options?: { value: string; label: string }[];
+}
+
+/**
+ * A categorized transaction row in the review window.
+ * `date` is an ISO 8601 string (row-economy + JSON-safe — no Date crosses).
+ * `isManual` is 0|1 (the persisted manual-override flag shape).
+ */
+export interface CategorizedRowDTO {
+  readonly rowIndex: number;
+  readonly date: string; // ISO 8601
+  readonly amount: number;
+  readonly currency: string;
+  readonly description: string | null;
+  readonly counterparty: string | null;
+  readonly account: string | null;
+  readonly bankCategory: string | null;
+  readonly mcc: number | null;
+  readonly categoryId: string | null;
+  readonly isManual: 0 | 1;
+  readonly ruleId: number | null;
+  readonly previousCategoryId?: string | null;
+  readonly atypical?: unknown;
+}
+
+/** A windowed slice of categorized rows (row economy — like RowWindowDTO). */
+export interface CategorizedWindowDTO {
+  readonly rows: CategorizedRowDTO[];
+  readonly total: number;
+  readonly matchCount: number;
+}
+
+/**
+ * Per-rule explanation entry in a why-tree: the rule's win/miss/neutral status
+ * for a row, the per-condition met-state (null = not evaluated), and the
+ * category the rule assigns.
+ */
+export interface WhyRuleDTO {
+  readonly ruleId: number;
+  readonly status: 'win' | 'miss' | 'neutral';
+  readonly conditions: {
+    readonly field: string;
+    readonly operator: string;
+    readonly value: unknown;
+    readonly met: boolean | null;
+  }[];
+  readonly categoryId: string;
+}
+
+/**
+ * The full "why is this row categorized this way" tree for one row: an optional
+ * manual override (which wins outright), the evaluated rules, and the winning
+ * rule id (null when none won / manual won).
+ */
+export interface WhyTreeDTO {
+  readonly manual: { readonly categoryId: string } | null;
+  readonly rules: WhyRuleDTO[];
+  readonly winnerRuleId: number | null;
+}
+
+/** A rule summary for the rules list: its conditions, target category, applied count. */
+export interface RuleSummaryDTO {
+  readonly ruleId: number;
+  readonly conditions: ConditionDTO[];
+  readonly categoryId: string;
+  readonly appliedCount: number;
 }

@@ -258,8 +258,9 @@ describe('host unit (fake scope)', () => {
     attachEngineHost(scope);
     scope.onmessage!({ data: { kind: 'hello', contract: 999 } });
     expect(posted[0]).toEqual({ kind: 'helloAck', contract: CONTRACT_VERSION });
-    // DECLARED UPDATE (2.7): contract 2 → 3 (base-currency surface + structural channel)
-    expect(CONTRACT_VERSION).toBe(3);
+    // DECLARED UPDATE (4.9a S3c): contract 3 → 4 (categorization wire surface — the
+    // 7 EP-4 S3c methods join EngineMethod; base-currency surface + structural channel stay)
+    expect(CONTRACT_VERSION).toBe(4);
   });
 
   it('rejects an unknown method loudly (name preserved over the codec)', async () => {
@@ -306,12 +307,12 @@ describe('engine-db blocked hook', () => {
 // ===========================================================================
 
 describe('real hop: handshake + baseline', () => {
-  it('ping and getVersion survive the real worker hop (contract 3 acked)', async () => {
+  it('ping and getVersion survive the real worker hop (contract 4 acked)', async () => {
     const client = makeClient();
     expect(await client.ping('over-the-hop')).toBe('over-the-hop');
     const version = await client.getVersion();
-    // DECLARED UPDATE (2.7): contract 2 → 3
-    expect(version.contract).toBe(3);
+    // DECLARED UPDATE (4.9a S3c): contract 3 → 4
+    expect(version.contract).toBe(4);
     expect(typeof version.engine).toBe('string');
   });
 });

@@ -30,6 +30,17 @@ import type { UserSettingsDAO } from '../settings/user-settings';
 import { createRecallPool } from '../importStatement/recall/recall';
 import type { RecallPool } from '../importStatement/recall/recall';
 import { ImportStatementServiceImpl } from '../importStatement/service';
+import type { CategorizationService } from './categorization-service';
+import { CategoriesDAO } from '../categories/categories-dao';
+import { CategoriesService } from '../categories/categories-service';
+import { FootprintDao } from '../footprint/footprint-dao';
+import { ComplexRuleDAO } from '../rules/complex-rules-dao';
+import { RulePersistenceService } from '../rules/rule-persistence-service';
+import {
+  CategorizationServiceImpl,
+  type SessionRowsAccessor,
+} from './categorization-service-impl';
+import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,6 +62,24 @@ export interface ComposedEngine {
   readonly settingsDao: UserSettingsDAO | null;
   /** Real recall pool over the live engine DB; null when no IDB. */
   readonly recallPool: RecallPool | null;
+  /**
+   * The contract-v4 categorization surface (Story 4.9a S3c — EP-4), behind
+   * which the direct-client's categorization methods delegate.
+   *
+   * Task 2 (4.9a S3c) wires the real CategorizationServiceImpl here — composed
+   * over the EP-4 graph (categories service, rule-persistence, footprint DAO).
+   * It is null ONLY in the no-indexedDB baseline (no DB → no categorization).
+   */
+  readonly categorization: CategorizationService | null;
+  /**
+   * Late-binds the session-rows accessor onto the composed categorization
+   * service (Task 2). The CategorizationServiceImpl reads a session's stage3
+   * rows through this seam, but the SessionRegistry that owns those rows lives
+   * in the transport (direct-client / worker-host), constructed AFTER the graph.
+   * So the transport composes the graph, then sets the registry-backed accessor
+   * here. A no-op when categorization is null (the no-IDB baseline).
+   */
+  setSessionRowsAccessor(accessor: SessionRowsAccessor): void;
   /** Result of initEnginePersistence (opened flag + durability). */
   readonly persistence: PersistenceInitResult;
 }
@@ -78,11 +107,15 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
   const persistence = await initEnginePersistence();
 
   if (!persistence.opened) {
-    // No persistence — compose with nulls, no throw.
+    // No persistence — compose with nulls, no throw. Categorization needs the
+    // engine DB (footprint + categories + rules stores), so it stays null here;
+    // setSessionRowsAccessor is a no-op (nothing to bind onto).
     return {
       service: new ImportStatementServiceImpl(),
       settingsDao: null,
       recallPool: null,
+      categorization: null,
+      setSessionRowsAccessor: () => {},
       persistence,
     };
   }
@@ -97,5 +130,40 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
   // recallPool wired (stage3 categorization deps stay null until EP-4).
   const service = new ImportStatementServiceImpl(null, null, settingsDao, recallPool);
 
-  return { service, settingsDao, recallPool, persistence };
+  // ── Categorization (Story 4.9a S3c, EP-4) ─────────────────────────────────
+  // Compose the categorization service over the already-merged EP-4 graph: the
+  // categories service (4.3a, «base» resolution), the rule-persistence service
+  // (4.3b, reload/create), and the footprint DAO (4.4/4.4.1 override map). The
+  // session-rows accessor is late-bound by the transport (see below) — it
+  // defaults to a loud throw so a call before the bind never looks like an empty
+  // success (HC-7).
+  const footprintDao = new FootprintDao(dbProvider);
+  const categoriesService = new CategoriesService(new CategoriesDAO(dbProvider), settingsDao);
+  const rulePersistence = new RulePersistenceService(new ComplexRuleDAO(dbProvider), categoriesService);
+
+  let sessionRowsAccessor: SessionRowsAccessor = (sessionId: string): Promise<ImportStatementStage3Row[]> => {
+    throw new Error(
+      `[abc-engine] Session-rows accessor is not wired (session '${sessionId}'). ` +
+        'The transport must call composeEngine().setSessionRowsAccessor() after the SessionRegistry is built.',
+    );
+  };
+
+  const categorization = new CategorizationServiceImpl({
+    // Indirect so a late bind is seen by an already-constructed service.
+    getSessionRows: (sessionId) => sessionRowsAccessor(sessionId),
+    footprintDao,
+    categoriesService,
+    rulePersistence,
+  });
+
+  return {
+    service,
+    settingsDao,
+    recallPool,
+    categorization,
+    setSessionRowsAccessor: (accessor: SessionRowsAccessor) => {
+      sessionRowsAccessor = accessor;
+    },
+    persistence,
+  };
 }

@@ -1,5 +1,5 @@
 /**
- * Direct (in-thread) EngineClient — implements the full EngineClient contract v3
+ * Direct (in-thread) EngineClient — implements the full EngineClient contract v4
  * without a Worker.  This is the transport vitest and QA ride; the worker host
  * (`internal/worker/engine-worker-host.ts`) is a wire shim over THIS client, so
  * both transports run the identical session logic and the identical composed
@@ -37,7 +37,16 @@ import type {
   ImportNextResult,
   EngineEventPayload,
 } from './engine-client';
-import type { Stage2SnapshotDTO, RowWindowDTO } from './dto';
+import type {
+  Stage2SnapshotDTO,
+  RowWindowDTO,
+  CategoryDTO,
+  ConditionDTO,
+  ConditionFieldDTO,
+  CategorizedWindowDTO,
+  WhyTreeDTO,
+  RuleSummaryDTO,
+} from './dto';
 import {
   serializeStage2Snapshot,
   serializeColumnRejection,
@@ -51,6 +60,7 @@ import type { ExchangeRateApi } from '../internal/exchange-rate/api';
 import { createPingEngine } from '../internal/ping-engine';
 import { composeEngine } from '../internal/worker/composition-root';
 import type { ComposedEngine } from '../internal/worker/composition-root';
+import type { CategorizationService } from '../internal/worker/categorization-service';
 import { decode } from '../internal/ingest/decode';
 import type { DecodeResult } from '../internal/ingest/types';
 import { parseColumnByDefinition } from '../internal/importStatement/stage2/parse-by-definition';
@@ -92,17 +102,30 @@ type Stage2Internal = {
 
 /** Builds an EngineClient that calls the engine directly, in the same thread. */
 export function createDirectEngineClient(options?: EngineInitOptions): EngineClient {
-  // ── Composition root (ONE shared root — Task 4) ───────────────────────────
-  // Async composition is memoized here; methods that need the composed graph
-  // await it.  ping/getVersion/decode do not block on it.
-  const composedPromise: Promise<ComposedEngine> = composeEngine({
-    exchangeRateApi: options?.exchangeRateApi,
-  });
-
   const pingEngine = createPingEngine();
 
   // Session registry — shared state for all session methods
   const registry = new SessionRegistry();
+
+  // ── Composition root (ONE shared root — Task 4) ───────────────────────────
+  // Async composition is memoized here; methods that need the composed graph
+  // await it.  ping/getVersion/decode do not block on it.
+  //
+  // 4.9a S3c: the composed CategorizationService reads a session's stage3 rows
+  // through a late-bound accessor — the SessionRegistry lives HERE (the
+  // transport), so we wire the registry-backed accessor onto the graph once it
+  // resolves. The accessor REUSES generateForSession (the cached typed rows
+  // importGetRows serves) — it never re-runs the pipeline.
+  const composedPromise: Promise<ComposedEngine> = composeEngine({
+    exchangeRateApi: options?.exchangeRateApi,
+  }).then((composed) => {
+    composed.setSessionRowsAccessor(async (sessionId: string) => {
+      const entry = registry.get(sessionId); // throws SessionUnknownError if absent
+      const { rows } = await generateForSession(entry);
+      return rows;
+    });
+    return composed;
+  });
 
   // Event listeners (onEvent subscribers)
   const listeners = new Set<(event: EngineEventPayload) => void>();
@@ -194,6 +217,23 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     entry.generatedRows = result;
     entry.generatedSourceTotal = rows.length;
     return result;
+  }
+
+  /**
+   * Resolve the composed CategorizationService (contract v4 — 4.9a S3c).
+   * Task 1 (contract) leaves it null; sibling Task 2 wires the real impl in the
+   * composition root. Until then this throws LOUD (HC-7) — a categorization call
+   * before Task 2 must never look like an empty success.
+   */
+  async function resolveCategorization(): Promise<CategorizationService> {
+    const { categorization } = await composedPromise;
+    if (categorization === null) {
+      throw new Error(
+        '[abc-engine] Categorization surface is not wired (contract v4 — 4.9a S3c). ' +
+          'The CategorizationService impl lands in sibling Task 2.',
+      );
+    }
+    return categorization;
   }
 
   return {
@@ -379,6 +419,51 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
         );
       }
       await setBaseCurrency(settingsDao, iso);
+    },
+
+    // ── Categorization (contract v4 — Story 4.9a S3c, EP-4) ──────────────────
+    // Task 1 (contract) delegates each method 1:1 to the composed
+    // CategorizationService (the Task 1 ↔ Task 2 seam). Task 1 ships NO
+    // categorization LOGIC — composeEngine resolves categorization: null until
+    // sibling Task 2 wires the real impl, so these throw a loud "not implemented"
+    // (HC-7) rather than silently returning empty results.
+
+    async importCategorizedRows(
+      sessionId: string,
+      opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+    ): Promise<CategorizedWindowDTO> {
+      const svc = await resolveCategorization();
+      return svc.importCategorizedRows(sessionId, opts);
+    },
+
+    async importConditionFields(sessionId: string): Promise<ConditionFieldDTO[]> {
+      const svc = await resolveCategorization();
+      return svc.importConditionFields(sessionId);
+    },
+
+    async importWhy(sessionId: string, rowIndex: number): Promise<WhyTreeDTO> {
+      const svc = await resolveCategorization();
+      return svc.importWhy(sessionId, rowIndex);
+    },
+
+    async importRulesList(sessionId: string): Promise<RuleSummaryDTO[]> {
+      const svc = await resolveCategorization();
+      return svc.importRulesList(sessionId);
+    },
+
+    async rulesCreate(conditions: ConditionDTO[], categoryId: string): Promise<{ ruleId: number }> {
+      const svc = await resolveCategorization();
+      return svc.rulesCreate(conditions, categoryId);
+    },
+
+    async categoriesList(): Promise<CategoryDTO[]> {
+      const svc = await resolveCategorization();
+      return svc.categoriesList();
+    },
+
+    async categoriesCreate(input: { name: string; icon: string; currency: string }): Promise<CategoryDTO> {
+      const svc = await resolveCategorization();
+      return svc.categoriesCreate(input);
     },
 
     // ── Out-of-band events ────────────────────────────────────────────────────

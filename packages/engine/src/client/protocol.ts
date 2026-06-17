@@ -1,5 +1,5 @@
 /**
- * Wire envelope for the EngineClient transport (contract v3).
+ * Wire envelope for the EngineClient transport (contract v4).
  *
  * CONTRACT VERSION BUMP RULE (decision 2, 2026-06-12):
  *   Increment CONTRACT_VERSION whenever ANY of the following change:
@@ -21,10 +21,17 @@
  *        GenerateResultDTO += structuralErrors (decision 2 — the structural
  *        DATE-error channel rides the same bump: importNext's return shape
  *        changed). No compat path — exact-match handshake by design.
+ *   v4 — Story 4.9a S3c (EP-4 categorization surface): the categorization wire
+ *        methods join — EngineMethod += importCategorizedRows | importConditionFields
+ *        | importWhy | importRulesList | rulesCreate | categoriesList |
+ *        categoriesCreate. New serializable DTOs (CategoryDTO, ConditionDTO,
+ *        ConditionFieldDTO, CategorizedRowDTO, CategorizedWindowDTO, WhyRuleDTO,
+ *        WhyTreeDTO, RuleSummaryDTO) ride the same bump — additions bump the
+ *        integer (no compat path — exact-match handshake by design).
  */
 
 /** The current contract version. Increment per the bump rule above. */
-export const CONTRACT_VERSION = 3;
+export const CONTRACT_VERSION = 4;
 
 // ── Handshake ─────────────────────────────────────────────────────────────────
 
@@ -68,7 +75,15 @@ export type EngineMethod =
   | 'importNext'
   | 'importAbort'
   | 'getBaseCurrency'
-  | 'setBaseCurrency';
+  | 'setBaseCurrency'
+  // v4 (4.9a S3c): the EP-4 categorization surface.
+  | 'importCategorizedRows'
+  | 'importConditionFields'
+  | 'importWhy'
+  | 'importRulesList'
+  | 'rulesCreate'
+  | 'categoriesList'
+  | 'categoriesCreate';
 
 /** A client → worker RPC call. */
 export interface EngineRequest {

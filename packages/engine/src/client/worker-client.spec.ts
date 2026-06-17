@@ -202,6 +202,22 @@ describe('WorkerTransport — handshake gate', () => {
     expect(err.theirs).toBe(99);
   });
 
+  it('PIN (4.9a S3c): client at contract 4 vs worker helloAck contract 3 → ContractMismatchError (loud, not silent)', async () => {
+    // The loud-reload path: a v4 client must REJECT a stale v3 worker's ack — never
+    // silently proceed. CONTRACT_VERSION is 4 this story; an ack carrying 3 is the
+    // exact previous-version mismatch the bump is meant to catch.
+    expect(CONTRACT_VERSION).toBe(4);
+    const { worker, client } = makeWorkerAndClient();
+
+    const pingPromise = client.ping('test');
+    ackHandshake(worker, 3); // the previous contract — must be rejected
+
+    await expect(pingPromise).rejects.toBeInstanceOf(ContractMismatchError);
+    const err = (await pingPromise.catch((e) => e)) as ContractMismatchError;
+    expect(err.ours).toBe(4);
+    expect(err.theirs).toBe(3);
+  });
+
   it('ack with wrong contract → ALL queued calls reject ContractMismatchError', async () => {
     const { worker, client } = makeWorkerAndClient();
 
@@ -770,11 +786,11 @@ describe('WorkerTransport — full EngineClient method routing', () => {
       (m) => (m as { kind?: string }).kind === 'req',
     ) as EngineRequest[];
     expect(reqs[0].method).toBe('getVersion');
-    // Fake echo value — bumped 2 → 3 with the contract for grep hygiene (2.7 declared)
-    respond(worker, reqs[0].id, true, { engine: '1.0.0', contract: 3 });
+    // Fake echo value — bumped 3 → 4 with the contract for grep hygiene (4.9a S3c declared)
+    respond(worker, reqs[0].id, true, { engine: '1.0.0', contract: 4 });
 
     const ver = await p;
-    expect(ver.contract).toBe(3);
+    expect(ver.contract).toBe(4);
   });
 
   it('getBaseCurrency routes through generic call (contract v3)', async () => {
