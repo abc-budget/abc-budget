@@ -41,6 +41,8 @@ export default defineConfig({
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         gallery: fileURLToPath(new URL('./gallery.html', import.meta.url)),
         qaHarness: fileURLToPath(new URL('./qa-harness.html', import.meta.url)),
+        // DEV-only 390px live-view of the engaged-sandbox S3c layout (4.9b Task 8).
+        s3cSandboxHarness: fileURLToPath(new URL('./s3c-sandbox-harness.html', import.meta.url)),
       },
     },
   },

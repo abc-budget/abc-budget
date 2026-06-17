@@ -109,6 +109,13 @@ function makeClient(over?: Record<string, unknown>): EngineClient {
     rulesCreate: vi.fn(async () => ({ ruleId: 1 })),
     categoriesList: vi.fn(async () => []),
     categoriesCreate: vi.fn(async () => ({ id: 'c', name: 'C', icon: 'other', currency: 'UAH' })),
+    // v5 sandbox surface — the S3c session hook probes sandboxState on mount
+    // (navigate-away resume); this flow never engages a sandbox, so all LIVE.
+    rulesClassify: vi.fn(async () => 'live'),
+    rulesSubmitEdit: vi.fn(async () => ({ engaged: false, count: 0 })),
+    sandboxState: vi.fn(async () => ({ engaged: false, count: 0 })),
+    sandboxApply: vi.fn(async () => undefined),
+    sandboxCancel: vi.fn(async () => undefined),
     onEvent: vi.fn(() => () => {}),
     ...over,
   } as unknown as EngineClient;

@@ -253,6 +253,10 @@ tr.op-atyp { background: rgba(225, 173, 1, .07); }
 }
 
 /* ── 4.9b: sandbox bar + hazard-stripe frame ─────────────────────────────── */
+/* The bar spans the whole split grid — a full-width slot ABOVE OPS + RUL.
+   min-width:0 keeps a full-span item from inflating the 1fr track at 390px
+   (its min-content must not widen the column — the bar wraps instead). */
+.s3c-sandboxbar-slot{ grid-column:1 / -1; min-width:0; }
 .sandbox-bar{
   display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
   margin:0 0 14px; padding:12px 18px; border-radius:var(--r-lg);
@@ -264,7 +268,7 @@ tr.op-atyp { background: rgba(225, 173, 1, .07); }
 .sb-lhs{ display:flex; align-items:center; gap:11px; flex-wrap:wrap; }
 .sb-tag{ font-size:10px; letter-spacing:.16em; color:var(--cream); font-weight:700; text-shadow:0 1px 1px rgba(0,0,0,.4); }
 .sb-count{ font-size:11px; letter-spacing:.04em; color:rgba(253,253,208,.82); }
-.sb-actions{ display:flex; align-items:center; gap:9px; }
+.sb-actions{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; min-width:0; }
 .sb-review{ background:rgba(253,253,208,.08); border:1px solid rgba(253,253,208,.45); color:var(--cream); }
 .sb-review.on{ background:var(--gold); border-color:var(--gold); color:var(--ebony); }
 .sb-review:disabled{ opacity:.4; cursor:default; }
