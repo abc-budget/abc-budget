@@ -8,8 +8,9 @@
  * import start, having loaded the persisted overrides exactly ONCE.
  *
  *   L1  in-session manual  — `row.isManuallySetCategory && row.category`
- *   L2  persisted override — `overrideMap.get(row.hash)` (a prior manual
- *                            footprint, isManual=1, snapshotted at load)
+ *   L2  persisted override — `overrideMap.get(overrideKeyForRow(row))` (a prior
+ *                            manual footprint, isManual=1, snapshotted at load;
+ *                            composite ${hash}|${year}|${month} key, 4.4.1)
  *   L3  the live rule tree — `tree.categorizeRow(row)` (first-match-wins)
  *   L4  the dump           — `dumpCategoryId` (the transient session remainder)
  *   ─   null               — nothing matched and no dump is set
@@ -50,7 +51,7 @@ import type { CategoriesService } from '../categories/categories-service';
 import type { FootprintDao } from '../footprint/footprint-dao';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
 import { effectiveCategory } from './auto-other';
-import { loadOverrideMap } from './categorize-with-overrides';
+import { loadOverrideMap, overrideKeyForRow } from './categorize-with-overrides';
 import type { DecisionTree } from './decision-tree';
 
 /**
@@ -122,9 +123,10 @@ export async function autoCategorize(
   for (const row of rows) {
     const categoryId = effectiveCategory(row, ctx, dumpCategoryId)?.id ?? null;
     // The manual SOURCE: L1 in-session pick OR L2 persisted override → 1;
-    // a rule (L3) or the dump (L4) → 0.
+    // a rule (L3) or the dump (L4) → 0. L2 keys on the composite override key
+    // (${hash}|${year}|${month}, 4.4.1), matching resolveCategory.
     const isManual: 0 | 1 =
-      row.isManuallySetCategory || overrideMap.has(row.hash) ? 1 : 0;
+      row.isManuallySetCategory || overrideMap.has(overrideKeyForRow(row)) ? 1 : 0;
     result.push({ row, categoryId, isManual });
   }
   return result;

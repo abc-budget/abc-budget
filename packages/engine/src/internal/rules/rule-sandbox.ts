@@ -65,7 +65,8 @@ export type EditAction =
  * The load-once dependencies a sandbox session reads through.
  *
  *  - `importRows`     — the stage-3 rows under preview (resolved by `rowIndex`).
- *  - `overrideMap`    — `hash → categoryId` (L2 persisted overrides).
+ *  - `overrideMap`    — `${hash}|${year}|${month} → categoryId` (L2 persisted
+ *                       overrides; the composite override key, 4.4.1).
  *  - `categoriesById` — `id → Category` (the full, «base»-resolved index).
  *  - `currentTree`    — the live decision tree at session start.
  *  - `persistence`    — the persistence seam (DI'd; never `new`'d inside).

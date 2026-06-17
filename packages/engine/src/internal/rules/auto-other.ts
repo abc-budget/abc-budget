@@ -12,7 +12,7 @@
  * so it is the LAST resort:
  *
  *   L1  in-session manual  — `row.isManuallySetCategory && row.category`
- *   L2  persisted override — `overrideMap.get(row.hash)`
+ *   L2  persisted override — `overrideMap.get(overrideKeyForRow(row))` (the (hash,year,month) triplet key)
  *   L3  the live rule tree — `tree.categorizeRow(row)` (first-match-wins)
  *   L4  the dump           — `dumpCategoryId` (this module) — rules BEAT the dump
  *   ─   null               — nothing matched and no dump is set

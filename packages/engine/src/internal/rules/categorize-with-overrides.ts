@@ -9,10 +9,16 @@
  * outcome for un-overridden rows.
  *
  *   L1  in-session manual    — `row.isManuallySetCategory && row.category`
- *   L2  persisted override   — `overrideMap.get(row.hash)` (a prior manual
- *                              footprint, loaded ONCE at import start)
+ *   L2  persisted override   — `overrideMap.get(overrideKeyForRow(row))` (a prior
+ *                              manual footprint, loaded ONCE at import start)
  *   L3  the live rule tree   — `tree.categorizeRow(row)` (first-match-wins)
  *   L4  null                 — categorizeRow's own no-match return
+ *
+ * OVERRIDE KEY (4.4.1): the override map keys on the COMPOSITE
+ * `${hash}|${year}|${month}` — matching the footprint PRIMARY KEY triplet
+ * `(hash, year, month)`, NOT the hash alone. The `(year,month)` is derived from
+ * `row.date` via the SAME `footprintYearMonth` helper `deriveFootprint` uses, so
+ * a row and its persisted footprint compute the SAME key by construction.
  *
  * LOAD-ONCE: {@link loadOverrideMap} is the ONLY async surface. It is called a
  * single time at import start to snapshot the manual footprints for the imported
@@ -30,6 +36,7 @@
 
 import type { CategoriesService } from '../categories/categories-service';
 import type { Category } from '../categories/types';
+import { footprintYearMonth } from '../footprint/derive-footprint';
 import type { FootprintDao } from '../footprint/footprint-dao';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
 import { getLogger } from '../logging';
@@ -38,9 +45,34 @@ import type { DecisionTree } from './decision-tree';
 const logger = getLogger('override');
 
 /**
+ * The override-map composite key (4.4.1) — `${hash}|${year}|${month}`.
+ *
+ * Mirrors the footprint PRIMARY KEY triplet `(hash, year, month)` so a manual
+ * footprint and a re-imported row that derive the SAME `(year,month)` land on
+ * the SAME map entry. Keying on the hash alone (the pre-4.4.1 shape) would
+ * mis-apply a manual override to a same-hash row in a DIFFERENT month.
+ */
+export function overrideKey(hash: string, year: number, month: number): string {
+  return `${hash}|${year}|${month}`;
+}
+
+/**
+ * The composite override key for a stage-3 row — `${hash}|${year}|${month}`.
+ *
+ * Derives `(year,month)` from `row.date` via the SAME {@link footprintYearMonth}
+ * helper `deriveFootprint` uses, so a row and its persisted footprint compute
+ * BYTE-IDENTICAL keys.
+ */
+export function overrideKeyForRow(row: ImportStatementStage3Row): string {
+  const { year, month } = footprintYearMonth(row.date);
+  return overrideKey(row.hash, year, month);
+}
+
+/**
  * The load-once context the synchronous resolver reads through.
  *
- *  - `overrideMap`     — `hash → categoryId` for the imported periods' MANUAL
+ *  - `overrideMap`     — `${hash}|${year}|${month} → categoryId` (the composite
+ *                        override key, 4.4.1) for the imported periods' MANUAL
  *                        footprints (snapshotted once at import start).
  *  - `categoriesById`  — `id → Category` for the full category set («base»
  *                        resolved), so a persisted override id maps to a live
@@ -59,8 +91,9 @@ export interface OverrideContext {
  * imported periods plus the full category index.
  *
  * The override map is built from the MANUAL footprints of the given
- * `(year,month)` periods (`getManualByPeriods`), keyed `hash → categoryId`; a
- * footprint whose `categoryId` is null is skipped (an override must name a
+ * `(year,month)` periods (`getManualByPeriods`), keyed
+ * `${hash}|${year}|${month} → categoryId` (the composite override key, 4.4.1);
+ * a footprint whose `categoryId` is null is skipped (an override must name a
  * category). The category index is built from
  * `categoriesService.list({ includeArchived: true })` («base» resolved at read)
  * — INCLUDING archived rows, since an override may legitimately point at a
@@ -87,7 +120,10 @@ export async function loadOverrideMap(
   for (const footprint of manual) {
     // An override must name a category — skip a manual row with a null id.
     if (footprint.categoryId !== null) {
-      overrideMap.set(footprint.hash, footprint.categoryId);
+      overrideMap.set(
+        overrideKey(footprint.hash, footprint.year, footprint.month),
+        footprint.categoryId
+      );
     }
   }
 
@@ -106,9 +142,10 @@ export async function loadOverrideMap(
  * no await; reads only the load-once {@link OverrideContext}.
  *
  *   L1  in-session manual  — `row.isManuallySetCategory && row.category`.
- *   L2  persisted override — `overrideMap.get(row.hash)` resolved through
- *       `categoriesById`. A dangling id (in the map, but absent from the index)
- *       is LOUDLY logged and FALLS THROUGH to the rules (never silently dropped).
+ *   L2  persisted override — `overrideMap.get(overrideKeyForRow(row))` resolved
+ *       through `categoriesById` (the composite `${hash}|${year}|${month}` key,
+ *       4.4.1). A dangling id (in the map, but absent from the index) is LOUDLY
+ *       logged and FALLS THROUGH to the rules (never silently dropped).
  *   L3  the live rule tree — `tree.categorizeRow(row)` (first-match-wins).
  *   L4  null               — categorizeRow's own no-match return.
  *
@@ -125,8 +162,8 @@ export function resolveCategory(
     return row.category;
   }
 
-  // L2 — a persisted manual override for this hash.
-  const id = ctx.overrideMap.get(row.hash);
+  // L2 — a persisted manual override for this row's (hash, year, month) triplet.
+  const id = ctx.overrideMap.get(overrideKeyForRow(row));
   if (id !== undefined) {
     const category = ctx.categoriesById.get(id);
     if (category) {
@@ -165,7 +202,7 @@ export function resetToRules(
   // L1 — clear the in-session manual pick.
   row.isManuallySetCategory = false;
   row.category = null;
-  // L2 — drop the persisted override from the in-memory map.
-  ctx.overrideMap.delete(row.hash);
+  // L2 — drop the persisted override (composite key, 4.4.1) from the in-memory map.
+  ctx.overrideMap.delete(overrideKeyForRow(row));
   return row;
 }
