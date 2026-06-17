@@ -1,9 +1,9 @@
 /**
  * EngineClient — the public interface for interacting with the engine.
  *
- * Contract v4: explicit session protocol; out-of-band progress/blocked/dead
+ * Contract v5: explicit session protocol; out-of-band progress/blocked/dead
  * events; base-currency surface (2.7 decision 1); categorization surface
- * (4.9a S3c — EP-4).
+ * (4.9a S3c — EP-4); rule editing + sandbox surface (4.9b — EP-4 continued).
  * NO RxJS on this surface (NFR-003 boundary holds).
  * All types are DTO imports — no internal class instances cross this boundary.
  */
@@ -20,6 +20,8 @@ import type {
   CategorizedWindowDTO,
   WhyTreeDTO,
   RuleSummaryDTO,
+  EditActionDTO,
+  SandboxStateDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -198,17 +200,19 @@ export interface EngineClient {
   /**
    * Get a windowed slice of categorized rows for the live session.
    *
-   * @param opts.offset  First row index in the (segment-filtered) result set.
-   * @param opts.count   Window size (row economy — full data flows only here).
-   * @param opts.segment 'all' = every row; 'uncat' = only uncategorized rows.
-   * @param opts.draft   Optional draft conditions to preview a not-yet-saved
-   *                     rule against the window (sandbox eval) without persisting.
+   * @param opts.offset      First row index in the (segment-filtered) result set.
+   * @param opts.count       Window size (row economy — full data flows only here).
+   * @param opts.segment     'all' = every row; 'uncat' = only uncategorized rows.
+   * @param opts.draft       Optional draft conditions to preview a not-yet-saved
+   *                         rule against the window (sandbox eval) without persisting.
+   * @param opts.changedOnly When true, return only rows whose category changed
+   *                         compared to the pre-sandbox baseline (v5 — 4.9b).
    *
    * Throws SessionUnknownError if sessionId is not found.
    */
   importCategorizedRows(
     sessionId: string,
-    opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+    opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[]; changedOnly?: boolean },
   ): Promise<CategorizedWindowDTO>;
 
   /**
@@ -246,6 +250,38 @@ export interface EngineClient {
 
   /** Create a new category. Returns the created category (with its new id). */
   categoriesCreate(input: { name: string; icon: string; currency: string }): Promise<CategoryDTO>;
+
+  // ── Rule editing + sandbox (contract v5 — Story 4.9b) ─────────────────────
+
+  /**
+   * Classify a row or initiate/continue a rule-editing sandbox action.
+   * Returns 'live' when the action was applied directly to the live rule set,
+   * or 'sandbox' when a sandbox session was opened/continued.
+   */
+  rulesClassify(sessionId: string, action: EditActionDTO): Promise<'live' | 'sandbox'>;
+
+  /**
+   * Submit a rule-edit action into the sandbox for the session.
+   * Returns the updated sandbox state (engaged flag + pending-edit count).
+   */
+  rulesSubmitEdit(sessionId: string, action: EditActionDTO): Promise<SandboxStateDTO>;
+
+  /**
+   * Apply all pending sandbox edits to the live rule set and close the sandbox.
+   */
+  sandboxApply(sessionId: string): Promise<void>;
+
+  /**
+   * Query the current sandbox state for the session (sync on the service;
+   * wrapped to Promise here so EngineClient stays uniformly async).
+   */
+  sandboxState(sessionId: string): Promise<SandboxStateDTO>;
+
+  /**
+   * Cancel and discard the sandbox, leaving the live rule set unchanged
+   * (sync on the service; wrapped to Promise here).
+   */
+  sandboxCancel(sessionId: string): Promise<void>;
 
   // ── Out-of-band events ─────────────────────────────────────────────────────
 

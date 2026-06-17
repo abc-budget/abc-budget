@@ -1,7 +1,8 @@
 /**
  * Data Transfer Objects + pure serializer functions for the EngineClient session
- * protocol (contract v4 — the EP-4 S3c categorization DTOs joined at 4.9a; v3
- * gained GenerateResultDTO.structuralErrors at 2.7).
+ * protocol (contract v5 — v5 adds EditActionDTO, SandboxStateDTO at 4.9b; v4
+ * added the EP-4 S3c categorization DTOs at 4.9a; v3 gained
+ * GenerateResultDTO.structuralErrors at 2.7).
  *
  * All types are JSON-safe by design (no Date, no class instances, no RxJS).
  * Serializers are pure functions over internal objects — no worker required.
@@ -429,4 +430,38 @@ export interface RuleSummaryDTO {
   readonly conditions: ConditionDTO[];
   readonly categoryId: string;
   readonly appliedCount: number;
+}
+
+// ── Rule editing + sandbox surface (contract v5 — Story 4.9b) ─────────────────
+//
+// Discriminated-union action sent to rulesClassify / rulesSubmitEdit.
+// Each variant carries only the fields the action needs.
+
+/**
+ * Discriminated union of rule-edit actions that cross the v5 wire.
+ *
+ * 'classify' — optimistically classify a row with a specific category;
+ *              used to route a single row before a rule exists.
+ * 'create'   — create a new rule (conditions → categoryId) inside the
+ *              sandbox, returning the sandbox state.
+ * 'update'   — replace a rule's conditions and/or categoryId inside the
+ *              sandbox.
+ * 'delete'   — remove a rule from the sandbox.
+ */
+export type EditActionDTO =
+  | { readonly kind: 'classify'; readonly categoryId: string }
+  | { readonly kind: 'create'; readonly conditions: ConditionDTO[]; readonly categoryId: string }
+  | { readonly kind: 'update'; readonly ruleId: number; readonly conditions: ConditionDTO[]; readonly categoryId: string }
+  | { readonly kind: 'delete'; readonly ruleId: number };
+
+/**
+ * Snapshot of the active sandbox state returned after each mutating edit action
+ * and also queryable via sandboxState().
+ *
+ * `engaged` — true when a sandbox session is currently open for the session.
+ * `count`   — number of pending edits queued in the sandbox.
+ */
+export interface SandboxStateDTO {
+  readonly engaged: boolean;
+  readonly count: number;
 }

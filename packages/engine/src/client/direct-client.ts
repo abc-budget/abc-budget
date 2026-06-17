@@ -1,5 +1,5 @@
 /**
- * Direct (in-thread) EngineClient — implements the full EngineClient contract v4
+ * Direct (in-thread) EngineClient — implements the full EngineClient contract v5
  * without a Worker.  This is the transport vitest and QA ride; the worker host
  * (`internal/worker/engine-worker-host.ts`) is a wire shim over THIS client, so
  * both transports run the identical session logic and the identical composed
@@ -46,6 +46,8 @@ import type {
   CategorizedWindowDTO,
   WhyTreeDTO,
   RuleSummaryDTO,
+  EditActionDTO,
+  SandboxStateDTO,
 } from './dto';
 import {
   serializeStage2Snapshot,
@@ -390,6 +392,10 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     async importAbort(sessionId: string): Promise<void> {
       // Free the session; no-op if already gone (idempotent)
       registry.free(sessionId);
+      // v5 (4.9b): drop any open sandbox for this session (fire-and-forget,
+      // guarded — categorization may be unwired until Task 2 lands).
+      const { categorization } = await composedPromise;
+      categorization?.dropSandbox(sessionId);
     },
 
     // ── Base currency (contract v3 — Story 2.7, decision 1) ──────────────────
@@ -430,7 +436,7 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
 
     async importCategorizedRows(
       sessionId: string,
-      opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+      opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[]; changedOnly?: boolean },
     ): Promise<CategorizedWindowDTO> {
       const svc = await resolveCategorization();
       return svc.importCategorizedRows(sessionId, opts);
@@ -464,6 +470,33 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     async categoriesCreate(input: { name: string; icon: string; currency: string }): Promise<CategoryDTO> {
       const svc = await resolveCategorization();
       return svc.categoriesCreate(input);
+    },
+
+    // ── Rule editing + sandbox (contract v5 — Story 4.9b) ────────────────────
+
+    async rulesClassify(sessionId: string, action: EditActionDTO): Promise<'live' | 'sandbox'> {
+      const svc = await resolveCategorization();
+      return svc.rulesClassify(sessionId, action);
+    },
+
+    async rulesSubmitEdit(sessionId: string, action: EditActionDTO): Promise<SandboxStateDTO> {
+      const svc = await resolveCategorization();
+      return svc.rulesSubmitEdit(sessionId, action);
+    },
+
+    async sandboxState(sessionId: string): Promise<SandboxStateDTO> {
+      const svc = await resolveCategorization();
+      return svc.sandboxState(sessionId);
+    },
+
+    async sandboxApply(sessionId: string): Promise<void> {
+      const svc = await resolveCategorization();
+      return svc.sandboxApply(sessionId);
+    },
+
+    async sandboxCancel(sessionId: string): Promise<void> {
+      const svc = await resolveCategorization();
+      return svc.sandboxCancel(sessionId);
     },
 
     // ── Out-of-band events ────────────────────────────────────────────────────

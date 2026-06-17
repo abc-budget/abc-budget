@@ -35,6 +35,8 @@ import type {
   WhyTreeDTO,
   WhyRuleDTO,
   RuleSummaryDTO,
+  EditActionDTO,
+  SandboxStateDTO,
 } from '../../client/dto';
 import type { CategorizationService } from './categorization-service';
 import type { CategoriesService } from '../categories/categories-service';
@@ -585,6 +587,36 @@ export class CategorizationServiceImpl implements CategorizationService {
       icon: resolved.icon,
       currency: resolved.currency,
     };
+  }
+
+  // ── v5 stubs (4.9b sandbox — implemented in sibling Task 2) ─────────────────
+  //
+  // These satisfy the CategorizationService interface shape added in Task 1.
+  // Task 2 will replace these with real implementations. Until then they throw
+  // loudly (HC-7 — a call that isn't wired must never look like an empty success).
+
+  rulesClassify(_sessionId: string, _action: EditActionDTO): Promise<'live' | 'sandbox'> {
+    throw new Error('[abc-engine] rulesClassify not implemented (lands in Task 2 — 4.9b).');
+  }
+
+  rulesSubmitEdit(_sessionId: string, _action: EditActionDTO): Promise<SandboxStateDTO> {
+    throw new Error('[abc-engine] rulesSubmitEdit not implemented (lands in Task 2 — 4.9b).');
+  }
+
+  sandboxApply(_sessionId: string): Promise<void> {
+    throw new Error('[abc-engine] sandboxApply not implemented (lands in Task 2 — 4.9b).');
+  }
+
+  sandboxState(_sessionId: string): SandboxStateDTO {
+    throw new Error('[abc-engine] sandboxState not implemented (lands in Task 2 — 4.9b).');
+  }
+
+  sandboxCancel(_sessionId: string): void {
+    throw new Error('[abc-engine] sandboxCancel not implemented (lands in Task 2 — 4.9b).');
+  }
+
+  dropSandbox(_sessionId: string): void {
+    // no-op stub — Task 2 wires the real sandbox teardown.
   }
 
   // ── internals ──────────────────────────────────────────────────────────────

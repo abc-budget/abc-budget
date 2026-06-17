@@ -47,7 +47,7 @@ export interface WorkerScopeLike {
 
 // ── Method allowlist ──────────────────────────────────────────────────────────
 
-/** The exact contract-v4 method set — anything else is rejected loudly. */
+/** The exact contract-v5 method set — anything else is rejected loudly. */
 const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'ping',
   'getVersion',
@@ -74,6 +74,12 @@ const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'rulesCreate',
   'categoriesList',
   'categoriesCreate',
+  // v5 (4.9b sandbox): rule editing + the RuleSandboxSession wire surface.
+  'rulesClassify',
+  'rulesSubmitEdit',
+  'sandboxState',
+  'sandboxApply',
+  'sandboxCancel',
 ]);
 
 // ── attachEngineHost ──────────────────────────────────────────────────────────

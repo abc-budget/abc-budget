@@ -258,9 +258,9 @@ describe('host unit (fake scope)', () => {
     attachEngineHost(scope);
     scope.onmessage!({ data: { kind: 'hello', contract: 999 } });
     expect(posted[0]).toEqual({ kind: 'helloAck', contract: CONTRACT_VERSION });
-    // DECLARED UPDATE (4.9a S3c): contract 3 → 4 (categorization wire surface — the
-    // 7 EP-4 S3c methods join EngineMethod; base-currency surface + structural channel stay)
-    expect(CONTRACT_VERSION).toBe(4);
+    // DECLARED UPDATE (4.9b sandbox): contract 4 → 5 (rule editing + sandbox surface —
+    // 5 new methods join EngineMethod; EditActionDTO + SandboxStateDTO added)
+    expect(CONTRACT_VERSION).toBe(5);
   });
 
   it('rejects an unknown method loudly (name preserved over the codec)', async () => {
@@ -307,12 +307,12 @@ describe('engine-db blocked hook', () => {
 // ===========================================================================
 
 describe('real hop: handshake + baseline', () => {
-  it('ping and getVersion survive the real worker hop (contract 4 acked)', async () => {
+  it('ping and getVersion survive the real worker hop (contract 5 acked)', async () => {
     const client = makeClient();
     expect(await client.ping('over-the-hop')).toBe('over-the-hop');
     const version = await client.getVersion();
-    // DECLARED UPDATE (4.9a S3c): contract 3 → 4
-    expect(version.contract).toBe(4);
+    // DECLARED UPDATE (4.9b sandbox): contract 4 → 5
+    expect(version.contract).toBe(5);
     expect(typeof version.engine).toBe('string');
   });
 });
