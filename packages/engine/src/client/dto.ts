@@ -440,18 +440,23 @@ export interface RuleSummaryDTO {
 /**
  * Discriminated union of rule-edit actions that cross the v5 wire.
  *
- * 'classify' — optimistically classify a row with a specific category;
- *              used to route a single row before a rule exists.
- * 'create'   — create a new rule (conditions → categoryId) inside the
- *              sandbox, returning the sandbox state.
- * 'update'   — replace a rule's conditions and/or categoryId inside the
- *              sandbox.
- * 'delete'   — remove a rule from the sandbox.
+ * Mirrors the internal engine `EditAction` in `internal/rules/rule-sandbox.ts`
+ * (PM ruling 6) but uses only JSON-safe, serializable fields:
+ *   - `category: Category`  → `categoryId: string`
+ *   - `Rule[]`              → `ConditionDTO[]`
+ *   - `ComplexRule`         → `{ conditions, categoryId }`
+ *
+ * 'categoryOnly'   — change only a rule's target category.
+ * 'appendEnd'      — add a brand-new rule (conditions + categoryId) at the end.
+ * 'editConditions' — replace a rule's conditions (before → after).
+ * 'reorder'        — supply the complexRule ids in their new eval order.
+ * 'delete'         — remove the rule with `ruleId`.
  */
 export type EditActionDTO =
-  | { readonly kind: 'classify'; readonly categoryId: string }
-  | { readonly kind: 'create'; readonly conditions: ConditionDTO[]; readonly categoryId: string }
-  | { readonly kind: 'update'; readonly ruleId: number; readonly conditions: ConditionDTO[]; readonly categoryId: string }
+  | { readonly kind: 'categoryOnly'; readonly ruleId: number; readonly categoryId: string }
+  | { readonly kind: 'appendEnd'; readonly conditions: ConditionDTO[]; readonly categoryId: string }
+  | { readonly kind: 'editConditions'; readonly ruleId: number; readonly before: ConditionDTO[]; readonly after: ConditionDTO[] }
+  | { readonly kind: 'reorder'; readonly order: number[] }
   | { readonly kind: 'delete'; readonly ruleId: number };
 
 /**

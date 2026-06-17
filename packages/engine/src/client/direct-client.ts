@@ -222,7 +222,7 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
   }
 
   /**
-   * Resolve the composed CategorizationService (contract v4 — 4.9a S3c).
+   * Resolve the composed CategorizationService (contract v5 — 4.9b sandbox).
    * Task 1 (contract) leaves it null; sibling Task 2 wires the real impl in the
    * composition root. Until then this throws LOUD (HC-7) — a categorization call
    * before Task 2 must never look like an empty success.
@@ -231,7 +231,7 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     const { categorization } = await composedPromise;
     if (categorization === null) {
       throw new Error(
-        '[abc-engine] Categorization surface is not wired (contract v4 — 4.9a S3c). ' +
+        '[abc-engine] Categorization surface is not wired (contract v5 — 4.9b sandbox). ' +
           'The CategorizationService impl lands in sibling Task 2.',
       );
     }
@@ -392,10 +392,10 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     async importAbort(sessionId: string): Promise<void> {
       // Free the session; no-op if already gone (idempotent)
       registry.free(sessionId);
-      // v5 (4.9b): drop any open sandbox for this session (fire-and-forget,
-      // guarded — categorization may be unwired until Task 2 lands).
-      const { categorization } = await composedPromise;
-      categorization?.dropSandbox(sessionId);
+      // v5 (4.9b): drop any open sandbox for this session — fire-and-forget so
+      // importAbort resolves immediately (does NOT await composedPromise before
+      // returning; guarded — categorization may be unwired until Task 2 lands).
+      void composedPromise.then(({ categorization }) => { categorization?.dropSandbox(sessionId); });
     },
 
     // ── Base currency (contract v3 — Story 2.7, decision 1) ──────────────────
@@ -427,7 +427,7 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       await setBaseCurrency(settingsDao, iso);
     },
 
-    // ── Categorization (contract v4 — Story 4.9a S3c, EP-4) ──────────────────
+    // ── Categorization (contract v5 — Story 4.9b sandbox; v4 added S3c, EP-4) ─
     // Task 1 (contract) delegates each method 1:1 to the composed
     // CategorizationService (the Task 1 ↔ Task 2 seam). Task 1 ships NO
     // categorization LOGIC — composeEngine resolves categorization: null until
