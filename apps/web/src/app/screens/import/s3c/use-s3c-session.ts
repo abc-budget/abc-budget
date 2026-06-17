@@ -4,8 +4,10 @@ import type {
   CategoryDTO,
   ConditionDTO,
   ConditionFieldDTO,
+  EditActionDTO,
   EngineClient,
   RuleSummaryDTO,
+  SandboxStateDTO,
   WhyTreeDTO,
 } from '@abc-budget/engine';
 import { defaultValueFor } from './ConditionRow';
@@ -68,6 +70,16 @@ export interface S3cSession {
   // ── Create-category modal ──────────────────────────────────────────────────
   createCat: CreateCatState | null;
 
+  // ── Sandbox / rule-editing (4.9b) ──────────────────────────────────────────
+  /** The active sandbox snapshot (engaged + pending count), or null when live. */
+  sandbox: SandboxStateDTO | null;
+  /** When true, the OPS window shows only the rows whose category changed. */
+  changedOnly: boolean;
+  /** The ruleId currently being edited (the draft mirrors an existing rule), or null. */
+  editingId: number | null;
+  /** The save-lane verdict for the in-flight edit — drives the RulePanel button label. */
+  saveLane: 'live' | 'sandbox';
+
   // ── Methods ────────────────────────────────────────────────────────────────
   setDraft: (next: ConditionDTO[]) => void;
   addCondition: (field: string, operator: string) => void;
@@ -81,6 +93,16 @@ export interface S3cSession {
   setSegment: (segment: OpsSegment) => void;
   setPage: (page: number) => void;
   setRuleTab: (tab: RuleTab) => void;
+
+  // ── Sandbox / rule-editing methods (4.9b) ──────────────────────────────────
+  openEdit: (rule: RuleSummaryDTO) => void;
+  cancelEdit: () => void;
+  submitEdit: () => Promise<void>;
+  reorderRules: (order: number[]) => Promise<void>;
+  deleteRule: (ruleId: number) => Promise<void>;
+  applySandbox: () => Promise<void>;
+  cancelSandbox: () => Promise<void>;
+  toggleChangedOnly: () => void;
 }
 
 const EMPTY_WINDOW: CategorizedWindowDTO = { rows: [], total: 0, matchCount: 0 };
@@ -106,23 +128,38 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
 
   const [createCat, setCreateCat] = useState<CreateCatState | null>(null);
 
+  // ── Sandbox / rule-editing (4.9b) ──────────────────────────────────────────
+  const [sandbox, setSandbox] = useState<SandboxStateDTO | null>(null);
+  const [changedOnly, setChangedOnly] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editBefore, setEditBefore] = useState<ConditionDTO[]>([]);
+  const [editBeforeCategoryId, setEditBeforeCategoryId] = useState<string | null>(null);
+  const [saveLane, setSaveLane] = useState<'live' | 'sandbox'>('live');
+
   /**
    * Reload the OPS window for the given segment + (optional) draft.  The single
    * window load — every mutation (saveRule / addCondition / segment / page)
    * funnels through here so the OPS always reflects the engine's truth.
    */
   const reloadWindow = useCallback(
-    async (seg: OpsSegment, draftConds: ConditionDTO[]) => {
-      const opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] } = {
+    async (seg: OpsSegment, draftConds: ConditionDTO[], chOnly = changedOnly) => {
+      const opts: {
+        offset: number;
+        count: number;
+        segment: 'all' | 'uncat';
+        draft?: ConditionDTO[];
+        changedOnly?: boolean;
+      } = {
         offset: 0,
         count: WINDOW_COUNT,
         segment: seg,
       };
       if (draftConds.length > 0) opts.draft = draftConds;
+      if (chOnly) opts.changedOnly = true;
       const win = await client.importCategorizedRows(sessionId, opts);
       setWindowDto(win);
     },
-    [client, sessionId],
+    [client, sessionId, changedOnly],
   );
 
   const reloadRules = useCallback(async () => {
@@ -159,11 +196,13 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     }
     let live = true;
     void (async () => {
-      const [f, cats, rs, win] = await Promise.all([
+      const [f, cats, rs, win, sb] = await Promise.all([
         client.importConditionFields(sessionId),
         client.categoriesList(),
         client.importRulesList(sessionId),
         client.importCategorizedRows(sessionId, { offset: 0, count: WINDOW_COUNT, segment: 'all' }),
+        // Resume an engaged sandbox left by a navigate-away (4.9b navigate-away-resume).
+        client.sandboxState(sessionId),
       ]);
       if (!live) return;
       setFields(f);
@@ -180,6 +219,13 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
       setWhy(null);
       setWhyRowIndex(null);
       setCreateCat(null);
+      // Reset the sandbox / rule-editing state, then resume an engaged sandbox.
+      setChangedOnly(false);
+      setEditingId(null);
+      setEditBefore([]);
+      setEditBeforeCategoryId(null);
+      setSaveLane('live');
+      setSandbox(sb.engaged ? sb : null);
     })();
     return () => {
       live = false;
@@ -285,6 +331,141 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     [reloadWindow, draft],
   );
 
+  // ── Sandbox / rule-editing (4.9b) ──────────────────────────────────────────
+
+  /** Enter edit mode for an existing rule: mirror its conditions + category into the draft. */
+  const openEdit = useCallback(
+    (rule: RuleSummaryDTO) => {
+      setEditingId(rule.ruleId);
+      setEditBefore(rule.conditions);
+      setEditBeforeCategoryId(rule.categoryId);
+      setDraftState(rule.conditions);
+      setDraftCategoryId(rule.categoryId);
+      setRight('build');
+      setRuleTab('build');
+      void reloadWindow(segment, rule.conditions);
+    },
+    [reloadWindow, segment],
+  );
+
+  /** Leave edit mode without submitting: clear the draft + drop the edit anchors. */
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditBefore([]);
+    setEditBeforeCategoryId(null);
+    setDraftState([]);
+    setDraftCategoryId(null);
+    setSaveLane('live');
+    void reloadWindow(segment, []);
+  }, [reloadWindow, segment]);
+
+  /**
+   * Keep `saveLane` fresh while editing — drives the RulePanel button LABEL only.
+   * The classify is authoritative for the LABEL; the SUBMIT decision uses a
+   * structural compare (below) so a one-tick lag here is cosmetic, never a race.
+   */
+  useEffect(() => {
+    if (editingId == null) {
+      setSaveLane('live');
+      return;
+    }
+    let alive = true;
+    const action: EditActionDTO = { kind: 'editConditions', ruleId: editingId, before: editBefore, after: draft };
+    void client.rulesClassify(sessionId, action).then((lane) => {
+      if (alive) setSaveLane(lane);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [client, sessionId, editingId, editBefore, draft]);
+
+  /**
+   * Submit the in-flight rule edit.  AUTHORITATIVE + race-free: the conditions
+   * change is decided by a STRUCTURAL compare of draft vs editBefore (NOT the
+   * async saveLane state).  A canonical no-op editConditions is harmless (the
+   * worker reorders/persists nothing + returns engaged:false).
+   */
+  const submitEdit = useCallback(async () => {
+    if (editingId == null || draftCategoryId == null) return;
+    const condsChanged = JSON.stringify(draft) !== JSON.stringify(editBefore);
+    if (condsChanged) {
+      const st = await client.rulesSubmitEdit(sessionId, {
+        kind: 'editConditions',
+        ruleId: editingId,
+        before: editBefore,
+        after: draft,
+      });
+      setSandbox(st.engaged ? st : null);
+    }
+    if (draftCategoryId !== editBeforeCategoryId) {
+      const st = await client.rulesSubmitEdit(sessionId, {
+        kind: 'categoryOnly',
+        ruleId: editingId,
+        categoryId: draftCategoryId,
+      });
+      setSandbox(st.engaged ? st : null);
+    }
+    cancelEdit();
+    await Promise.all([reloadWindow(segment, []), reloadRules()]);
+  }, [
+    client,
+    sessionId,
+    editingId,
+    editBefore,
+    editBeforeCategoryId,
+    draft,
+    draftCategoryId,
+    segment,
+    reloadWindow,
+    reloadRules,
+    cancelEdit,
+  ]);
+
+  /** Reorder the rules' eval order → engage the sandbox + reload the window. */
+  const reorderRules = useCallback(
+    async (order: number[]) => {
+      const st = await client.rulesSubmitEdit(sessionId, { kind: 'reorder', order });
+      setSandbox(st.engaged ? st : null);
+      await Promise.all([reloadWindow(segment, draft), reloadRules()]);
+    },
+    [client, sessionId, segment, draft, reloadWindow, reloadRules],
+  );
+
+  /** Delete a rule → engage the sandbox + reload the window. */
+  const deleteRule = useCallback(
+    async (ruleId: number) => {
+      const st = await client.rulesSubmitEdit(sessionId, { kind: 'delete', ruleId });
+      setSandbox(st.engaged ? st : null);
+      await Promise.all([reloadWindow(segment, draft), reloadRules()]);
+    },
+    [client, sessionId, segment, draft, reloadWindow, reloadRules],
+  );
+
+  /** Commit the sandbox into live truth → tear down the banner + reload live. */
+  const applySandbox = useCallback(async () => {
+    await client.sandboxApply(sessionId);
+    setSandbox(null);
+    setChangedOnly(false);
+    await Promise.all([reloadWindow(segment, [], false), reloadRules()]);
+  }, [client, sessionId, segment, reloadWindow, reloadRules]);
+
+  /** Discard the sandbox → tear down the banner + reload live. */
+  const cancelSandbox = useCallback(async () => {
+    await client.sandboxCancel(sessionId);
+    setSandbox(null);
+    setChangedOnly(false);
+    await Promise.all([reloadWindow(segment, [], false), reloadRules()]);
+  }, [client, sessionId, segment, reloadWindow, reloadRules]);
+
+  /** Toggle the changed-only filter → reload the window with the next value. */
+  const toggleChangedOnly = useCallback(() => {
+    setChangedOnly((prev) => {
+      const next = !prev;
+      void reloadWindow(segment, [], next);
+      return next;
+    });
+  }, [reloadWindow, segment]);
+
   return {
     window: windowDto,
     segment,
@@ -300,6 +481,10 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     why,
     ruleTab,
     createCat,
+    sandbox,
+    changedOnly,
+    editingId,
+    saveLane,
     setDraft,
     addCondition,
     pickCategory,
@@ -312,5 +497,13 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     setSegment,
     setPage,
     setRuleTab,
+    openEdit,
+    cancelEdit,
+    submitEdit,
+    reorderRules,
+    deleteRule,
+    applySandbox,
+    cancelSandbox,
+    toggleChangedOnly,
   };
 }
