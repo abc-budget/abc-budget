@@ -26,6 +26,8 @@ import type {
 } from '../internal/importStatement/stage3/types';
 import type { CollisionDescriptor } from '../internal/importStatement/recall/recall';
 import type { RuleOperation } from '../internal/rules/operations';
+import type { TypicalityField as TypicalityFieldInternal } from '../internal/rules/typicality/profile';
+import type { TypicalityReason as TypicalityReasonInternal } from '../internal/rules/typicality';
 
 // ── Serialized message shape ──────────────────────────────────────────────────
 
@@ -404,6 +406,8 @@ export interface CategorizedWindowDTO {
   readonly rows: CategorizedRowDTO[];
   readonly total: number;
   readonly matchCount: number;
+  /** v6 (4.9c): count of uncategorized rows in the full session result set. */
+  readonly remainderCount: number;
 }
 
 /**
@@ -479,4 +483,69 @@ export type EditActionDTO =
 export interface SandboxStateDTO {
   readonly engaged: boolean;
   readonly count: number;
+}
+
+// ── Auto-Other remainder + typicality surface (contract v6 — Story 4.9c) ───────
+//
+// New DTOs for the Auto-Other remainder magnitude + typicality self-check.
+// All types are JSON-safe by design — no Date, no class instances, no RxJS.
+
+/**
+ * Re-export of the internal TypicalityField union so the UI keys its
+ * condition-field map off the SINGLE wire source without importing internals.
+ * TYPE-ONLY — adds no runtime symbol; boundary.spec still asserts exactly 3.
+ */
+export type TypicalityField = TypicalityFieldInternal;
+
+/**
+ * The kind discriminant of a TypicalityReason: mirrors the internal union's
+ * `kind` so the UI can key a label map off the wire contract.
+ * TYPE-ONLY — adds no runtime symbol; boundary.spec still asserts exactly 3.
+ */
+export type TypicalityReasonKind = TypicalityReasonInternal['kind'];
+
+/**
+ * The magnitude of uncategorized remainder rows: how many uncategorized rows
+ * remain and the total row count they are drawn from (for the UI's
+ * "N of M rows uncategorized" display).
+ */
+export interface RemainderMagnitudeDTO {
+  readonly uncategorizedCount: number;
+  readonly totalCount: number;
+}
+
+/**
+ * A single attributed cause behind a row's typicality flag: the field, the
+ * kind of divergence, and the kind-specific payload.
+ *
+ *   - 'categorical-minority' → `value` (mcc as the number, others as the string).
+ *   - 'amount-outlier'       → `magnitude` (≈ ×N the typical).
+ *   - 'rare-tokens'          → `tokens` (the row's rarest non-filter tokens).
+ */
+export interface TypicalityReasonDTO {
+  readonly field: TypicalityField;
+  readonly kind: TypicalityReasonKind;
+  readonly value?: string | number;
+  readonly magnitude?: number;
+  readonly tokens?: string[];
+}
+
+/**
+ * One row that crossed the absolute atypicality tail, with its score and
+ * attributed reasons.
+ */
+export interface TypicalityFlagDTO {
+  readonly rowIndex: number;
+  readonly atypicality: number;
+  readonly reasons: TypicalityReasonDTO[];
+}
+
+/**
+ * The typicality self-check result for a session: per-bucket verdicts.
+ * `skippedBuckets` — the count of buckets below N_MIN (too small to rank).
+ * `flags`          — the flagged rows across all ranked buckets, atypicality DESC.
+ */
+export interface TypicalityResultDTO {
+  readonly skippedBuckets: number;
+  readonly flags: TypicalityFlagDTO[];
 }

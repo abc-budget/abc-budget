@@ -69,6 +69,15 @@ export type {
   // ── Rule editing + sandbox DTOs (contract v5 — Story 4.9b) ─────────────────
   EditActionDTO,
   SandboxStateDTO,
+  // ── Auto-Other remainder + typicality DTOs (contract v6 — Story 4.9c) ───────
+  // TYPE-ONLY: the UI imports these to render the remainder + typicality surface.
+  // They add NO runtime symbol — boundary.spec.ts still asserts exactly 3 keys.
+  RemainderMagnitudeDTO,
+  TypicalityReasonDTO,
+  TypicalityFlagDTO,
+  TypicalityResultDTO,
+  TypicalityField,
+  TypicalityReasonKind,
 } from './client/dto';
 
 // ── Decode result types (2.1 surface — now via EngineClient.decode) ──────────

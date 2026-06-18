@@ -448,7 +448,13 @@ export class CategorizationServiceImpl implements CategorizationService {
       ),
     );
 
-    return { rows: dtoRows, total, matchCount };
+    // v6 (4.9c): count uncategorized rows across the FULL row set (not just the window).
+    const remainderCount = rows.filter((_, i) => {
+      const diff = diffByRow?.get(rows[i].rowIndex);
+      return diff ? diff.newCategoryId === null : categorized[i].categoryId === null;
+    }).length;
+
+    return { rows: dtoRows, total, matchCount, remainderCount };
   }
 
   // ── importConditionFields ──────────────────────────────────────────────────
@@ -717,6 +723,28 @@ export class CategorizationServiceImpl implements CategorizationService {
   /** Drops any open sandbox for a session (importAbort teardown) — sync, idempotent. */
   dropSandbox(sessionId: string): void {
     this.sandboxes.delete(sessionId);
+  }
+
+  // ── v6 stubs (4.9c — implemented in Task 2) ─────────────────────────────────
+
+  /** @throws Loudly — lands in Task 2. */
+  async importRemainderMagnitude(_sessionId: string): Promise<import('../../client/dto').RemainderMagnitudeDTO> {
+    throw new Error('[abc-engine] importRemainderMagnitude not implemented — lands in Task 2 (4.9c).');
+  }
+
+  /** @throws Loudly — lands in Task 2. */
+  async importAssignRemainder(_sessionId: string, _categoryId: string | null): Promise<void> {
+    throw new Error('[abc-engine] importAssignRemainder not implemented — lands in Task 2 (4.9c).');
+  }
+
+  /** @throws Loudly — lands in Task 2. */
+  async importTypicality(_sessionId: string, _opts?: { filteredFields?: string[] }): Promise<import('../../client/dto').TypicalityResultDTO> {
+    throw new Error('[abc-engine] importTypicality not implemented — lands in Task 2 (4.9c).');
+  }
+
+  /** Drop any session dump (importAbort teardown) — sync no-op until Task 2. */
+  dropDump(_sessionId: string): void {
+    // no-op — dump storage lands in Task 2.
   }
 
   // ── sandbox helpers ──────────────────────────────────────────────────────────

@@ -48,6 +48,8 @@ import type {
   RuleSummaryDTO,
   EditActionDTO,
   SandboxStateDTO,
+  RemainderMagnitudeDTO,
+  TypicalityResultDTO,
 } from './dto';
 import {
   serializeStage2Snapshot,
@@ -395,7 +397,11 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       // v5 (4.9b): drop any open sandbox for this session — fire-and-forget so
       // importAbort resolves immediately (does NOT await composedPromise before
       // returning; guarded — categorization may be unwired until Task 2 lands).
-      void composedPromise.then(({ categorization }) => { categorization?.dropSandbox(sessionId); });
+      // v6 (4.9c): also drop any session dump (fire-and-forget, same pattern).
+      void composedPromise.then(({ categorization }) => {
+        categorization?.dropSandbox(sessionId);
+        categorization?.dropDump(sessionId);
+      });
     },
 
     // ── Base currency (contract v3 — Story 2.7, decision 1) ──────────────────
@@ -497,6 +503,23 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     async sandboxCancel(sessionId: string): Promise<void> {
       const svc = await resolveCategorization();
       return svc.sandboxCancel(sessionId);
+    },
+
+    // ── Auto-Other remainder + typicality (contract v6 — Story 4.9c) ─────────
+
+    async importRemainderMagnitude(sessionId: string): Promise<RemainderMagnitudeDTO> {
+      const svc = await resolveCategorization();
+      return svc.importRemainderMagnitude(sessionId);
+    },
+
+    async importAssignRemainder(sessionId: string, categoryId: string | null): Promise<void> {
+      const svc = await resolveCategorization();
+      return svc.importAssignRemainder(sessionId, categoryId);
+    },
+
+    async importTypicality(sessionId: string, opts?: { filteredFields?: string[] }): Promise<TypicalityResultDTO> {
+      const svc = await resolveCategorization();
+      return svc.importTypicality(sessionId, opts);
     },
 
     // ── Out-of-band events ────────────────────────────────────────────────────

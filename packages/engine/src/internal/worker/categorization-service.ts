@@ -32,6 +32,8 @@ import type {
   RuleSummaryDTO,
   EditActionDTO,
   SandboxStateDTO,
+  RemainderMagnitudeDTO,
+  TypicalityResultDTO,
 } from '../../client/dto';
 
 /**
@@ -65,4 +67,13 @@ export interface CategorizationService {
   sandboxState(sessionId: string): SandboxStateDTO;   // sync — wrapped to Promise by the async direct client
   sandboxCancel(sessionId: string): void;             // sync — wrapped likewise
   dropSandbox(sessionId: string): void;               // sync, internal (importAbort fire-and-forget)
+
+  // v6 (4.9c): Auto-Other remainder + typicality self-check.
+
+  importRemainderMagnitude(sessionId: string): Promise<RemainderMagnitudeDTO>;
+  importAssignRemainder(sessionId: string, categoryId: string | null): Promise<void>;
+  importTypicality(sessionId: string, opts?: { filteredFields?: string[] }): Promise<TypicalityResultDTO>;
+
+  /** Drop the session's dump (fire-and-forget from importAbort). */
+  dropDump(sessionId: string): void;
 }

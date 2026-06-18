@@ -12,8 +12,8 @@ describe('EngineClient contract (direct transport)', () => {
     const client = createDirectEngineClient();
     const version = await client.getVersion();
     expect(typeof version.engine).toBe('string');
-    // DECLARED UPDATE (4.9b sandbox): contract 4 → 5 (rule editing + sandbox surface)
-    expect(version.contract).toBe(5);
+    // DECLARED UPDATE (4.9c): contract 5 → 6 (Auto-Other remainder + typicality wire)
+    expect(version.contract).toBe(6);
   });
 });
 

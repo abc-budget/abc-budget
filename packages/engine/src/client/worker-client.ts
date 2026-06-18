@@ -518,6 +518,16 @@ export function createWorkerEngineClient(
     sandboxCancel: (sessionId: string) =>
       call('sandboxCancel', [sessionId]) as Promise<void>,
 
+    // v6 (4.9c): Auto-Other remainder + typicality.
+    importRemainderMagnitude: (sessionId: string) =>
+      call('importRemainderMagnitude', [sessionId]) as Promise<import('./dto').RemainderMagnitudeDTO>,
+
+    importAssignRemainder: (sessionId: string, categoryId: string | null) =>
+      call('importAssignRemainder', [sessionId, categoryId]) as Promise<void>,
+
+    importTypicality: (sessionId: string, opts?: { filteredFields?: string[] }) =>
+      call('importTypicality', [sessionId, opts]) as Promise<import('./dto').TypicalityResultDTO>,
+
     onEvent(cb: (event: EngineEventPayload) => void): () => void {
       listeners.add(cb);
       return () => { listeners.delete(cb); };
