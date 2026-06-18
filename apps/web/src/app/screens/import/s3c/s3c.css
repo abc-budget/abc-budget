@@ -293,3 +293,27 @@ tr.op-atyp { background: rgba(225, 173, 1, .07); }
 .rule-del-btn{ appearance:none; cursor:pointer; border:1px solid rgba(204,85,0,.28); background:transparent;
   color:var(--orange-deep); width:22px; height:22px; border-radius:var(--r-xs); font-size:10px; }
 .key.orange{ background:linear-gradient(180deg, var(--orange), #A8470B); color:var(--cream); border-color:rgba(0,0,0,.42); }
+
+/* ── 4.9c: self-check banner + gate bar ─────────────────────────────────── */
+.scheck{ display:flex; align-items:flex-start; gap:13px; padding:13px 16px 14px;
+  background:linear-gradient(180deg,rgba(225,173,1,.10),rgba(225,173,1,.04));
+  border-bottom:1px dashed rgba(5,12,22,.18); border-left:3px solid var(--gold); }
+.scheck-ring{ flex:none; margin-top:1px; }
+.scheck-main{ flex:1; min-width:0; }
+.scheck-eye{ font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold-deep); }
+.scheck-body{ font-size:12.5px; line-height:1.5; color:var(--ebony); margin:4px 0 9px; max-width:560px; }
+.scheck-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.scheck-micro{ font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--gray-warm); }
+.sortkey{ appearance:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-size:9.5px;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--ebony); background:linear-gradient(180deg,#F0ECD0,#C9C3A4);
+  border:0; border-radius:var(--r-sm); padding:7px 11px; box-shadow:0 3px 0 #8A8674,0 4px 8px rgba(0,0,0,.18); min-height:30px; }
+.sortkey.on{ background:rgba(225,173,1,.30); box-shadow:inset 0 2px 4px rgba(0,0,0,.3); color:var(--gold-deep); }
+.scheck-x{ flex:none; appearance:none; border:1px solid rgba(5,12,22,.2); background:transparent; color:var(--gray-warm);
+  width:24px; height:24px; border-radius:var(--r-xs); cursor:pointer; font-size:11px; }
+.gate{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:10px 16px; border-radius:var(--r-md);
+  font-size:11px; letter-spacing:.04em; }
+.gate.open{ background:rgba(86,130,3,.10); color:var(--ebony); }
+.gate.blocked{ background:rgba(204,85,0,.08); color:var(--orange-deep); }
+.gate-tag{ font-weight:700; letter-spacing:.1em; }
+.gate-msg{ color:var(--gray-warm); }
+.gate-auto{ margin-left:auto; }
