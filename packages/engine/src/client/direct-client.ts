@@ -517,7 +517,7 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       return svc.importAssignRemainder(sessionId, categoryId);
     },
 
-    async importTypicality(sessionId: string, opts?: { filteredFields?: string[] }): Promise<TypicalityResultDTO> {
+    async importTypicality(sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }): Promise<TypicalityResultDTO> {
       const svc = await resolveCategorization();
       return svc.importTypicality(sessionId, opts);
     },

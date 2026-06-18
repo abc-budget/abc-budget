@@ -738,7 +738,7 @@ export class CategorizationServiceImpl implements CategorizationService {
   }
 
   /** @throws Loudly — lands in Task 2. */
-  async importTypicality(_sessionId: string, _opts?: { filteredFields?: string[] }): Promise<import('../../client/dto').TypicalityResultDTO> {
+  async importTypicality(_sessionId: string, _opts?: { virtual?: boolean; draft?: import('../../client/dto').ConditionDTO[] }): Promise<import('../../client/dto').TypicalityResultDTO> {
     throw new Error('[abc-engine] importTypicality not implemented — lands in Task 2 (4.9c).');
   }
 

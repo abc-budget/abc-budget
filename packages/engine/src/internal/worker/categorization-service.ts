@@ -72,7 +72,7 @@ export interface CategorizationService {
 
   importRemainderMagnitude(sessionId: string): Promise<RemainderMagnitudeDTO>;
   importAssignRemainder(sessionId: string, categoryId: string | null): Promise<void>;
-  importTypicality(sessionId: string, opts?: { filteredFields?: string[] }): Promise<TypicalityResultDTO>;
+  importTypicality(sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }): Promise<TypicalityResultDTO>;
 
   /** Drop the session's dump (fire-and-forget from importAbort). */
   dropDump(sessionId: string): void;

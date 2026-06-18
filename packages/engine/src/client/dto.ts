@@ -505,13 +505,18 @@ export type TypicalityField = TypicalityFieldInternal;
 export type TypicalityReasonKind = TypicalityReasonInternal['kind'];
 
 /**
- * The magnitude of uncategorized remainder rows: how many uncategorized rows
- * remain and the total row count they are drawn from (for the UI's
- * "N of M rows uncategorized" display).
+ * The magnitude of uncategorized remainder rows: how many uncategorized ops
+ * remain, the total op count, the base-currency subtotal, per-currency pending
+ * amounts, an approximate-flag, and the last Auto-Other category (if any).
  */
 export interface RemainderMagnitudeDTO {
-  readonly uncategorizedCount: number;
-  readonly totalCount: number;
+  readonly opCount: number;
+  readonly totalOpCount: number;
+  readonly baseCurrency: string;
+  readonly baseTotal: number;
+  readonly pending: { readonly currency: string; readonly amount: number }[];
+  readonly approx: boolean;
+  readonly lastRemainderCategoryId: string | null;
 }
 
 /**
@@ -541,11 +546,9 @@ export interface TypicalityFlagDTO {
 }
 
 /**
- * The typicality self-check result for a session: per-bucket verdicts.
- * `skippedBuckets` — the count of buckets below N_MIN (too small to rank).
- * `flags`          — the flagged rows across all ranked buckets, atypicality DESC.
+ * The typicality self-check result for a session: flagged rows across all
+ * ranked buckets, ordered by atypicality DESC.
  */
 export interface TypicalityResultDTO {
-  readonly skippedBuckets: number;
   readonly flags: TypicalityFlagDTO[];
 }

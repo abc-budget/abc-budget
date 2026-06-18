@@ -307,12 +307,13 @@ export interface EngineClient {
    * Run the ENT-021 typicality self-check over the session's rows and return
    * the flagged rows with their attributed reasons.
    *
-   * @param opts.filteredFields Optional set of TypicalityField names to exclude
-   *   from scoring (mirrors the rule's constrained fields).
+   * @param opts.virtual When true, score against the virtual (sandbox) tree.
+   * @param opts.draft   Optional draft conditions to preview typicality under a
+   *   not-yet-saved rule (sandbox eval) without persisting.
    *
    * Throws SessionUnknownError if sessionId is not found.
    */
-  importTypicality(sessionId: string, opts?: { filteredFields?: string[] }): Promise<TypicalityResultDTO>;
+  importTypicality(sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }): Promise<TypicalityResultDTO>;
 
   // ── Out-of-band events ─────────────────────────────────────────────────────
 
