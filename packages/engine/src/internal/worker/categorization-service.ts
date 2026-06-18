@@ -16,6 +16,11 @@
  * The method shapes MIRROR the EngineClient categorization methods exactly (the
  * direct-client forwards 1:1) and return the SERIALIZABLE DTOs from client/dto.ts
  * — nothing class-shaped crosses back to the client.
+ *
+ * v5 (4.9b): rulesClassify, rulesSubmitEdit, sandboxState, sandboxApply,
+ * sandboxCancel, and dropSandbox added. The sync methods (sandboxState,
+ * sandboxCancel, dropSandbox) are wrapped to Promises by the async direct
+ * client so EngineClient stays uniformly Promise-returning.
  */
 
 import type {
@@ -25,6 +30,8 @@ import type {
   CategorizedWindowDTO,
   WhyTreeDTO,
   RuleSummaryDTO,
+  EditActionDTO,
+  SandboxStateDTO,
 } from '../../client/dto';
 
 /**
@@ -35,7 +42,7 @@ import type {
 export interface CategorizationService {
   importCategorizedRows(
     sessionId: string,
-    opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+    opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[]; changedOnly?: boolean },
   ): Promise<CategorizedWindowDTO>;
 
   importConditionFields(sessionId: string): Promise<ConditionFieldDTO[]>;
@@ -49,4 +56,13 @@ export interface CategorizationService {
   categoriesList(): Promise<CategoryDTO[]>;
 
   categoriesCreate(input: { name: string; icon: string; currency: string }): Promise<CategoryDTO>;
+
+  // v5 (4.9b sandbox): rule editing + sandbox surface.
+
+  rulesClassify(sessionId: string, action: EditActionDTO): Promise<'live' | 'sandbox'>;
+  rulesSubmitEdit(sessionId: string, action: EditActionDTO): Promise<SandboxStateDTO>;
+  sandboxApply(sessionId: string): Promise<void>;
+  sandboxState(sessionId: string): SandboxStateDTO;   // sync — wrapped to Promise by the async direct client
+  sandboxCancel(sessionId: string): void;             // sync — wrapped likewise
+  dropSandbox(sessionId: string): void;               // sync, internal (importAbort fire-and-forget)
 }

@@ -28,10 +28,14 @@
  *        ConditionFieldDTO, CategorizedRowDTO, CategorizedWindowDTO, WhyRuleDTO,
  *        WhyTreeDTO, RuleSummaryDTO) ride the same bump — additions bump the
  *        integer (no compat path — exact-match handshake by design).
+ *   v5 — Story 4.9b (rule editing + sandbox): EngineMethod +=
+ *        rulesClassify | rulesSubmitEdit | sandboxState | sandboxApply |
+ *        sandboxCancel. New DTOs: EditActionDTO, SandboxStateDTO.
+ *        importCategorizedRows opts gains changedOnly?.
  */
 
 /** The current contract version. Increment per the bump rule above. */
-export const CONTRACT_VERSION = 4;
+export const CONTRACT_VERSION = 5;
 
 // ── Handshake ─────────────────────────────────────────────────────────────────
 
@@ -83,7 +87,13 @@ export type EngineMethod =
   | 'importRulesList'
   | 'rulesCreate'
   | 'categoriesList'
-  | 'categoriesCreate';
+  | 'categoriesCreate'
+  // v5 (4.9b sandbox): rule editing + the RuleSandboxSession wire surface.
+  | 'rulesClassify'
+  | 'rulesSubmitEdit'
+  | 'sandboxState'
+  | 'sandboxApply'
+  | 'sandboxCancel';
 
 /** A client → worker RPC call. */
 export interface EngineRequest {

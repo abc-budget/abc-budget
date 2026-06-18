@@ -1,7 +1,8 @@
 /**
  * Data Transfer Objects + pure serializer functions for the EngineClient session
- * protocol (contract v4 — the EP-4 S3c categorization DTOs joined at 4.9a; v3
- * gained GenerateResultDTO.structuralErrors at 2.7).
+ * protocol (contract v5 — v5 adds EditActionDTO, SandboxStateDTO at 4.9b; v4
+ * added the EP-4 S3c categorization DTOs at 4.9a; v3 gained
+ * GenerateResultDTO.structuralErrors at 2.7).
  *
  * All types are JSON-safe by design (no Date, no class instances, no RxJS).
  * Serializers are pure functions over internal objects — no worker required.
@@ -24,6 +25,7 @@ import type {
   TransactionRow,
 } from '../internal/importStatement/stage3/types';
 import type { CollisionDescriptor } from '../internal/importStatement/recall/recall';
+import type { RuleOperation } from '../internal/rules/operations';
 
 // ── Serialized message shape ──────────────────────────────────────────────────
 
@@ -345,6 +347,15 @@ export interface ConditionDTO {
 }
 
 /**
+ * The complete set of operator ids the rule grammar can emit on a
+ * `ConditionDTO.operator` — the discriminant of every `RuleOperation`
+ * (operations.ts). Exported TYPE-ONLY so the UI keys its operator-label map off
+ * the SINGLE wire source: a `Record<RuleOperatorId, …>` fails `tsc` the moment
+ * the engine adds or renames an operator, killing UI↔wire id drift.
+ */
+export type RuleOperatorId = RuleOperation['type'];
+
+/**
  * Describes a condition field the UI can build a rule against: the value kind
  * (drives the input widget), the operators valid for it, and — for enumerated
  * fields — the option set.
@@ -429,4 +440,43 @@ export interface RuleSummaryDTO {
   readonly conditions: ConditionDTO[];
   readonly categoryId: string;
   readonly appliedCount: number;
+}
+
+// ── Rule editing + sandbox surface (contract v5 — Story 4.9b) ─────────────────
+//
+// Discriminated-union action sent to rulesClassify / rulesSubmitEdit.
+// Each variant carries only the fields the action needs.
+
+/**
+ * Discriminated union of rule-edit actions that cross the v5 wire.
+ *
+ * Mirrors the internal engine `EditAction` in `internal/rules/rule-sandbox.ts`
+ * (PM ruling 6) but uses only JSON-safe, serializable fields:
+ *   - `category: Category`  → `categoryId: string`
+ *   - `Rule[]`              → `ConditionDTO[]`
+ *   - `ComplexRule`         → `{ conditions, categoryId }`
+ *
+ * 'categoryOnly'   — change only a rule's target category.
+ * 'appendEnd'      — add a brand-new rule (conditions + categoryId) at the end.
+ * 'editConditions' — replace a rule's conditions (before → after).
+ * 'reorder'        — supply the complexRule ids in their new eval order.
+ * 'delete'         — remove the rule with `ruleId`.
+ */
+export type EditActionDTO =
+  | { readonly kind: 'categoryOnly'; readonly ruleId: number; readonly categoryId: string }
+  | { readonly kind: 'appendEnd'; readonly conditions: ConditionDTO[]; readonly categoryId: string }
+  | { readonly kind: 'editConditions'; readonly ruleId: number; readonly before: ConditionDTO[]; readonly after: ConditionDTO[] }
+  | { readonly kind: 'reorder'; readonly order: number[] }
+  | { readonly kind: 'delete'; readonly ruleId: number };
+
+/**
+ * Snapshot of the active sandbox state returned after each mutating edit action
+ * and also queryable via sandboxState().
+ *
+ * `engaged` — true when a sandbox session is currently open for the session.
+ * `count`   — number of pending edits queued in the sandbox.
+ */
+export interface SandboxStateDTO {
+  readonly engaged: boolean;
+  readonly count: number;
 }

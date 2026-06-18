@@ -202,20 +202,15 @@ describe('WorkerTransport — handshake gate', () => {
     expect(err.theirs).toBe(99);
   });
 
-  it('PIN (4.9a S3c): client at contract 4 vs worker helloAck contract 3 → ContractMismatchError (loud, not silent)', async () => {
-    // The loud-reload path: a v4 client must REJECT a stale v3 worker's ack — never
-    // silently proceed. CONTRACT_VERSION is 4 this story; an ack carrying 3 is the
-    // exact previous-version mismatch the bump is meant to catch.
-    expect(CONTRACT_VERSION).toBe(4);
+  it('PIN (4.9b sandbox): client at contract 5 vs worker helloAck contract 4 → ContractMismatchError (loud)', async () => {
+    expect(CONTRACT_VERSION).toBe(5);
     const { worker, client } = makeWorkerAndClient();
-
     const pingPromise = client.ping('test');
-    ackHandshake(worker, 3); // the previous contract — must be rejected
-
+    ackHandshake(worker, 4); // the previous contract — must be rejected
     await expect(pingPromise).rejects.toBeInstanceOf(ContractMismatchError);
     const err = (await pingPromise.catch((e) => e)) as ContractMismatchError;
-    expect(err.ours).toBe(4);
-    expect(err.theirs).toBe(3);
+    expect(err.ours).toBe(5);
+    expect(err.theirs).toBe(4);
   });
 
   it('ack with wrong contract → ALL queued calls reject ContractMismatchError', async () => {

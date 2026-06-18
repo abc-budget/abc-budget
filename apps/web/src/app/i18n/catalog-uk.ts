@@ -276,6 +276,18 @@ export const CATALOG_UK = {
   s3cOpLte: '≤',
   s3cOpBetween: 'між',
   s3cOpOneof: 'один з',
+  s3cOpIsTrue: 'так',
+  s3cOpIsFalse: 'ні',
+  s3cOpSpecificDay: 'день',
+  s3cOpDayRange: 'діапазон днів',
+  s3cOpFirstDayOfMonth: 'перший день місяця',
+  s3cOpFirstMondayOfMonth: 'перший понеділок місяця',
+  s3cOpFirstSaturdayOfMonth: 'перша субота місяця',
+  s3cOpFirstSundayOfMonth: 'перша неділя місяця',
+  s3cOpLastDayOfMonth: 'останній день місяця',
+  s3cOpLastMondayOfMonth: 'останній понеділок місяця',
+  s3cOpLastSaturdayOfMonth: 'остання субота місяця',
+  s3cOpLastSundayOfMonth: 'остання неділя місяця',
   // LOG / why-tree
   s3cWhyEvalLab: '// ОЦІНКА ПРАВИЛ · ЗВЕРХУ ВНИЗ · ПЕРШЕ ЗБІГ ПЕРЕМАГАЄ',
   s3cWhyEvalLabManual: '// ПРАВИЛА НЕ ОЦІНЮВАЛИСЬ · РУЧНЕ ПЕРЕВАЖАЄ',
@@ -303,6 +315,23 @@ export const CATALOG_UK = {
   s3cBaseAlias: 'базова',
   s3cCreate: 'Створити',
   s3cCancel: 'Скасувати',
+  // ── S3c — 4.9b sandbox / rule-editing chrome ──
+  s3cSbTag: '▸ ВІРТУАЛЬНЕ ДЕРЕВО ПРАВИЛ · НЕ ЗБЕРЕЖЕНО',
+  s3cSbCount: (n: number): string =>
+    n === 0
+      ? 'категорії не змінюються'
+      : `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'операція змінить' : 'операцій змінять'} категорію`,
+  s3cSbReview: 'Переглянути зміни',
+  s3cSbReviewOff: 'Усі операції',
+  s3cSbApply: 'Застосувати',
+  s3cSbDiscard: 'Скасувати',
+  s3cUpdateRule: 'Оновити правило',
+  s3cReviewEdit: 'Переглянути зміни ▸',
+  s3cEdit: 'Змінити',
+  s3cDelete: 'Видалити',
+  s3cDragHint: 'Перетягніть, щоб змінити порядок',
+  s3cMoveUp: 'Вгору',
+  s3cMoveDown: 'Вниз',
 } as const;
 
 export type ChromeKey = keyof typeof CATALOG_UK;

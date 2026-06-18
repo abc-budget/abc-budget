@@ -64,6 +64,8 @@ import type {
   CategorizedWindowDTO,
   WhyTreeDTO,
   RuleSummaryDTO,
+  EditActionDTO,
+  SandboxStateDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -479,7 +481,7 @@ export function createWorkerEngineClient(
 
     importCategorizedRows: (
       sessionId: string,
-      opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+      opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[]; changedOnly?: boolean },
     ) => call('importCategorizedRows', [sessionId, opts]) as Promise<CategorizedWindowDTO>,
 
     importConditionFields: (sessionId: string) =>
@@ -498,6 +500,23 @@ export function createWorkerEngineClient(
 
     categoriesCreate: (input: { name: string; icon: string; currency: string }) =>
       call('categoriesCreate', [input]) as Promise<CategoryDTO>,
+
+    // ── Rule editing + sandbox (contract v5 — Story 4.9b) ──────────────────────
+
+    rulesClassify: (sessionId: string, action: EditActionDTO) =>
+      call('rulesClassify', [sessionId, action]) as Promise<'live' | 'sandbox'>,
+
+    rulesSubmitEdit: (sessionId: string, action: EditActionDTO) =>
+      call('rulesSubmitEdit', [sessionId, action]) as Promise<SandboxStateDTO>,
+
+    sandboxState: (sessionId: string) =>
+      call('sandboxState', [sessionId]) as Promise<SandboxStateDTO>,
+
+    sandboxApply: (sessionId: string) =>
+      call('sandboxApply', [sessionId]) as Promise<void>,
+
+    sandboxCancel: (sessionId: string) =>
+      call('sandboxCancel', [sessionId]) as Promise<void>,
 
     onEvent(cb: (event: EngineEventPayload) => void): () => void {
       listeners.add(cb);

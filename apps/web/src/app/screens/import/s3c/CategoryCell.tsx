@@ -19,23 +19,27 @@ export interface CategoryCellProps {
   isManual?: boolean;
   /** 4.9c seam — render a Ring atypicality marker when truthy. */
   atypical?: boolean;
+  /** 4.9b seam — when set, render an old→new diff (previous → category). */
+  previous?: CategoryDTO;
   onClick: () => void;
   lang: 'uk' | 'en';
 }
 
-export function CategoryCell({ category, isManual = false, atypical = false, onClick, lang }: CategoryCellProps) {
+export function CategoryCell({ category, isManual = false, atypical = false, previous, onClick, lang }: CategoryCellProps) {
   const t = useT();
   const has = category != null;
   return (
     <button
       type="button"
-      className={`catcell ${has ? 'has' : 'none'}`}
+      className={`catcell ${has ? 'has' : 'none'}${previous ? ' changed' : ''}`}
       onClick={onClick}
       title={t('s3cWhyTitle')}
     >
       {atypical && <Ring />}
-      {has ? (
-        <CatChip category={category} isManual={isManual} lang={lang} />
+      {has || previous ? (
+        // categorized, OR a sandbox diff (incl. uncategorize: previous set, category null →
+        // CatChip renders «old → uncategorized», never dropping the old chip — FINDING-3).
+        <CatChip category={category} previous={previous} isManual={isManual} lang={lang} />
       ) : (
         <span className="catcell-assign">
           <Lamp tone="orange" />

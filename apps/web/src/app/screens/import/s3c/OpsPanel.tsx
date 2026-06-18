@@ -202,6 +202,7 @@ export function OpsPanel({
             ) : (
               pageRows.map((row) => {
                 const category = row.categoryId != null ? categories.get(row.categoryId) : undefined;
+                const previous = row.previousCategoryId != null ? categories.get(row.previousCategoryId) : undefined;
                 return (
                   <tr key={row.rowIndex} className={category ? '' : 'op-uncat'}>
                     {fields.map((f) => (
@@ -227,6 +228,7 @@ export function OpsPanel({
                     <td className="op-cat">
                       <CategoryCell
                         category={category}
+                        previous={previous}
                         isManual={row.isManual === 1}
                         onClick={() => onCellClick(row.rowIndex)}
                         lang={lang}

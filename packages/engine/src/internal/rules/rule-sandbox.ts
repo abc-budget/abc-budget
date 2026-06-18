@@ -62,6 +62,37 @@ export type EditAction =
   | { kind: 'appendEnd'; rule: ComplexRule };
 
 /**
+ * Routes an {@link EditAction} to its lane — PURE, O(1)/bounded, ZERO DB.
+ *
+ * The lane is a property of the ACTION SHAPE, not of how many rows it happens to
+ * move: a `delete` of a rule that matches no row is still `'sandbox'` (it could
+ * ripple in general). The only diff-shaped subtlety is `editConditions`, whose
+ * lane is decided by an ORDER-INDEPENDENT condition compare
+ * ({@link conditionsEqual}) — a pure structural check on the action's own
+ * `before`/`after`, not a row diff.
+ *
+ * Extracted from {@link RuleSandboxSession.classify} (Story 4.9b, Task 2) so the
+ * wire's `rulesClassify` can preview the lane WITHOUT building a session. The
+ * method delegates here verbatim (behavior-preserving).
+ *
+ * @param action The edit to classify
+ * @returns `'sandbox'` (preview-first) or `'live'` (immediate write)
+ */
+export function classifyEditAction(action: EditAction): 'sandbox' | 'live' {
+  switch (action.kind) {
+    case 'reorder':
+    case 'delete':
+      return 'sandbox';
+    case 'categoryOnly':
+    case 'appendEnd':
+      return 'live';
+    case 'editConditions':
+      // A pure reorder / re-save of the same condition SET is a no-op → live.
+      return conditionsEqual(action.before, action.after) ? 'live' : 'sandbox';
+  }
+}
+
+/**
  * The load-once dependencies a sandbox session reads through.
  *
  *  - `importRows`     — the stage-3 rows under preview (resolved by `rowIndex`).
@@ -133,19 +164,7 @@ export class RuleSandboxSession {
    * @returns `'sandbox'` (preview-first) or `'live'` (immediate write)
    */
   classify(action: EditAction): 'sandbox' | 'live' {
-    switch (action.kind) {
-      case 'reorder':
-        return 'sandbox';
-      case 'delete':
-        return 'sandbox';
-      case 'categoryOnly':
-        return 'live';
-      case 'appendEnd':
-        return 'live';
-      case 'editConditions':
-        // A pure reorder / re-save of the same condition SET is a no-op → live.
-        return conditionsEqual(action.before, action.after) ? 'live' : 'sandbox';
-    }
+    return classifyEditAction(action);
   }
 
   /**

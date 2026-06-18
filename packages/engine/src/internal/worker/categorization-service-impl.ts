@@ -35,14 +35,23 @@ import type {
   WhyTreeDTO,
   WhyRuleDTO,
   RuleSummaryDTO,
+  EditActionDTO,
+  SandboxStateDTO,
 } from '../../client/dto';
 import type { CategorizationService } from './categorization-service';
 import type { CategoriesService } from '../categories/categories-service';
 import type { FootprintDao } from '../footprint/footprint-dao';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
-import { autoCategorize } from '../rules/auto-categorize';
+import { autoCategorize, distinctPeriods } from '../rules/auto-categorize';
 import { loadOverrideMap, overrideKeyForRow } from '../rules/categorize-with-overrides';
 import { ComplexRuleImpl } from '../rules/decision-tree-impl';
+import {
+  RuleSandboxSession,
+  classifyEditAction,
+  type EditAction,
+  type RuleSandboxDeps,
+} from '../rules/rule-sandbox';
+import type { Category } from '../categories/types';
 import { DecisionTreeDebuggerImpl } from '../rules/debugger';
 import type { ComplexRule, DecisionTree } from '../rules/decision-tree';
 import { serializeRule } from '../rules/complex-rules-dao';
@@ -262,6 +271,15 @@ export class CategorizationServiceImpl implements CategorizationService {
   private readonly categoriesService: CategoriesService;
   private readonly rulePersistence: RulePersistenceService;
 
+  /**
+   * The open sandbox sessions, keyed by import session id. A session is RETAINED
+   * here only while ENGAGED (a virtual preview tree exists); a live-persisted or
+   * canonical-no-op edit drops it. The sandbox-aware {@link importCategorizedRows}
+   * reads the engaged session's {@link RuleSandboxSession.computeDiff} as the
+   * row-level overlay (4.9b).
+   */
+  private readonly sandboxes = new Map<string, RuleSandboxSession>();
+
   constructor(deps: CategorizationServiceDeps) {
     this.getSessionRows = deps.getSessionRows;
     this.footprintDao = deps.footprintDao;
@@ -340,7 +358,13 @@ export class CategorizationServiceImpl implements CategorizationService {
 
   async importCategorizedRows(
     sessionId: string,
-    opts: { offset: number; count: number; segment: 'all' | 'uncat'; draft?: ConditionDTO[] },
+    opts: {
+      offset: number;
+      count: number;
+      segment: 'all' | 'uncat';
+      draft?: ConditionDTO[];
+      changedOnly?: boolean;
+    },
   ): Promise<CategorizedWindowDTO> {
     const rows = await this.getSessionRows(sessionId);
     const tree = await this.rulePersistence.reload();
@@ -354,6 +378,17 @@ export class CategorizationServiceImpl implements CategorizationService {
 
     // The WINNING ruleId per row — a single debugger pass over the live tree.
     const ruleIdByRowIndex = winningRuleIds(tree, rows);
+
+    // Sandbox overlay (4.9b): while an engaged session exists, the pending-
+    // preview diff (old→new category per CHANGED row) overlays the live category
+    // — and `changedOnly` windows ONLY those rows. When NOT engaged the overlay
+    // is null and the method behaves EXACTLY as 4.9a. computeDiff resolves an
+    // L1/L2-overridden row identically under both trees, so an override-pinned
+    // row is never in the diff (override-ops are structurally absent).
+    const session = this.sandboxes.get(sessionId);
+    const diffByRow = session?.engaged
+      ? new Map(session.computeDiff().map((d) => [d.rowIndex, d]))
+      : null;
 
     // The draft preview: a ComplexRule built from the draft conditions, matched
     // synchronously per row. matchCount = TOTAL matches across ALL rows (before
@@ -369,28 +404,48 @@ export class CategorizationServiceImpl implements CategorizationService {
 
     let matchCount = 0;
     // Build the segment-filtered, draft-filtered list (full, then window).
-    const passing: { row: ImportStatementStage3Row; categoryId: string | null; isManual: 0 | 1 }[] =
-      [];
+    const passing: {
+      row: ImportStatementStage3Row;
+      categoryId: string | null;
+      isManual: 0 | 1;
+      previousCategoryId?: string | null;
+    }[] = [];
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const { categoryId, isManual } = categorized[i];
+      const live = categorized[i];
+
+      // Sandbox overlay: a CHANGED row takes the virtual category, recording the
+      // live (current-tree) category as previousCategoryId (old→new). Unchanged
+      // rows keep the 4.9a value and carry NO previousCategoryId (undefined).
+      const diff = diffByRow?.get(row.rowIndex);
+      const categoryId = diff ? diff.newCategoryId : live.categoryId;
+      const isManual = live.isManual;
+      const previousCategoryId = diff ? diff.oldCategoryId : undefined;
 
       const draftMatch = draftRule ? draftRule.evaluate(row) : false;
       if (draftMatch) matchCount++;
 
+      // changedOnly (4.9b): window ONLY the diff rows when an overlay is present.
+      if (opts.changedOnly && diffByRow && !diffByRow.has(row.rowIndex)) continue;
       // segment filter: 'uncat' keeps only categoryId === null.
       if (opts.segment === 'uncat' && categoryId !== null) continue;
       // draft filter: when a draft is set, the window shows only its matches.
       if (draftRule && !draftMatch) continue;
 
-      passing.push({ row, categoryId, isManual });
+      passing.push({ row, categoryId, isManual, previousCategoryId });
     }
 
     const total = passing.length;
     const window = passing.slice(opts.offset, opts.offset + opts.count);
 
-    const dtoRows: CategorizedRowDTO[] = window.map(({ row, categoryId, isManual }) =>
-      toCategorizedRowDTO(row, categoryId, isManual, ruleIdByRowIndex.get(row.rowIndex) ?? null),
+    const dtoRows: CategorizedRowDTO[] = window.map(({ row, categoryId, isManual, previousCategoryId }) =>
+      toCategorizedRowDTO(
+        row,
+        categoryId,
+        isManual,
+        ruleIdByRowIndex.get(row.rowIndex) ?? null,
+        previousCategoryId,
+      ),
     );
 
     return { rows: dtoRows, total, matchCount };
@@ -587,6 +642,162 @@ export class CategorizationServiceImpl implements CategorizationService {
     };
   }
 
+  // ── v5 sandbox lifecycle (4.9b — rule editing + the sandbox) ────────────────
+  //
+  // A funnel over the headless RuleSandboxSession (4.5): rulesClassify previews
+  // the lane (pure, no engage); rulesSubmitEdit routes the edit (a LIVE edit
+  // persists immediately + drops the session, a SANDBOX edit engages + retains
+  // it); sandboxState/Apply/Cancel/dropSandbox manage the retained session.
+
+  /**
+   * Previews an edit's lane (`'live'` | `'sandbox'`) WITHOUT engaging a session —
+   * the «dynamic button» preview. Pure: builds the category index, lifts the DTO
+   * to an engine {@link EditAction}, and routes via {@link classifyEditAction}.
+   */
+  async rulesClassify(_sessionId: string, dto: EditActionDTO): Promise<'live' | 'sandbox'> {
+    const categoriesById = await this.buildCategoriesById();
+    return classifyEditAction(this.toEditAction(dto, categoriesById));
+  }
+
+  /**
+   * Submits an edit through the sandbox funnel.
+   *
+   *  - A LIVE edit while NOT engaged persists immediately and the session is
+   *    dropped (`engaged:false`). A canonical no-op (`editConditions` whose set
+   *    is unchanged) also resolves live → dropped.
+   *  - A SANDBOX edit (or ANY edit once engaged) accumulates into the virtual
+   *    preview tree; the session is RETAINED and `{engaged:true, count}` returned.
+   */
+  async rulesSubmitEdit(sessionId: string, dto: EditActionDTO): Promise<SandboxStateDTO> {
+    let session = this.sandboxes.get(sessionId);
+    let categoriesById: Map<string, Category>;
+    if (session) {
+      // Refetch — a category may have been created mid-sandbox.
+      categoriesById = await this.buildCategoriesById();
+    } else {
+      const deps = await this.buildSandboxDeps(sessionId);
+      categoriesById = deps.categoriesById;
+      session = new RuleSandboxSession(deps);
+    }
+
+    await session.submit(this.toEditAction(dto, categoriesById));
+
+    if (session.engaged) {
+      this.sandboxes.set(sessionId, session);
+      return { engaged: true, count: session.computeDiff().length };
+    }
+    // Live persisted, or a canonical no-op → nothing pending.
+    this.sandboxes.delete(sessionId);
+    return { engaged: false, count: 0 };
+  }
+
+  /** The current sandbox state for a session — sync, ZERO DB. */
+  sandboxState(sessionId: string): SandboxStateDTO {
+    const session = this.sandboxes.get(sessionId);
+    return session?.engaged
+      ? { engaged: true, count: session.computeDiff().length }
+      : { engaged: false, count: 0 };
+  }
+
+  /** Commits the pending preview (persists the virtual tree delta) + tears down. */
+  async sandboxApply(sessionId: string): Promise<void> {
+    const session = this.sandboxes.get(sessionId);
+    if (session?.engaged) {
+      await session.apply();
+    }
+    this.sandboxes.delete(sessionId);
+  }
+
+  /** Discards the pending preview + tears down — sync; the live tree is unchanged. */
+  sandboxCancel(sessionId: string): void {
+    this.sandboxes.get(sessionId)?.cancel();
+    this.sandboxes.delete(sessionId);
+  }
+
+  /** Drops any open sandbox for a session (importAbort teardown) — sync, idempotent. */
+  dropSandbox(sessionId: string): void {
+    this.sandboxes.delete(sessionId);
+  }
+
+  // ── sandbox helpers ──────────────────────────────────────────────────────────
+
+  /** The full `id → Category` index (incl. archived) — the sandbox category seam. */
+  private async buildCategoriesById(): Promise<Map<string, Category>> {
+    const byId = new Map<string, Category>();
+    for (const c of await this.categoriesService.list({ includeArchived: true })) {
+      if (c.id !== undefined) byId.set(c.id, c);
+    }
+    return byId;
+  }
+
+  /**
+   * Builds the load-once {@link RuleSandboxDeps} for a session: the session rows,
+   * the live tree (reload()), and the period-scoped override map + category index
+   * (the SAME `distinctPeriods` + `loadOverrideMap` autoCategorize uses, so an
+   * override pins a row identically under both the current and the virtual tree).
+   */
+  private async buildSandboxDeps(sessionId: string): Promise<RuleSandboxDeps> {
+    const rows = await this.getSessionRows(sessionId);
+    const currentTree = await this.rulePersistence.reload();
+    const periods = distinctPeriods(rows);
+    const { overrideMap, categoriesById } = await loadOverrideMap(
+      this.footprintDao,
+      this.categoriesService,
+      periods,
+    );
+    return {
+      importRows: rows,
+      overrideMap,
+      categoriesById,
+      currentTree,
+      persistence: this.rulePersistence,
+    };
+  }
+
+  /**
+   * Lifts a wire {@link EditActionDTO} to an engine {@link EditAction}: the JSON-
+   * safe fields are rehydrated (`categoryId` → `Category` via the index,
+   * `ConditionDTO[]` → `Rule[]` via {@link conditionsToRules}, `appendEnd`
+   * conditions → a {@link ComplexRuleImpl}).
+   *
+   * REORDER PIN: `EditActionDTO.reorder.order` carries complexRule IDS in their
+   * new eval order, and the engine's `applyActionToTree` reorder branch ALSO
+   * keys its rank map on `rule.id` (NOT array indices) — so `order` passes
+   * through verbatim, no index translation needed.
+   */
+  private toEditAction(dto: EditActionDTO, categoriesById: Map<string, Category>): EditAction {
+    switch (dto.kind) {
+      case 'reorder':
+        return { kind: 'reorder', order: dto.order }; // ruleIds in new order (pin)
+      case 'delete':
+        return { kind: 'delete', ruleId: dto.ruleId };
+      case 'editConditions':
+        return {
+          kind: 'editConditions',
+          ruleId: dto.ruleId,
+          before: this.conditionsToRules(dto.before),
+          after: this.conditionsToRules(dto.after),
+        };
+      case 'categoryOnly': {
+        const category = categoriesById.get(dto.categoryId);
+        if (!category) {
+          throw new TypeError(`[abc-engine] categoryOnly: unknown categoryId '${dto.categoryId}'`);
+        }
+        return { kind: 'categoryOnly', ruleId: dto.ruleId, category };
+      }
+      case 'appendEnd': {
+        const category = categoriesById.get(dto.categoryId);
+        if (!category) {
+          throw new TypeError(`[abc-engine] appendEnd: unknown categoryId '${dto.categoryId}'`);
+        }
+        return {
+          kind: 'appendEnd',
+          rule: new ComplexRuleImpl(this.conditionsToRules(dto.conditions), category),
+        };
+      }
+    }
+  }
+
   // ── internals ──────────────────────────────────────────────────────────────
 
   /**
@@ -644,14 +855,21 @@ function winningRuleIds(
   return result;
 }
 
-/** Maps a stage3 row + its resolved category to the wire DTO. */
+/**
+ * Maps a stage3 row + its resolved category to the wire DTO.
+ *
+ * `previousCategoryId` is the sandbox overlay's old→new seam (4.9b): set ONLY for
+ * a CHANGED row under an engaged sandbox (`undefined` otherwise, so the field is
+ * absent on the wire for un-overlaid rows). `atypical` remains a 4.9c seam.
+ */
 function toCategorizedRowDTO(
   row: ImportStatementStage3Row,
   categoryId: string | null,
   isManual: 0 | 1,
   ruleId: number | null,
+  previousCategoryId?: string | null,
 ): CategorizedRowDTO {
-  return {
+  const dto: { -readonly [K in keyof CategorizedRowDTO]?: CategorizedRowDTO[K] } = {
     rowIndex: row.rowIndex,
     date: row.date instanceof Date ? row.date.toISOString() : String(row.date),
     amount: row.amount,
@@ -664,8 +882,12 @@ function toCategorizedRowDTO(
     categoryId,
     isManual,
     ruleId,
-    // previousCategoryId / atypical: 4.9b/c seams — left UNSET here.
   };
+  // Set the sandbox-overlay field ONLY when present (absent on the wire otherwise).
+  if (previousCategoryId !== undefined) {
+    dto.previousCategoryId = previousCategoryId;
+  }
+  return dto as CategorizedRowDTO;
 }
 
 /** Counts the distinct non-null values of a field across the rows. */

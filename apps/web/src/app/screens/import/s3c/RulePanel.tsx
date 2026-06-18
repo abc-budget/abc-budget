@@ -1,20 +1,18 @@
 /**
  * RulePanel — the RUL/ side panel.  Two tabs:
- *   Build  — ConditionBuilder + CategoryPicker + "Save as rule".
- *   Rules  — search + a READ-ONLY first-match-wins list (condition chips →
- *            CatChip, appliedCount).  NO edit / delete / reorder controls — that
- *            is the 4.9b rule-management surface; 4.9a only READS the tree.
+ *   Build  — ConditionBuilder + CategoryPicker + save button (create / edit).
+ *   Rules  — search + first-match-wins list with drag handle + ↑↓ + Edit/Delete.
  *
- * Bound to RuleSummaryDTO[] + ConditionFieldDTO[] + a category Map.
+ * 4.9a: read-only list + create-rule BUILD tab.
+ * 4.9b (Task 5): editable — drag reorder, ↑↓ mobile, Edit, Delete, dynamic save button.
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ConditionBuilder } from './ConditionBuilder';
 import { CategoryPicker } from './CategoryPicker';
 import { condText } from './labels';
 import { SearchIcon, CheckIcon } from './icons';
 import { CatIcon } from '../../../../ui/altus/icons';
 import { Panel, PanelHeader, PanelBody } from '../../../../ui/altus/components/Panel';
-import { Key } from '../../../../ui/altus/components/Key';
 import { useT } from '../../../i18n/LangProvider';
 import type {
   CategoryDTO,
@@ -40,6 +38,22 @@ export interface RulePanelProps {
   onSave: () => void;
   onCreateCategory: (name: string) => void;
   lang: 'uk' | 'en';
+  // 4.9b additions
+  editingId: number | null;
+  onEditRule: (rule: RuleSummaryDTO) => void;
+  onDeleteRule: (ruleId: number) => void;
+  onReorder: (order: number[]) => void;
+  saveLane: 'live' | 'sandbox';
+  engaged: boolean;
+}
+
+/** Return new ruleId order after swapping index i with i+delta. */
+function moved(rules: RuleSummaryDTO[], i: number, delta: number): number[] {
+  const ids = rules.map((r) => r.ruleId);
+  const j = i + delta;
+  if (j < 0 || j >= ids.length) return ids;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  return ids;
 }
 
 export function RulePanel({
@@ -56,6 +70,12 @@ export function RulePanel({
   onSave,
   onCreateCategory,
   lang,
+  editingId,
+  onEditRule,
+  onDeleteRule,
+  onReorder,
+  saveLane,
+  engaged,
 }: RulePanelProps) {
   const t = useT();
   const [q, setQ] = useState('');
@@ -63,12 +83,26 @@ export function RulePanel({
   const categoryList = [...categories.values()];
   const canSave = draft.length > 0 && draftCategoryId != null;
 
+  // drag state
+  const dragIdx = useRef<number | null>(null);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
   const ruleMatches = (r: RuleSummaryDTO): boolean => {
     if (!query) return true;
     const cat = categories.get(r.categoryId);
     if (cat && cat.name.toLowerCase().includes(query)) return true;
     return r.conditions.some((c) => condText(c, t).toLowerCase().includes(query));
   };
+
+  // Dynamic save button
+  const saveEntersSandbox = editingId !== null && saveLane === 'sandbox' && !engaged;
+  const saveLabel =
+    editingId === null
+      ? t('s3cSaveAsRule')
+      : saveEntersSandbox
+        ? t('s3cReviewEdit')
+        : t('s3cUpdateRule');
 
   return (
     <Panel className="rulepanel">
@@ -107,9 +141,15 @@ export function RulePanel({
                   <button type="button" className="key beige sm" onClick={() => onDraft([])}>
                     {t('s3cClearDraft')}
                   </button>
-                  <Key variant="gold" sm disabled={!canSave} icon={<CheckIcon size={16} />} onClick={onSave}>
-                    {t('s3cSaveAsRule')}
-                  </Key>
+                  <button
+                    type="button"
+                    className={'key sm ' + (saveEntersSandbox ? 'orange' : 'gold')}
+                    disabled={!canSave}
+                    onClick={onSave}
+                  >
+                    {saveEntersSandbox ? null : <CheckIcon size={16} />}
+                    {saveLabel}
+                  </button>
                 </div>
                 <div className="bulk-note f-mono">{t('s3cCreateRuleNote')}</div>
               </>
@@ -129,8 +169,47 @@ export function RulePanel({
                 <div className="rules-list rules-scroll">
                   {rules.filter(ruleMatches).map((r, i) => {
                     const cat = categories.get(r.categoryId);
+                    const isCatchAll = r.conditions.length === 0;
                     return (
-                      <div key={r.ruleId} className="rule-row">
+                      <div
+                        key={r.ruleId}
+                        className={
+                          'rule-row' +
+                          (draggingIdx === i ? ' dragging' : '') +
+                          (overIdx === i ? ' overdrop' : '')
+                        }
+                        draggable={query === ''}
+                        onDragStart={() => {
+                          if (query !== '') return;
+                          dragIdx.current = i;
+                          setDraggingIdx(i);
+                        }}
+                        onDragOver={(e) => {
+                          if (query !== '') return;
+                          e.preventDefault();
+                          setOverIdx(i);
+                        }}
+                        onDrop={() => {
+                          if (query !== '') return;
+                          if (dragIdx.current !== null && dragIdx.current !== i) {
+                            const ids = rules.map((x) => x.ruleId);
+                            const [removed] = ids.splice(dragIdx.current, 1);
+                            ids.splice(i, 0, removed);
+                            onReorder(ids);
+                          }
+                          dragIdx.current = null;
+                          setDraggingIdx(null);
+                          setOverIdx(null);
+                        }}
+                        onDragEnd={() => {
+                          dragIdx.current = null;
+                          setDraggingIdx(null);
+                          setOverIdx(null);
+                        }}
+                      >
+                        {/* drag handle */}
+                        <span className="rule-handle" title={t('s3cDragHint')}>⠿</span>
+
                         <span className="rule-ord f-mono">{String(i + 1).padStart(2, '0')}</span>
                         <div className="rule-body">
                           <div className="rule-conds f-mono">
@@ -152,6 +231,36 @@ export function RulePanel({
                           </div>
                           <div className="rule-meta">
                             <span className="rule-applied f-mono">{t('s3cApplied', { n: r.appliedCount })}</span>
+                            {/* mobile ↑↓ reorder */}
+                            <button
+                              type="button"
+                              className="rule-move"
+                              aria-label={t('s3cMoveUp')}
+                              disabled={i === 0 || query !== ''}
+                              onClick={() => onReorder(moved(rules, i, -1))}
+                            >↑</button>
+                            <button
+                              type="button"
+                              className="rule-move"
+                              aria-label={t('s3cMoveDown')}
+                              disabled={i === rules.length - 1 || query !== ''}
+                              onClick={() => onReorder(moved(rules, i, +1))}
+                            >↓</button>
+                            {!isCatchAll && (
+                              <button
+                                type="button"
+                                className="rule-edit-btn f-mono"
+                                onClick={() => onEditRule(r)}
+                              >✎ {t('s3cEdit')}</button>
+                            )}
+                            {!isCatchAll && (
+                              <button
+                                type="button"
+                                className="rule-del-btn f-mono"
+                                aria-label={t('s3cDelete')}
+                                onClick={() => onDeleteRule(r.ruleId)}
+                              >✕</button>
+                            )}
                           </div>
                         </div>
                       </div>

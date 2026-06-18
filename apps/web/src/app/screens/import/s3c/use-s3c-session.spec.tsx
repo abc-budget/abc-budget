@@ -6,10 +6,11 @@ import type {
   ConditionDTO,
   EngineClient,
   RuleSummaryDTO,
+  SandboxStateDTO,
   WhyTreeDTO,
 } from '@abc-budget/engine';
 import { useS3cSession } from './use-s3c-session';
-import { cat, FIELDS, row, rule, whyTree } from './fixtures';
+import { cat, FIELDS, row, rule, RULES_MULTI, whyTree } from './fixtures';
 
 /**
  * use-s3c-session — Task 4 hook spec (TDD, mock v4 EngineClient).
@@ -48,6 +49,12 @@ function makeClient(over?: Partial<EngineClient>): EngineClient {
     rulesCreate: vi.fn(async () => ({ ruleId: 9 })),
     categoriesList: vi.fn(async () => CATS),
     categoriesCreate: vi.fn(async () => cat({ id: 'newcat', name: 'Нова' })),
+    // ── v5 (4.9b) sandbox / rule-editing seam ──
+    rulesClassify: vi.fn(async (): Promise<'live' | 'sandbox'> => 'live'),
+    rulesSubmitEdit: vi.fn(async (): Promise<SandboxStateDTO> => ({ engaged: false, count: 0 })),
+    sandboxState: vi.fn(async (): Promise<SandboxStateDTO> => ({ engaged: false, count: 0 })),
+    sandboxApply: vi.fn(async (): Promise<void> => undefined),
+    sandboxCancel: vi.fn(async (): Promise<void> => undefined),
     onEvent: vi.fn(() => () => {}),
     ...over,
   } as unknown as EngineClient;
@@ -147,7 +154,7 @@ describe('useS3cSession', () => {
     await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
 
     // a hand-set draft carrying a currency on an amount condition
-    const draft: ConditionDTO[] = [{ field: 'amount', operator: 'lt', value: -100, currency: 'UAH' }];
+    const draft: ConditionDTO[] = [{ field: 'amount', operator: 'lessThan', value: -100, currency: 'UAH' }];
     act(() => result.current.setDraft(draft));
     await waitFor(() => expect(result.current.draft).toHaveLength(1));
     act(() => result.current.pickCategory('groceries'));
@@ -217,9 +224,9 @@ describe('useS3cSession', () => {
     expect(result.current.createCat).toEqual({ initialName: 'Нова', fromPicker: true });
 
     await act(async () => {
-      await result.current.createCategory({ name: 'Нова', icon: 'other', currency: 'BASE' });
+      await result.current.createCategory({ name: 'Нова', icon: 'other', currency: 'base' });
     });
-    expect(categoriesCreate).toHaveBeenCalledWith({ name: 'Нова', icon: 'other', currency: 'BASE' });
+    expect(categoriesCreate).toHaveBeenCalledWith({ name: 'Нова', icon: 'other', currency: 'base' });
     await waitFor(() => expect(result.current.categories).toHaveLength(3));
     expect(result.current.createCat).toBeNull();
     // launched from the picker → the new category is auto-selected as the draft target
@@ -233,5 +240,183 @@ describe('useS3cSession', () => {
     expect(result.current.ruleTab).toBe('build');
     act(() => result.current.setRuleTab('rules'));
     expect(result.current.ruleTab).toBe('rules');
+  });
+
+  // ── 4.9b sandbox / rule-editing ──
+
+  it('mount fetches sandboxState; engaged resumes the banner', async () => {
+    const client = makeClient({ sandboxState: vi.fn().mockResolvedValue({ engaged: true, count: 3 }) });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.sandbox?.engaged).toBe(true));
+    expect(result.current.sandbox?.count).toBe(3);
+  });
+
+  it('openEdit loads the rule conditions into the draft + sets editingId', async () => {
+    const client = makeClient({ importRulesList: vi.fn(async () => RULES_MULTI) });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    act(() => result.current.openEdit(RULES_MULTI[1]));
+    expect(result.current.editingId).toBe(2);
+    expect(result.current.draft).toEqual(RULES_MULTI[1].conditions);
+    expect(result.current.draftCategoryId).toBe('transport');
+    expect(result.current.right).toBe('build');
+    expect(result.current.ruleTab).toBe('build');
+  });
+
+  it('reorderRules → rulesSubmitEdit(reorder) → sets sandbox state + reloads window', async () => {
+    const client = makeClient({
+      importRulesList: vi.fn(async () => RULES_MULTI),
+      rulesSubmitEdit: vi.fn().mockResolvedValue({ engaged: true, count: 2 }),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.rules.length).toBeGreaterThan(0));
+    await act(async () => {
+      await result.current.reorderRules([2, 1, 3]);
+    });
+    expect(client.rulesSubmitEdit).toHaveBeenCalledWith('sess-c', { kind: 'reorder', order: [2, 1, 3] });
+    expect(result.current.sandbox?.engaged).toBe(true);
+    expect(result.current.sandbox?.count).toBe(2);
+  });
+
+  it('deleteRule → rulesSubmitEdit(delete) → sets sandbox state', async () => {
+    const client = makeClient({
+      importRulesList: vi.fn(async () => RULES_MULTI),
+      rulesSubmitEdit: vi.fn().mockResolvedValue({ engaged: true, count: 1 }),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.rules.length).toBeGreaterThan(0));
+    await act(async () => {
+      await result.current.deleteRule(2);
+    });
+    expect(client.rulesSubmitEdit).toHaveBeenCalledWith('sess-c', { kind: 'delete', ruleId: 2 });
+    expect(result.current.sandbox?.engaged).toBe(true);
+  });
+
+  it('submitEdit on a category-only change → categoryOnly action (no editConditions)', async () => {
+    const rulesSubmitEdit = vi.fn().mockResolvedValue({ engaged: false, count: 0 });
+    const client = makeClient({ importRulesList: vi.fn(async () => RULES_MULTI), rulesSubmitEdit });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.rules.length).toBeGreaterThan(0));
+    act(() => result.current.openEdit(RULES_MULTI[0])); // groceries, [desc contains АТБ]
+    act(() => result.current.pickCategory('transport')); // only the category changed
+    await act(async () => {
+      await result.current.submitEdit();
+    });
+    // structural compare: draft === editBefore → NO editConditions submit, only categoryOnly
+    expect(rulesSubmitEdit).toHaveBeenCalledTimes(1);
+    expect(rulesSubmitEdit).toHaveBeenCalledWith('sess-c', {
+      kind: 'categoryOnly',
+      ruleId: 1,
+      categoryId: 'transport',
+    });
+    // edit session torn down
+    expect(result.current.editingId).toBeNull();
+  });
+
+  it('submitEdit on a conditions change → editConditions action', async () => {
+    const rulesSubmitEdit = vi.fn().mockResolvedValue({ engaged: true, count: 1 });
+    const client = makeClient({ importRulesList: vi.fn(async () => RULES_MULTI), rulesSubmitEdit });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.rules.length).toBeGreaterThan(0));
+    act(() => result.current.openEdit(RULES_MULTI[0])); // groceries, [desc contains АТБ]
+    const after: ConditionDTO[] = [{ field: 'description', operator: 'contains', value: 'СІЛЬПО' }];
+    act(() => result.current.setDraft(after)); // conditions changed, category unchanged
+    await act(async () => {
+      await result.current.submitEdit();
+    });
+    expect(rulesSubmitEdit).toHaveBeenCalledWith('sess-c', {
+      kind: 'editConditions',
+      ruleId: 1,
+      before: RULES_MULTI[0].conditions,
+      after,
+    });
+    // category unchanged → no categoryOnly submit
+    expect(rulesSubmitEdit).toHaveBeenCalledTimes(1);
+    expect(result.current.sandbox?.engaged).toBe(true);
+  });
+
+  it('applySandbox calls sandboxApply + clears sandbox; cancelSandbox calls sandboxCancel', async () => {
+    const client = makeClient({
+      sandboxState: vi.fn().mockResolvedValue({ engaged: true, count: 2 }),
+      sandboxApply: vi.fn().mockResolvedValue(undefined),
+      sandboxCancel: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.sandbox?.engaged).toBe(true));
+    await act(async () => {
+      await result.current.applySandbox();
+    });
+    expect(client.sandboxApply).toHaveBeenCalledWith('sess-c');
+    expect(result.current.sandbox).toBeNull();
+    expect(result.current.changedOnly).toBe(false);
+  });
+
+  it('cancelSandbox calls sandboxCancel + clears sandbox', async () => {
+    const client = makeClient({
+      sandboxState: vi.fn().mockResolvedValue({ engaged: true, count: 2 }),
+      sandboxCancel: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.sandbox?.engaged).toBe(true));
+    await act(async () => {
+      await result.current.cancelSandbox();
+    });
+    expect(client.sandboxCancel).toHaveBeenCalledWith('sess-c');
+    expect(result.current.sandbox).toBeNull();
+  });
+
+  it('applySandbox clears edit-open anchors (editingId → null, draft → [])', async () => {
+    const client = makeClient({
+      sandboxApply: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    // Open an edit so editingId and draft are populated.
+    act(() => result.current.openEdit(RULES_MULTI[0]));
+    expect(result.current.editingId).toBe(1);
+    expect(result.current.draft).toHaveLength(1);
+    // Apply the sandbox — must clear the edit anchors.
+    await act(async () => {
+      await result.current.applySandbox();
+    });
+    expect(result.current.editingId).toBeNull();
+    expect(result.current.draft).toHaveLength(0);
+    expect(result.current.sandbox).toBeNull();
+    expect(result.current.changedOnly).toBe(false);
+  });
+
+  it('cancelSandbox clears edit-open anchors (editingId → null, draft → [])', async () => {
+    const client = makeClient({
+      sandboxCancel: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    // Open an edit so editingId and draft are populated.
+    act(() => result.current.openEdit(RULES_MULTI[1]));
+    expect(result.current.editingId).toBe(2);
+    expect(result.current.draft).toHaveLength(1);
+    // Cancel the sandbox — must clear the edit anchors.
+    await act(async () => {
+      await result.current.cancelSandbox();
+    });
+    expect(result.current.editingId).toBeNull();
+    expect(result.current.draft).toHaveLength(0);
+    expect(result.current.sandbox).toBeNull();
+    expect(result.current.changedOnly).toBe(false);
+  });
+
+  it('toggleChangedOnly threads changedOnly into importCategorizedRows', async () => {
+    const importCategorizedRows = vi.fn(
+      async (_s: string, opts: { changedOnly?: boolean }): Promise<CategorizedWindowDTO> => {
+        void opts;
+        return win();
+      },
+    );
+    const client = makeClient({ importCategorizedRows });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    act(() => result.current.toggleChangedOnly());
+    expect(result.current.changedOnly).toBe(true);
+    await waitFor(() => expect(importCategorizedRows.mock.calls.at(-1)?.[1].changedOnly).toBe(true));
   });
 });

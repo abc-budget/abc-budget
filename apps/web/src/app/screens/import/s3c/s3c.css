@@ -61,11 +61,20 @@
   border: 1px solid rgba(204, 85, 0, .35); padding: 1px 5px; border-radius: var(--r-xs); }
 
 /* 4.9b seam — changed-category cell (before → after diff) */
+.catcell.changed{ border-radius:var(--r-md); align-items:center; padding:8px 10px;
+  border-color:rgba(204,85,0,.35); background:rgba(204,85,0,.05); }
 .catcell-diff { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; flex: 1; }
 .catcell-diff .catchip { opacity: 1; max-width: 100%; }
 .catcell-diff > .catchip:first-child { opacity: .55; }
 .catcell-diff .catchip-name { overflow: hidden; text-overflow: ellipsis; }
 .catcell-arrow { color: var(--orange-deep); font-weight: 700; transform: rotate(90deg); margin: -1px 0; font-size: 12px; }
+.nocat-pill{ display:inline-flex; align-items:center; gap:6px; font-size:10px; color:var(--gray-warm);
+  background:repeating-linear-gradient(135deg,rgba(138,134,116,.08) 0 5px,transparent 5px 10px);
+  border:1px dashed rgba(138,134,116,.55); border-radius:var(--r-pill); padding:3px 10px 3px 8px; white-space:nowrap; }
+.nocat-pill.lost{ color:var(--orange-deep); border-color:rgba(204,85,0,.5);
+  background:repeating-linear-gradient(135deg,rgba(204,85,0,.08) 0 5px,transparent 5px 10px); }
+.nocat-dot{ width:7px; height:7px; border-radius:50%; border:1.5px solid var(--gray-warm); flex:none; }
+.nocat-pill.lost .nocat-dot{ border-color:var(--orange-deep); }
 
 /* 4.9c seam — atypicality marker (gold hollow ring) */
 .atyp-ring { flex: none; }
@@ -244,3 +253,39 @@ tr.op-atyp { background: rgba(225, 173, 1, .07); }
   .s3c-split { grid-template-columns: 1fr; }
   .s3c-side { position: static; }
 }
+
+/* ── 4.9b: sandbox bar + hazard-stripe frame ─────────────────────────────── */
+/* The bar spans the whole split grid — a full-width slot ABOVE OPS + RUL.
+   min-width:0 keeps a full-span item from inflating the 1fr track at 390px
+   (its min-content must not widen the column — the bar wraps instead). */
+.s3c-sandboxbar-slot{ grid-column:1 / -1; min-width:0; }
+.sandbox-bar{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  margin:0 0 14px; padding:12px 18px; border-radius:var(--r-lg);
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,.16) 0 13px, rgba(0,0,0,0) 13px 26px),
+    linear-gradient(180deg, var(--orange), #A8470B);
+  border:1px solid rgba(0,0,0,.42);
+}
+.sb-lhs{ display:flex; align-items:center; gap:11px; flex-wrap:wrap; }
+.sb-tag{ font-size:10px; letter-spacing:.16em; color:var(--cream); font-weight:700; text-shadow:0 1px 1px rgba(0,0,0,.4); }
+.sb-count{ font-size:11px; letter-spacing:.04em; color:rgba(253,253,208,.82); }
+.sb-actions{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; min-width:0; }
+.sb-review{ background:rgba(253,253,208,.08); border:1px solid rgba(253,253,208,.45); color:var(--cream); }
+.sb-review.on{ background:var(--gold); border-color:var(--gold); color:var(--ebony); }
+.sb-review:disabled{ opacity:.4; cursor:default; }
+/* engaged frame on the three working panels */
+.sandbox-on .opspanel, .sandbox-on .s3c-side{ box-shadow:var(--shadow-panel),0 0 0 1.5px rgba(204,85,0,.4); }
+
+/* ── 4.9b Task 5: rule-row edit/delete/reorder affordances ──────────────── */
+.rule-handle{ color:var(--gray-warm); cursor:grab; flex:none; }
+.rule-row.dragging{ opacity:.5; }
+.rule-row.overdrop{ border-color:var(--gold); box-shadow:0 -2px 0 var(--gold); }
+.rule-move{ appearance:none; cursor:pointer; border:1px solid rgba(5,12,22,.2); background:transparent;
+  color:var(--ebony-soft); width:22px; height:22px; border-radius:var(--r-xs); font-size:12px; }
+.rule-move:disabled{ opacity:.35; cursor:default; }
+.rule-edit-btn{ appearance:none; cursor:pointer; border:1px solid rgba(5,12,22,.2); background:transparent;
+  color:var(--ebony-soft); font-size:9px; letter-spacing:.06em; text-transform:uppercase; padding:3px 8px; border-radius:var(--r-xs); }
+.rule-del-btn{ appearance:none; cursor:pointer; border:1px solid rgba(204,85,0,.28); background:transparent;
+  color:var(--orange-deep); width:22px; height:22px; border-radius:var(--r-xs); font-size:10px; }
+.key.orange{ background:linear-gradient(180deg, var(--orange), #A8470B); color:var(--cream); border-color:rgba(0,0,0,.42); }

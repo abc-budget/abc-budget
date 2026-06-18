@@ -139,7 +139,7 @@ export async function autoCategorize(
  * calendar split `deriveFootprint` and the footprint key use, so the loaded
  * override periods line up exactly with the stored manual footprints.
  */
-function distinctPeriods(
+export function distinctPeriods(
   rows: readonly ImportStatementStage3Row[]
 ): { year: number; month: number }[] {
   const distinct = new Map<string, { year: number; month: number }>();

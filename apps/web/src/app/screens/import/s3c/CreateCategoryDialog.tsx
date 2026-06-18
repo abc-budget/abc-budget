@@ -20,8 +20,10 @@ export interface CreateCategoryDialogProps {
   lang: 'uk' | 'en';
 }
 
+// 'base' is the engine's BASE_CURRENCY_ALIAS (4.3a, categories-service.ts) — it
+// MUST be lowercase; 'BASE' throws InvalidCategoryError: Invalid currency.
 const CURRENCY_OPTIONS = [
-  { iso: 'BASE', label: '₴ base' },
+  { iso: 'base', label: '₴ base' },
   { iso: 'UAH', label: '₴ UAH' },
   { iso: 'USD', label: '$ USD' },
   { iso: 'EUR', label: '€ EUR' },
@@ -74,7 +76,7 @@ export function CreateCategoryDialog({ initialName, onCreate, onCancel, lang }: 
   const t = useT();
   const [name, setName] = useState(initialName);
   const [icon, setIcon] = useState('groceries');
-  const [currency, setCurrency] = useState('BASE');
+  const [currency, setCurrency] = useState('base');
   const canSave = name.trim().length > 0;
 
   return (
@@ -107,12 +109,12 @@ export function CreateCategoryDialog({ initialName, onCreate, onCancel, lang }: 
                 <select value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label={t('s3cFCur')}>
                   {CURRENCY_OPTIONS.map((c) => (
                     <option key={c.iso} value={c.iso}>
-                      {c.iso === 'BASE' ? `${c.label} · ${t('s3cBaseAlias')}` : c.label}
+                      {c.iso === 'base' ? `${c.label} · ${t('s3cBaseAlias')}` : c.label}
                     </option>
                   ))}
                 </select>
               </div>
-              {currency === 'BASE' && <div className="cur-locked-note f-mono">▸ {t('s3cFollowBaseNote')}</div>}
+              {currency === 'base' && <div className="cur-locked-note f-mono">▸ {t('s3cFollowBaseNote')}</div>}
             </label>
           </div>
         </div>

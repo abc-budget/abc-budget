@@ -54,6 +54,12 @@ vi.mock('../engine', () => ({
     rulesCreate: async () => ({ ruleId: 1 }),
     categoriesList: async () => [],
     categoriesCreate: async () => ({ id: 'c', name: 'C', icon: 'other', currency: 'UAH' }),
+    // v5 sandbox surface — S3c's hook probes sandboxState on mount (resume).
+    rulesClassify: async () => 'live',
+    rulesSubmitEdit: async () => ({ engaged: false, count: 0 }),
+    sandboxState: async () => ({ engaged: false, count: 0 }),
+    sandboxApply: async () => undefined,
+    sandboxCancel: async () => undefined,
   },
   engineReady: Promise.resolve({ state: 'ready' }),
 }));

@@ -30,12 +30,16 @@ export function persistLang(lang: Lang): void {
  */
 export const INITIAL_LANG: Lang = detectLang();
 
-const CATALOGS: Record<Lang, Record<ChromeKey, string>> = { uk: CATALOG_UK, en: CATALOG_EN };
+const CATALOGS: Record<Lang, Record<ChromeKey, string | ((n: number) => string)>> = {
+  uk: CATALOG_UK,
+  en: CATALOG_EN,
+};
 
 /** Chrome-only translation: `key` is structurally a catalog key — user strings can't compile. */
 export function t(lang: Lang, key: ChromeKey, params?: Record<string, string | number>): string {
-  let out: string = CATALOGS[lang][key];
-  if (params) {
+  const raw = CATALOGS[lang][key];
+  let out: string = typeof raw === 'function' ? raw(Number(params?.n ?? 0)) : raw;
+  if (params && typeof raw !== 'function') {
     for (const [name, value] of Object.entries(params)) {
       out = out.replaceAll(`{${name}}`, String(value));
     }

@@ -2,6 +2,7 @@ import { useLang } from '../../../i18n/LangProvider';
 import { OpsPanel } from './OpsPanel';
 import { RulePanel } from './RulePanel';
 import { WhyPanel } from './WhyPanel';
+import { SandboxBar } from './SandboxBar';
 import { CreateCategoryDialog } from './CreateCategoryDialog';
 import type { S3cSession } from './use-s3c-session';
 import './s3c.css';
@@ -16,9 +17,14 @@ import './s3c.css';
  * The AltCore chrome (Stepper + LangToggle + step head/footer) is owned by
  * ImportFlow — like S3bMapping, this container renders only the split body.
  *
- * NFR-003: every data path is an EngineClient v4 method reached through the hook;
+ * NFR-003: every data path is an EngineClient method reached through the hook;
  * this file imports DTO TYPES + presentational components only — no deep engine
- * reach.  NO edit / delete / reorder / sandbox / auto-other (those are 4.9b/c).
+ * reach.
+ *
+ * 4.9b: when the session's sandbox is engaged the SandboxBar mounts in a
+ * full-width slot above OPS/RUL, the `.sandbox-on` frame lights the working
+ * panels, and the RulePanel's edit / delete / reorder / dynamic-save callbacks
+ * bind to the real session methods (live vs. sandbox lane decided worker-side).
  */
 
 export interface S3cCategorizeProps {
@@ -47,8 +53,24 @@ export function S3cCategorize({ session }: S3cCategorizeProps) {
   // NEVER the array index; the window slides under us).
   const whyRow = whyRowIndex != null ? win.rows.find((r) => r.rowIndex === whyRowIndex) ?? null : null;
 
+  // Engaged = a held sandbox: light the hazard frame + mount the SandboxBar slot.
+  const engaged = session.sandbox?.engaged ?? false;
+
   return (
-    <div className="s3c-split" data-testid="s3c-categorize">
+    <div className={'s3c-split' + (engaged ? ' sandbox-on' : '')} data-testid="s3c-categorize">
+      {engaged && (
+        <div className="s3c-sandboxbar-slot">
+          <SandboxBar
+            count={session.sandbox!.count}
+            changedOnly={session.changedOnly}
+            onToggleChangedOnly={session.toggleChangedOnly}
+            onApply={() => void session.applySandbox()}
+            onCancel={() => void session.cancelSandbox()}
+            lang={lang}
+          />
+        </div>
+      )}
+
       <OpsPanel
         rows={win.rows}
         fields={fields}
@@ -86,9 +108,15 @@ export function S3cCategorize({ session }: S3cCategorizeProps) {
             onPickCategory={session.pickCategory}
             rules={rules}
             liveMatchCount={win.matchCount}
-            onSave={() => void session.saveRule()}
+            onSave={() => void (session.editingId == null ? session.saveRule() : session.submitEdit())}
             onCreateCategory={(name) => session.openCreateCategory(name, true)}
             lang={lang}
+            editingId={session.editingId}
+            onEditRule={session.openEdit}
+            onDeleteRule={(id) => void session.deleteRule(id)}
+            onReorder={(order) => void session.reorderRules(order)}
+            saveLane={session.saveLane}
+            engaged={engaged}
           />
         )}
       </div>

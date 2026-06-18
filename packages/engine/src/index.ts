@@ -14,7 +14,7 @@
  * The `./worker` subpath is the Vite worker ENTRY — spawn it, don't import it.
  */
 
-// ── Runtime: the two client factories ────────────────────────────────────────
+// ── Runtime: the two client factories (contract v5) ──────────────────────────
 export { createDirectEngineClient } from './client/direct-client';
 export { createWorkerEngineClient } from './client/worker-client';
 
@@ -59,12 +59,16 @@ export type {
   // runtime symbol — boundary.spec.ts still asserts exactly 3 runtime keys.
   CategoryDTO,
   ConditionDTO,
+  RuleOperatorId,
   ConditionFieldDTO,
   CategorizedRowDTO,
   CategorizedWindowDTO,
   WhyRuleDTO,
   WhyTreeDTO,
   RuleSummaryDTO,
+  // ── Rule editing + sandbox DTOs (contract v5 — Story 4.9b) ─────────────────
+  EditActionDTO,
+  SandboxStateDTO,
 } from './client/dto';
 
 // ── Decode result types (2.1 surface — now via EngineClient.decode) ──────────
