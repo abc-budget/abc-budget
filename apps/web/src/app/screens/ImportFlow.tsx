@@ -120,6 +120,9 @@ export function ImportFlow() {
   const canAdvance = () => {
     if (step.id === 's3a') return session.state === 'recognized' || session.state === 'unknown';
     if (step.id === 's3b') return s3b.snapshot.unmapped.length === 0;
+    // Gate #3 (s3c, 4.9c): «Далі» opens only when every op has a category —
+    // the Auto-Other remainder assignment drives remainderCount → 0.
+    if (step.id === 's3c') return s3c.remainderCount === 0;
     return true;
   };
   const nextEnabled = canAdvance();

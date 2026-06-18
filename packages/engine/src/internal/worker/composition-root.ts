@@ -21,7 +21,7 @@
  */
 
 import type { ExchangeRateApi } from '../exchange-rate/api';
-import { setRemoteRatesApi } from '../exchange-rate/rates-holder';
+import { setRemoteRatesApi, getRatesService } from '../exchange-rate/rates-holder';
 import { WorkerHttpRatesApi } from '../exchange-rate/worker-http-rates-api';
 import { initEnginePersistence, openEngineDb } from '../persistence/engine-db';
 import type { PersistenceInitResult } from '../persistence/engine-db';
@@ -154,6 +154,8 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
     footprintDao,
     categoriesService,
     rulePersistence,
+    userSettings: settingsDao,
+    ratesProvider: getRatesService,
   });
 
   return {

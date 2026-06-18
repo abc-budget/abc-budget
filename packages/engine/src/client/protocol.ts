@@ -32,10 +32,14 @@
  *        rulesClassify | rulesSubmitEdit | sandboxState | sandboxApply |
  *        sandboxCancel. New DTOs: EditActionDTO, SandboxStateDTO.
  *        importCategorizedRows opts gains changedOnly?.
+ *   v6 — Story 4.9c (S3c completion + typicality): EngineMethod +=
+ *        importRemainderMagnitude | importAssignRemainder | importTypicality.
+ *        New DTOs: RemainderMagnitudeDTO, TypicalityReasonDTO, TypicalityFlagDTO,
+ *        TypicalityResultDTO. CategorizedWindowDTO gains remainderCount.
  */
 
 /** The current contract version. Increment per the bump rule above. */
-export const CONTRACT_VERSION = 5;
+export const CONTRACT_VERSION = 6;
 
 // ── Handshake ─────────────────────────────────────────────────────────────────
 
@@ -93,7 +97,11 @@ export type EngineMethod =
   | 'rulesSubmitEdit'
   | 'sandboxState'
   | 'sandboxApply'
-  | 'sandboxCancel';
+  | 'sandboxCancel'
+  // v6 (4.9c completion + typicality): Auto-Other remainder + self-check.
+  | 'importRemainderMagnitude'
+  | 'importAssignRemainder'
+  | 'importTypicality';
 
 /** A client → worker RPC call. */
 export interface EngineRequest {

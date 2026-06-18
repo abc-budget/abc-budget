@@ -53,13 +53,19 @@ function makeClient(over?: Record<string, unknown>): EngineClient {
     getBaseCurrency: vi.fn(async () => 'UAH'),
     setBaseCurrency: vi.fn(async () => undefined),
     // v4 categorization surface (S3c mounts its session hook alongside S3b)
-    importCategorizedRows: vi.fn(async () => ({ rows: [], total: 0, matchCount: 0 })),
+    importCategorizedRows: vi.fn(async () => ({ rows: [], total: 0, matchCount: 0, remainderCount: 0 })),
     importConditionFields: vi.fn(async () => []),
     importWhy: vi.fn(async () => ({ manual: null, rules: [], winnerRuleId: null })),
     importRulesList: vi.fn(async () => []),
     rulesCreate: vi.fn(async () => ({ ruleId: 1 })),
     categoriesList: vi.fn(async () => []),
     categoriesCreate: vi.fn(async () => ({ id: 'c', name: 'C', icon: 'other', currency: 'UAH' })),
+    // v6 auto-other + typicality surface (S3c's committed scan on mount, RULING 3)
+    importRemainderMagnitude: vi.fn(async () => ({
+      opCount: 0, totalOpCount: 0, baseCurrency: 'UAH', baseTotal: 0, pending: [], approx: false, lastRemainderCategoryId: null,
+    })),
+    importAssignRemainder: vi.fn(async () => undefined),
+    importTypicality: vi.fn(async () => ({ flags: [] })),
     onEvent: vi.fn(() => () => {}),
     ...over,
   } as unknown as EngineClient;

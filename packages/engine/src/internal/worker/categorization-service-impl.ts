@@ -37,6 +37,9 @@ import type {
   RuleSummaryDTO,
   EditActionDTO,
   SandboxStateDTO,
+  RemainderMagnitudeDTO,
+  TypicalityResultDTO,
+  TypicalityFlagDTO,
 } from '../../client/dto';
 import type { CategorizationService } from './categorization-service';
 import type { CategoriesService } from '../categories/categories-service';
@@ -44,6 +47,14 @@ import type { FootprintDao } from '../footprint/footprint-dao';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
 import { autoCategorize, distinctPeriods } from '../rules/auto-categorize';
 import { loadOverrideMap, overrideKeyForRow } from '../rules/categorize-with-overrides';
+import type { OverrideContext } from '../rules/categorize-with-overrides';
+import { remainderRows } from '../rules/auto-other';
+import { computeRemainderMagnitude } from '../rules/remainder-magnitude';
+import { rankBucket } from '../rules/typicality';
+import type { FlaggedOp } from '../rules/typicality';
+import { bucketByWinningRule, draftBucket } from '../rules/typicality/bucket';
+import { SettingKeys, type UserSettingsDAO } from '../settings/user-settings';
+import type { ExchangeRateService } from '../exchange-rate/service';
 import { ComplexRuleImpl } from '../rules/decision-tree-impl';
 import {
   RuleSandboxSession,
@@ -99,6 +110,13 @@ export interface CategorizationServiceDeps {
   readonly categoriesService: CategoriesService;
   /** The rule-persistence service (4.3b) — reload() the live tree + create(). */
   readonly rulePersistence: RulePersistenceService;
+  /** The user-settings DAO — base currency + the last-remainder-category default (4.9c). */
+  readonly userSettings: UserSettingsDAO;
+  /**
+   * The exchange-rate service provider (rates-holder) — `null` when no remote
+   * rates api is wired (fail-soft: the magnitude degrades, never throws).
+   */
+  readonly ratesProvider: () => Promise<ExchangeRateService | null>;
 }
 
 /**
@@ -270,6 +288,17 @@ export class CategorizationServiceImpl implements CategorizationService {
   private readonly footprintDao: FootprintDao;
   private readonly categoriesService: CategoriesService;
   private readonly rulePersistence: RulePersistenceService;
+  private readonly userSettings: UserSettingsDAO;
+  private readonly ratesProvider: () => Promise<ExchangeRateService | null>;
+
+  /**
+   * The transient session dumps, keyed by import session id → the L4 dump
+   * category id (or `null` for an explicit clear). Mirrors {@link sandboxes}: it
+   * is in-memory, NEVER persisted, and dropped on importAbort (see
+   * {@link dropDump}). A dump'd row's footprint commits with `isManual=0`
+   * (DERIVED), so the dump does NOT survive re-import (4.6 / auto-other).
+   */
+  private readonly dumps = new Map<string, string | null>();
 
   /**
    * The open sandbox sessions, keyed by import session id. A session is RETAINED
@@ -285,6 +314,8 @@ export class CategorizationServiceImpl implements CategorizationService {
     this.footprintDao = deps.footprintDao;
     this.categoriesService = deps.categoriesService;
     this.rulePersistence = deps.rulePersistence;
+    this.userSettings = deps.userSettings;
+    this.ratesProvider = deps.ratesProvider;
   }
 
   // ── conditionsToRules (the field→factory dispatch) ─────────────────────────
@@ -369,11 +400,17 @@ export class CategorizationServiceImpl implements CategorizationService {
     const rows = await this.getSessionRows(sessionId);
     const tree = await this.rulePersistence.reload();
 
-    // Live per-row {categoryId, isManual} via the L1→L4 ladder (4.7).
+    // The TRANSIENT L4 dump for this session (4.9c) — a single category id that
+    // sweeps the still-uncategorized remainder, BELOW the rules (rules beat it).
+    const dumpCategoryId = this.dumps.get(sessionId) ?? null;
+
+    // Live per-row {categoryId, isManual} via the L1→L4 ladder (4.7), dump-aware:
+    // a dump'd remainder row resolves to the dump category (isManual=0, DERIVED).
     const categorized = await autoCategorize(rows, {
       tree,
       footprintDao: this.footprintDao,
       categoriesService: this.categoriesService,
+      dumpCategoryId,
     });
 
     // The WINNING ruleId per row — a single debugger pass over the live tree.
@@ -448,7 +485,13 @@ export class CategorizationServiceImpl implements CategorizationService {
       ),
     );
 
-    return { rows: dtoRows, total, matchCount };
+    // v6 (4.9c): count uncategorized rows across the FULL row set (not just the window).
+    const remainderCount = rows.filter((_, i) => {
+      const diff = diffByRow?.get(rows[i].rowIndex);
+      return diff ? diff.newCategoryId === null : categorized[i].categoryId === null;
+    }).length;
+
+    return { rows: dtoRows, total, matchCount, remainderCount };
   }
 
   // ── importConditionFields ──────────────────────────────────────────────────
@@ -719,6 +762,109 @@ export class CategorizationServiceImpl implements CategorizationService {
     this.sandboxes.delete(sessionId);
   }
 
+  // ── v6 (4.9c — Auto-Other remainder magnitude + the typicality self-check) ──
+
+  /**
+   * The best-effort base-currency magnitude of the still-uncategorized remainder
+   * (ENT-021 inform-don't-gate). Resolves the dump-aware remainder over the live
+   * tree + override map, then sizes it via {@link computeRemainderMagnitude}.
+   *
+   * FAIL-SOFT on no-rates: when {@link ratesProvider} returns `null` (no remote
+   * rates api wired) the magnitude DEGRADES via {@link degradedMagnitude} —
+   * same-currency rows are exact, cross-currency rows land in the per-currency
+   * uncached tail — rather than throwing. The dialog still opens.
+   */
+  async importRemainderMagnitude(sessionId: string): Promise<RemainderMagnitudeDTO> {
+    const rows = await this.getSessionRows(sessionId);
+    const ctx = await this.buildOverrideCtx(rows);
+    const dumpCategoryId = this.dumps.get(sessionId) ?? null;
+    const remainder = remainderRows([...rows], ctx, dumpCategoryId);
+    const base = (await this.userSettings.getSetting<string>(SettingKeys.BASE_CURRENCY)) ?? '';
+    const rates = await this.ratesProvider();
+    const mag = rates
+      ? await computeRemainderMagnitude(remainder, { ratesService: rates, base })
+      : this.degradedMagnitude(remainder, base);
+    const lastRemainderCategoryId =
+      (await this.userSettings.getSetting<string>(SettingKeys.LAST_REMAINDER_CATEGORY_ID)) ?? null;
+    return {
+      opCount: mag.opCount,
+      totalOpCount: rows.length,
+      baseCurrency: base,
+      baseTotal: mag.baseTotal,
+      pending: [...mag.uncachedTail.entries()].map(([currency, amount]) => ({ currency, amount })),
+      approx: mag.uncachedTail.size > 0,
+      lastRemainderCategoryId,
+    };
+  }
+
+  /**
+   * Sets (or clears, with `null`) the session's TRANSIENT L4 dump — the «Решту →
+   * Інше» one-move sweep. Held only in {@link dumps} (never persisted); a
+   * non-null id is also remembered as `LAST_REMAINDER_CATEGORY_ID` so the next
+   * magnitude pre-selects it. Dropped on importAbort ({@link dropDump}).
+   */
+  async importAssignRemainder(sessionId: string, categoryId: string | null): Promise<void> {
+    this.dumps.set(sessionId, categoryId);
+    if (categoryId !== null) {
+      await this.userSettings.setSetting(SettingKeys.LAST_REMAINDER_CATEGORY_ID, categoryId);
+    }
+  }
+
+  /**
+   * The ENT-021 typicality self-check: per-bucket atypical-op flags with
+   * structured attribution. THREE modes:
+   *
+   *  - `{draft}`    — score the single draft rule's bucket ({@link draftBucket}).
+   *  - `{virtual}`  — when an engaged sandbox exists, bucket by the virtual
+   *    preview tree ({@link bucketByWinningRule} over `getVirtualTree()`).
+   *  - committed    — bucket by the live tree's winning rules.
+   *
+   * The uncategorized remainder is NEVER flagged — {@link bucketByWinningRule}
+   * excludes rows with no winning rule.
+   */
+  async importTypicality(
+    sessionId: string,
+    opts?: { virtual?: boolean; draft?: ConditionDTO[] },
+  ): Promise<TypicalityResultDTO> {
+    const rows = await this.getSessionRows(sessionId);
+    const flags: TypicalityFlagDTO[] = [];
+    const push = (bt: { flagged: FlaggedOp[] }): void => {
+      for (const f of bt.flagged) {
+        flags.push({
+          rowIndex: f.row.rowIndex,
+          atypicality: f.atypicality,
+          reasons: f.reasons.map((r) => ({ ...r })),
+        });
+      }
+    };
+    if (opts?.draft && opts.draft.length > 0) {
+      // The category is irrelevant to a draft bucket — only .evaluate() is called.
+      const draftRule = new ComplexRuleImpl(this.conditionsToRules(opts.draft), {
+        name: '',
+        icon: '',
+        isArchived: false,
+        currency: '',
+      });
+      const b = draftBucket(rows, draftRule);
+      push(rankBucket(b.rows, b.filteredFields));
+    } else {
+      const session = this.sandboxes.get(sessionId);
+      const tree =
+        opts?.virtual && session?.engaged
+          ? session.getVirtualTree()!
+          : await this.rulePersistence.reload();
+      for (const b of bucketByWinningRule(rows, tree).values()) {
+        push(rankBucket(b.rows, b.filteredFields));
+      }
+    }
+    return { flags };
+  }
+
+  /** Drops any session dump (importAbort teardown) — sync, idempotent. */
+  dropDump(sessionId: string): void {
+    this.dumps.delete(sessionId);
+  }
+
   // ── sandbox helpers ──────────────────────────────────────────────────────────
 
   /** The full `id → Category` index (incl. archived) — the sandbox category seam. */
@@ -752,6 +898,44 @@ export class CategorizationServiceImpl implements CategorizationService {
       currentTree,
       persistence: this.rulePersistence,
     };
+  }
+
+  /**
+   * The load-once {@link OverrideContext} (live tree + period-scoped override map
+   * + category index) for a session — the SAME `distinctPeriods` + `loadOverrideMap`
+   * the ladder uses, so the remainder is resolved identically to the window.
+   * Shared by {@link importRemainderMagnitude}.
+   */
+  private async buildOverrideCtx(
+    rows: readonly ImportStatementStage3Row[],
+  ): Promise<OverrideContext> {
+    const tree = await this.rulePersistence.reload();
+    const { overrideMap, categoriesById } = await loadOverrideMap(
+      this.footprintDao,
+      this.categoriesService,
+      distinctPeriods(rows),
+    );
+    return { tree, overrideMap, categoriesById };
+  }
+
+  /**
+   * FAIL-SOFT degraded magnitude when no rates service is configured (best-effort,
+   * NEVER throws): same-currency rows sum exact into `baseTotal`; cross-currency
+   * rows (unconvertible without rates) go to the per-currency `uncachedTail` —
+   * the «≈ N (+ … uncached)» best-effort signal, identical in SHAPE to
+   * {@link computeRemainderMagnitude}'s cache-miss tail.
+   */
+  private degradedMagnitude(
+    remainder: readonly ImportStatementStage3Row[],
+    base: string,
+  ): { opCount: number; baseTotal: number; uncachedTail: Map<string, number> } {
+    let baseTotal = 0;
+    const uncachedTail = new Map<string, number>();
+    for (const row of remainder) {
+      if (row.currency === base) baseTotal += row.amount;
+      else uncachedTail.set(row.currency, (uncachedTail.get(row.currency) ?? 0) + row.amount);
+    }
+    return { opCount: remainder.length, baseTotal, uncachedTail };
   }
 
   /**

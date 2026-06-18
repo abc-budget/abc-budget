@@ -4,8 +4,8 @@ import { OpsPanel } from './OpsPanel';
 import { LangProvider } from '../../../i18n/LangProvider';
 import type { Lang } from '../../../i18n/i18n';
 import { mccTitle } from '../../../mcc/mcc-lookup';
-import { cat, categoryMap, row, diffRow, CAT_GROCERIES, CAT_TRANSPORT, FIELDS, FIELDS_MULTI_CURRENCY, cond } from './fixtures';
-import type { CategorizedRowDTO, ConditionDTO, ConditionFieldDTO } from '@abc-budget/engine';
+import { cat, categoryMap, row, diffRow, CAT_GROCERIES, CAT_TRANSPORT, FIELDS, FIELDS_MULTI_CURRENCY, cond, TYPICALITY_MULTI, typFlag } from './fixtures';
+import type { CategorizedRowDTO, ConditionDTO, ConditionFieldDTO, TypicalityFlagDTO } from '@abc-budget/engine';
 
 afterEach(() => {
   cleanup();
@@ -20,6 +20,8 @@ function renderPanel(
     draft?: ConditionDTO[];
     lang?: Lang;
     onCellClick?: (i: number) => void;
+    typicality?: Map<number, TypicalityFlagDTO>;
+    atypFirst?: boolean;
   } = {},
 ) {
   const onCellClick = over.onCellClick ?? vi.fn();
@@ -40,6 +42,8 @@ function renderPanel(
         onAddCondition={vi.fn()}
         onCellClick={onCellClick}
         lang={over.lang ?? 'uk'}
+        typicality={over.typicality}
+        atypFirst={over.atypFirst}
       />
     </LangProvider>,
   );
@@ -173,5 +177,33 @@ describe('OpsPanel', () => {
       </LangProvider>,
     );
     expect(document.querySelector('.filter-strip')).toBeTruthy();
+  });
+
+  // ── 4.9c typicality overlay ──
+
+  it('overlays typicality: Ring on the category cell + AtypReasons + the op-atyp row tint', () => {
+    const rows = [row({ rowIndex: 1, description: 'CASINO', mcc: 6051 })];
+    const typ = new Map([[1, TYPICALITY_MULTI[0]]]);
+    const { container } = renderPanel({ rows, typicality: typ });
+    expect(container.querySelector('.atyp-ring')).toBeTruthy(); // CategoryCell.atypical seam
+    expect(container.querySelector('.atyp-reasons')).toBeTruthy(); // desc-cell chips
+    expect(container.querySelector('tr.op-atyp')).toBeTruthy(); // row tint
+  });
+
+  it('atypFirst re-sorts the displayed window flagged-first by atypicality DESC', () => {
+    // rowIndex 5 (atyp .68) and rowIndex 2 (atyp .77) flagged, rowIndex 0 unflagged.
+    const rows = [
+      row({ rowIndex: 0, description: 'PLAIN', categoryId: 'groceries' }),
+      row({ rowIndex: 5, description: 'CASINO', categoryId: 'groceries' }),
+      row({ rowIndex: 2, description: 'OUTLIER', categoryId: 'groceries' }),
+    ];
+    const typ = new Map<number, TypicalityFlagDTO>([
+      [5, typFlag({ rowIndex: 5, atypicality: 0.68 })],
+      [2, typFlag({ rowIndex: 2, atypicality: 0.77 })],
+    ]);
+    const { container } = renderPanel({ rows, typicality: typ, atypFirst: true });
+    const descs = Array.from(container.querySelectorAll('tbody tr .desc-val')).map((n) => n.textContent);
+    // highest atypicality first (.77 → OUTLIER), then .68 → CASINO, then the unflagged PLAIN
+    expect(descs).toEqual(['OUTLIER', 'CASINO', 'PLAIN']);
   });
 });

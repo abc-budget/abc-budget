@@ -102,7 +102,7 @@ function makeClient(over?: Record<string, unknown>): EngineClient {
     getBaseCurrency: vi.fn(async () => 'UAH'),
     setBaseCurrency: vi.fn(async () => undefined),
     // v4 categorization surface (S3c mounts its session hook alongside S3b)
-    importCategorizedRows: vi.fn(async () => ({ rows: [], total: 0, matchCount: 0 })),
+    importCategorizedRows: vi.fn(async () => ({ rows: [], total: 0, matchCount: 0, remainderCount: 0 })),
     importConditionFields: vi.fn(async () => []),
     importWhy: vi.fn(async () => ({ manual: null, rules: [], winnerRuleId: null })),
     importRulesList: vi.fn(async () => []),
@@ -116,6 +116,13 @@ function makeClient(over?: Record<string, unknown>): EngineClient {
     sandboxState: vi.fn(async () => ({ engaged: false, count: 0 })),
     sandboxApply: vi.fn(async () => undefined),
     sandboxCancel: vi.fn(async () => undefined),
+    // v6 auto-other + typicality surface — S3c's hook runs the committed scan on
+    // mount (RULING 3); this flow has no flags + no remainder.
+    importRemainderMagnitude: vi.fn(async () => ({
+      opCount: 0, totalOpCount: 0, baseCurrency: 'UAH', baseTotal: 0, pending: [], approx: false, lastRemainderCategoryId: null,
+    })),
+    importAssignRemainder: vi.fn(async () => undefined),
+    importTypicality: vi.fn(async () => ({ flags: [] })),
     onEvent: vi.fn(() => () => {}),
     ...over,
   } as unknown as EngineClient;
@@ -364,6 +371,7 @@ describe('ImportFlow — gate #2 (Option A, fails closed)', () => {
         ],
         total: 1,
         matchCount: 1,
+        remainderCount: 0,
       })),
       importConditionFields: vi.fn(async () => [{ field: 'desc', valueKind: 'text' as const, operators: ['contains'] }]),
       categoriesList: vi.fn(async () => [{ id: 'g', name: 'Продукти', icon: 'groceries', currency: 'UAH' }]),

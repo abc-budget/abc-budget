@@ -22,6 +22,8 @@ import type {
   RuleSummaryDTO,
   EditActionDTO,
   SandboxStateDTO,
+  RemainderMagnitudeDTO,
+  TypicalityResultDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -282,6 +284,36 @@ export interface EngineClient {
    * (sync on the service; wrapped to Promise here).
    */
   sandboxCancel(sessionId: string): Promise<void>;
+
+  // ── Auto-Other remainder + typicality (contract v6 — Story 4.9c) ───────────
+
+  /**
+   * Return the magnitude of uncategorized rows for the live session: how many
+   * rows have no category assigned, and the total row count.
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importRemainderMagnitude(sessionId: string): Promise<RemainderMagnitudeDTO>;
+
+  /**
+   * Assign `categoryId` to every uncategorized row in the session (Auto-Other).
+   * Pass `null` to clear any prior Auto-Other assignment.
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importAssignRemainder(sessionId: string, categoryId: string | null): Promise<void>;
+
+  /**
+   * Run the ENT-021 typicality self-check over the session's rows and return
+   * the flagged rows with their attributed reasons.
+   *
+   * @param opts.virtual When true, score against the virtual (sandbox) tree.
+   * @param opts.draft   Optional draft conditions to preview typicality under a
+   *   not-yet-saved rule (sandbox eval) without persisting.
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importTypicality(sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }): Promise<TypicalityResultDTO>;
 
   // ── Out-of-band events ─────────────────────────────────────────────────────
 

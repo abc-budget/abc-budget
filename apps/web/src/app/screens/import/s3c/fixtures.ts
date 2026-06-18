@@ -4,7 +4,9 @@ import type {
   CategoryDTO,
   ConditionDTO,
   ConditionFieldDTO,
+  RemainderMagnitudeDTO,
   RuleSummaryDTO,
+  TypicalityFlagDTO,
   WhyTreeDTO,
 } from '@abc-budget/engine';
 
@@ -115,6 +117,27 @@ export const ROWS_MULTI_CURRENCY: CategorizedRowDTO[] = [
 export function sandboxState(over: Partial<{ engaged: boolean; count: number }> = {}) {
   return { engaged: true, count: 2, ...over };
 }
+
+// ── 4.9c magnitude + typicality fixtures ──
+
+export function magnitude(over: Partial<RemainderMagnitudeDTO> = {}): RemainderMagnitudeDTO {
+  return { opCount: 3, totalOpCount: 12, baseCurrency: 'UAH', baseTotal: -1245.5,
+    pending: [{ currency: 'USD', amount: -42 }], approx: true, lastRemainderCategoryId: 'other', ...over };
+}
+
+export function typFlag(over: Partial<TypicalityFlagDTO> = {}): TypicalityFlagDTO {
+  return { rowIndex: 0, atypicality: 0.82, reasons: [{ field: 'mcc', kind: 'categorical-minority', value: 6051 }], ...over };
+}
+
+// A multi-reason, multi-field set — the teeth: mcc(categorical)+amount(outlier ×N)+rare-tokens, across rows.
+export const TYPICALITY_MULTI: TypicalityFlagDTO[] = [
+  typFlag({ rowIndex: 1, atypicality: 0.91, reasons: [{ field: 'mcc', kind: 'categorical-minority', value: 6051 }] }),
+  typFlag({ rowIndex: 2, atypicality: 0.77, reasons: [{ field: 'amount', kind: 'amount-outlier', magnitude: 4 }] }),
+  typFlag({ rowIndex: 5, atypicality: 0.68, reasons: [{ field: 'description', kind: 'rare-tokens', tokens: ['КАЗИНО'] }] }),
+  typFlag({ rowIndex: 7, atypicality: 0.64, reasons: [{ field: 'counterparty', kind: 'categorical-minority', value: 'ALIEXPRESS' }] }),
+];
+
+export const MAGNITUDE_MULTI = magnitude({ opCount: 2, baseTotal: -890, pending: [{ currency: 'USD', amount: -42 }, { currency: 'EUR', amount: -15 }], approx: true });
 
 export function whyTree(over: Partial<WhyTreeDTO> = {}): WhyTreeDTO {
   return {

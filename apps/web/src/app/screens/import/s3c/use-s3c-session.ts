@@ -6,8 +6,10 @@ import type {
   ConditionFieldDTO,
   EditActionDTO,
   EngineClient,
+  RemainderMagnitudeDTO,
   RuleSummaryDTO,
   SandboxStateDTO,
+  TypicalityFlagDTO,
   WhyTreeDTO,
 } from '@abc-budget/engine';
 import { defaultValueFor } from './ConditionRow';
@@ -80,6 +82,20 @@ export interface S3cSession {
   /** The save-lane verdict for the in-flight edit — drives the RulePanel button label. */
   saveLane: 'live' | 'sandbox';
 
+  // ── Auto-other completion + typicality (4.9c) ──────────────────────────────
+  /** The count of remaining uncategorized ops in the window (drives the Auto-Other CTA). */
+  remainderCount: number;
+  /** The fetched magnitude of the uncategorized remainder, or null until openAutoOther. */
+  magnitude: RemainderMagnitudeDTO | null;
+  /** Whether the Auto-Other completion dialog is open. */
+  autoOtherOpen: boolean;
+  /** rowIndex → typicality flag, for the OPS overlay (atypical rows). */
+  typicalityMap: Map<number, TypicalityFlagDTO>;
+  /** When true, the OPS window is re-sorted flagged-first (a UI-side reorder). */
+  atypFirst: boolean;
+  /** When true, the typicality self-check banner is hidden for this session. */
+  selfCheckHidden: boolean;
+
   // ── Methods ────────────────────────────────────────────────────────────────
   setDraft: (next: ConditionDTO[]) => void;
   addCondition: (field: string, operator: string) => void;
@@ -103,9 +119,17 @@ export interface S3cSession {
   applySandbox: () => Promise<void>;
   cancelSandbox: () => Promise<void>;
   toggleChangedOnly: () => void;
+
+  // ── Auto-other completion + typicality methods (4.9c) ──────────────────────
+  openAutoOther: () => Promise<void>;
+  closeAutoOther: () => void;
+  assignRemainder: (categoryId: string | null) => Promise<void>;
+  loadTypicality: (opts?: { virtual?: boolean; draft?: ConditionDTO[] }) => Promise<void>;
+  toggleAtypFirst: () => void;
+  hideSelfCheck: () => void;
 }
 
-const EMPTY_WINDOW: CategorizedWindowDTO = { rows: [], total: 0, matchCount: 0 };
+const EMPTY_WINDOW: CategorizedWindowDTO = { rows: [], total: 0, matchCount: 0, remainderCount: 0 };
 /** Window size — full ops set flows here (row economy); the panel paginates within. */
 const WINDOW_COUNT = 240;
 
@@ -136,6 +160,13 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
   const [editBeforeCategoryId, setEditBeforeCategoryId] = useState<string | null>(null);
   const [saveLane, setSaveLane] = useState<'live' | 'sandbox'>('live');
 
+  // ── Auto-other completion + typicality (4.9c) ──────────────────────────────
+  const [magnitude, setMagnitude] = useState<RemainderMagnitudeDTO | null>(null);
+  const [autoOtherOpen, setAutoOtherOpen] = useState(false);
+  const [typicalityMap, setTypicalityMap] = useState<Map<number, TypicalityFlagDTO>>(new Map());
+  const [atypFirst, setAtypFirst] = useState(false);
+  const [selfCheckHidden, setSelfCheckHidden] = useState(false);
+
   /**
    * Reload the OPS window for the given segment + (optional) draft.  The single
    * window load — every mutation (saveRule / addCondition / segment / page)
@@ -165,6 +196,23 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
   const reloadRules = useCallback(async () => {
     setRules(await client.importRulesList(sessionId));
   }, [client, sessionId]);
+
+  /**
+   * Load the typicality self-check (4.9c) over the EngineClient v6 seam and index
+   * the flags by rowIndex for the OPS overlay.  THE THREE MOMENTS (RULING 3):
+   *   - committed (no opts): mount + after a tree-changing mutation
+   *     (saveRule / applySandbox / assignRemainder);
+   *   - { draft }: while a draft rule is being previewed;
+   *   - { virtual: true }: while a sandbox is engaged.
+   * The caller picks the moment; this only wires the call → the rowIndex map.
+   */
+  const loadTypicality = useCallback(
+    async (opts?: { virtual?: boolean; draft?: ConditionDTO[] }) => {
+      const res = await client.importTypicality(sessionId, opts);
+      setTypicalityMap(new Map(res.flags.map((f) => [f.rowIndex, f])));
+    },
+    [client, sessionId],
+  );
 
   const refreshCategories = useCallback(async (): Promise<CategoryDTO[]> => {
     const cats = await client.categoriesList();
@@ -226,11 +274,19 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
       setEditBeforeCategoryId(null);
       setSaveLane('live');
       setSandbox(sb.engaged ? sb : null);
+      // Reset the 4.9c auto-other + typicality state on a fresh session.
+      setMagnitude(null);
+      setAutoOtherOpen(false);
+      setAtypFirst(false);
+      setSelfCheckHidden(false);
+      setTypicalityMap(new Map());
+      // Committed typicality self-check (moment 1 of 3): the mount load.
+      await loadTypicality();
     })();
     return () => {
       live = false;
     };
-  }, [client, sessionId, active]);
+  }, [client, sessionId, active, loadTypicality]);
 
   // ── Draft ──────────────────────────────────────────────────────────────────
 
@@ -279,8 +335,9 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     setDraftCategoryId(null);
     // Reload WITHOUT the draft (it is now a persisted rule) + refresh the list:
     // the OPS re-renders against the engine's freshly re-categorized truth.
-    await Promise.all([reloadWindow(savedSegment, []), reloadRules()]);
-  }, [client, draft, draftCategoryId, segment, reloadWindow, reloadRules]);
+    // The tree changed → re-run the committed typicality (moment 1 of 3).
+    await Promise.all([reloadWindow(savedSegment, []), reloadRules(), loadTypicality()]);
+  }, [client, draft, draftCategoryId, segment, reloadWindow, reloadRules, loadTypicality]);
 
   // ── Why (LOG/) ───────────────────────────────────────────────────────────────
 
@@ -462,8 +519,9 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     // draftCategoryId/saveLane WITHOUT triggering an extra window reload; the
     // single authoritative reload (changedOnly=false) follows immediately below.
     clearEditAnchors();
-    await Promise.all([reloadWindow(segment, [], false), reloadRules()]);
-  }, [client, sessionId, segment, clearEditAnchors, reloadWindow, reloadRules]);
+    // Sandbox committed → the tree changed → re-run the committed typicality.
+    await Promise.all([reloadWindow(segment, [], false), reloadRules(), loadTypicality()]);
+  }, [client, sessionId, segment, clearEditAnchors, reloadWindow, reloadRules, loadTypicality]);
 
   /** Discard the sandbox → tear down the banner + reload live. */
   const cancelSandbox = useCallback(async () => {
@@ -484,6 +542,37 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     });
   }, [reloadWindow, segment]);
 
+  // ── Auto-other completion + typicality (4.9c) ──────────────────────────────
+
+  /** Open the Auto-Other completion dialog → fetch the remainder magnitude. */
+  const openAutoOther = useCallback(async () => {
+    setMagnitude(await client.importRemainderMagnitude(sessionId));
+    setAutoOtherOpen(true);
+  }, [client, sessionId]);
+
+  /** Close the Auto-Other completion dialog. */
+  const closeAutoOther = useCallback(() => setAutoOtherOpen(false), []);
+
+  /**
+   * Bulk-assign the uncategorized remainder to a category (or null to clear the
+   * last Auto-Other).  Closes the dialog, then reloads the window (remainderCount
+   * now 0) + re-runs the committed typicality (moment 1 of 3 — the tree changed).
+   */
+  const assignRemainder = useCallback(
+    async (categoryId: string | null) => {
+      await client.importAssignRemainder(sessionId, categoryId);
+      setAutoOtherOpen(false);
+      await Promise.all([reloadWindow(segment, draft), loadTypicality()]);
+    },
+    [client, sessionId, segment, draft, reloadWindow, loadTypicality],
+  );
+
+  /** Re-sort the OPS window flagged-first (UI-side reorder of the loaded window). */
+  const toggleAtypFirst = useCallback(() => setAtypFirst((prev) => !prev), []);
+
+  /** Dismiss the typicality self-check banner for this session. */
+  const hideSelfCheck = useCallback(() => setSelfCheckHidden(true), []);
+
   return {
     window: windowDto,
     segment,
@@ -503,6 +592,12 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     changedOnly,
     editingId,
     saveLane,
+    remainderCount: windowDto.remainderCount,
+    magnitude,
+    autoOtherOpen,
+    typicalityMap,
+    atypFirst,
+    selfCheckHidden,
     setDraft,
     addCondition,
     pickCategory,
@@ -523,5 +618,11 @@ export function useS3cSession(client: EngineClient, sessionId: string, active = 
     applySandbox,
     cancelSandbox,
     toggleChangedOnly,
+    openAutoOther,
+    closeAutoOther,
+    assignRemainder,
+    loadTypicality,
+    toggleAtypFirst,
+    hideSelfCheck,
   };
 }

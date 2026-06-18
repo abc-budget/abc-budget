@@ -4,7 +4,9 @@ import type {
   CategorizedWindowDTO,
   CategoryDTO,
   EngineClient,
+  RemainderMagnitudeDTO,
   RuleSummaryDTO,
+  TypicalityResultDTO,
   WhyTreeDTO,
 } from '@abc-budget/engine';
 import { LangProvider } from '../../../i18n/LangProvider';
@@ -18,10 +20,12 @@ import {
   cat,
   diffRow,
   FIELDS,
+  magnitude,
   row,
   rule,
   RULES_MULTI,
   ROWS_MULTI_CURRENCY,
+  TYPICALITY_MULTI,
   whyTree,
 } from './fixtures';
 
@@ -41,6 +45,8 @@ function win(over: Partial<CategorizedWindowDTO> = {}): CategorizedWindowDTO {
     ],
     total: 2,
     matchCount: 2,
+    // НОВА ПОШТА is uncategorized by default → the gate blocks (1 remaining).
+    remainderCount: 1,
     ...over,
   };
 }
@@ -77,6 +83,12 @@ function makeClient(over?: Partial<EngineClient>): EngineClient {
     sandboxState: vi.fn(async (): Promise<SandboxStateDTO> => ({ engaged: false, count: 0 })),
     sandboxApply: vi.fn(async () => {}),
     sandboxCancel: vi.fn(async () => {}),
+    // 4.9c auto-other + typicality seam — defaults are CLEAN (no flags, no
+    // remainder) so the base composition tests don't surface the banner; the
+    // 4.9c suites below override these to drive the gate + self-check.
+    importRemainderMagnitude: vi.fn(async (): Promise<RemainderMagnitudeDTO> => magnitude()),
+    importAssignRemainder: vi.fn(async () => {}),
+    importTypicality: vi.fn(async (): Promise<TypicalityResultDTO> => ({ flags: [] })),
     ...over,
   } as unknown as EngineClient;
 }
@@ -177,9 +189,11 @@ describe('S3cCategorize', () => {
     fireEvent.click(cells[0]);
 
     await waitFor(() => expect(importWhy).toHaveBeenCalledWith('sess-c', 0));
-    // LOG/ pane renders the winner status + the operation row verbatim
+    // LOG/ pane renders the winner status + the operation row verbatim.
+    // Scope the «ОПЕРАЦІЯ» assertion to the LOG/ pane's .why-op label — the
+    // always-on gate bar's blocked copy («N операцій …») would otherwise collide.
     expect(await screen.findByText(/ПРАВИЛО-ПЕРЕМОЖЕЦЬ/i)).toBeTruthy();
-    expect(screen.getByText(/ОПЕРАЦІЯ/i)).toBeTruthy();
+    expect(document.querySelector('.why-op')?.textContent).toMatch(/ОПЕРАЦІЯ/);
     // a lamp is present (the why-tree has win/miss/neutral rows)
     expect(document.querySelectorAll('.whyrow .lamp').length).toBeGreaterThan(0);
   });
@@ -236,7 +250,7 @@ const CATS_MULTI: CategoryDTO[] = [
   cat({ id: 'travel', name: 'Подорожі', icon: 'travel', currency: 'USD' }),
 ];
 
-const LIVE_WINDOW: CategorizedWindowDTO = { rows: ROWS_MULTI_CURRENCY, total: 3, matchCount: 3 };
+const LIVE_WINDOW: CategorizedWindowDTO = { rows: ROWS_MULTI_CURRENCY, total: 3, matchCount: 3, remainderCount: 0 };
 const SANDBOX_WINDOW: CategorizedWindowDTO = {
   // УКЛОН's rule moved → its category flips (previousCategoryId set = the OPS diff row).
   rows: [
@@ -245,6 +259,7 @@ const SANDBOX_WINDOW: CategorizedWindowDTO = {
   ],
   total: 3,
   matchCount: 2,
+  remainderCount: 0,
 };
 
 /**
@@ -303,5 +318,116 @@ describe('S3cCategorize — sandbox wiring (engage → banner → apply)', () =>
     fireEvent.click(screen.getByText('Застосувати'));
     await waitFor(() => expect(screen.queryByTestId('sandbox-bar')).toBeNull());
     expect(document.querySelector('.sandbox-on')).toBeNull();
+  });
+});
+
+/**
+ * 4.9c completion wiring integration (Task 8) — the REAL useS3cSession hook over
+ * a stateful mock client, proving the screen-side composition of the gate +
+ * Auto-Other escape + self-check banner + the three RULING-3 typicality moments.
+ */
+
+/** The gate-flow client: 4 uncategorized → 0 after importAssignRemainder. */
+function makeGateClient() {
+  let assigned = false;
+  const importAssignRemainder = vi.fn(async () => {
+    assigned = true;
+  });
+  const importCategorizedRows = vi.fn(
+    async (): Promise<CategorizedWindowDTO> => win({ remainderCount: assigned ? 0 : 4 }),
+  );
+  const importRemainderMagnitude = vi.fn(
+    async (): Promise<RemainderMagnitudeDTO> => magnitude({ opCount: 4, lastRemainderCategoryId: 'dining' }),
+  );
+  const client = makeClient({ importCategorizedRows, importRemainderMagnitude, importAssignRemainder });
+  return { client, importAssignRemainder, importRemainderMagnitude };
+}
+
+describe('S3cCategorize — 4.9c completion gate + Auto-Other', () => {
+  it('blocked → gate bar + escape; open the modal → confirm → gate opens', async () => {
+    const { client, importAssignRemainder } = makeGateClient();
+    renderScreen(client);
+
+    // the gate mounts BLOCKED (4 uncategorized) with the loud orange frame
+    expect(await screen.findByTestId('s3c-gate')).toBeTruthy();
+    expect(document.querySelector('.gate.blocked')).toBeTruthy();
+    expect(document.querySelector('.gate.open')).toBeNull();
+
+    // the gate's «Призначити решту» escape opens the Auto-Other modal
+    fireEvent.click(screen.getByRole('button', { name: /Призначити решту/ }));
+    const modal = (await screen.findByRole('dialog')) as HTMLElement;
+    expect(modal).toBeTruthy();
+
+    // confirm (the gold action inside the modal) → bulk-assign → gate opens
+    fireEvent.click(within(modal).getByRole('button', { name: /Призначити решту/ }));
+    await waitFor(() => expect(importAssignRemainder).toHaveBeenCalledWith('sess-c', 'dining'));
+    await waitFor(() => expect(document.querySelector('.gate.open')).toBeTruthy());
+    expect(document.querySelector('.gate.blocked')).toBeNull();
+  });
+});
+
+describe('S3cCategorize — 4.9c self-check banner (committed typicality)', () => {
+  it('flags present → the self-check banner auto-shows', async () => {
+    const importTypicality = vi.fn(async (): Promise<TypicalityResultDTO> => ({ flags: TYPICALITY_MULTI }));
+    renderScreen(makeClient({ importTypicality }));
+    expect(await screen.findByTestId('self-check')).toBeTruthy();
+    // count = the flag count (4 atypical rows in TYPICALITY_MULTI)
+    expect(document.body.textContent).toContain('операцій найменш схожі');
+  });
+
+  it('a clean scan (no flags) → no banner', async () => {
+    const importTypicality = vi.fn(async (): Promise<TypicalityResultDTO> => ({ flags: [] }));
+    renderScreen(makeClient({ importTypicality }));
+    await screen.findByTestId('s3c-gate'); // wait for the committed scan to settle
+    expect(screen.queryByTestId('self-check')).toBeNull();
+  });
+});
+
+describe('S3cCategorize — RULING 3: the draft + virtual typicality moments', () => {
+  it('a draft preview fires importTypicality({ draft }) with the draft conditions', async () => {
+    const importTypicality = vi.fn(async (): Promise<TypicalityResultDTO> => ({ flags: [] }));
+    renderScreen(makeClient({ importTypicality }));
+    await screen.findByText('Продукти');
+    // the mount fired the COMMITTED moment (no opts)
+    expect(importTypicality).toHaveBeenCalledWith('sess-c', undefined);
+
+    // seed a draft via the desc column funnel → the DRAFT moment fires
+    const funnels = screen.getAllByTitle(/Фільтрувати|Filter/i);
+    fireEvent.click(funnels[1]);
+    fireEvent.click(screen.getByRole('menuitem', { name: /Містить|Contains/i }));
+
+    await waitFor(() =>
+      expect(importTypicality).toHaveBeenCalledWith(
+        'sess-c',
+        expect.objectContaining({ draft: expect.arrayContaining([expect.objectContaining({ field: 'description' })]) }),
+      ),
+    );
+  });
+
+  it('engaging a sandbox fires importTypicality({ virtual: true })', async () => {
+    let engaged = false;
+    const stateOf = (): SandboxStateDTO => (engaged ? { engaged: true, count: 2 } : { engaged: false, count: 0 });
+    const importTypicality = vi.fn(async (): Promise<TypicalityResultDTO> => ({ flags: [] }));
+    const client = makeClient({
+      categoriesList: vi.fn(async () => CATS_MULTI),
+      importRulesList: vi.fn(async () => RULES_MULTI),
+      importCategorizedRows: vi.fn(async (): Promise<CategorizedWindowDTO> => (engaged ? SANDBOX_WINDOW : LIVE_WINDOW)),
+      sandboxState: vi.fn(async (): Promise<SandboxStateDTO> => stateOf()),
+      rulesSubmitEdit: vi.fn(async (): Promise<SandboxStateDTO> => {
+        engaged = true;
+        return stateOf();
+      }),
+      importTypicality,
+    });
+    renderScreen(client);
+    await screen.findByText('УКЛОН');
+
+    // reorder → the sandbox engages → the VIRTUAL moment fires
+    fireEvent.click(screen.getByRole('button', { name: /Усі правила/i }));
+    const downs = await screen.findAllByLabelText('Вниз');
+    fireEvent.click(downs[0]);
+    await screen.findByTestId('sandbox-bar');
+
+    await waitFor(() => expect(importTypicality).toHaveBeenCalledWith('sess-c', { virtual: true }));
   });
 });

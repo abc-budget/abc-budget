@@ -12,12 +12,15 @@
 import { useState } from 'react';
 import { CategoryCell } from './CategoryCell';
 import { ColumnFunnel } from './ColumnFunnel';
+import { AtypReasons } from './AtypReasons';
+import { Ring } from './Ring';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { condText, formatOpDate } from './labels';
 import { Panel, PanelHeader } from '../../../../ui/altus/components/Panel';
 import { useT } from '../../../i18n/LangProvider';
 import { mccTitle } from '../../../mcc/mcc-lookup';
-import type { CategorizedRowDTO, CategoryDTO, ConditionDTO, ConditionFieldDTO } from '@abc-budget/engine';
+import { fmtAmount } from './money';
+import type { CategorizedRowDTO, CategoryDTO, ConditionDTO, ConditionFieldDTO, TypicalityFlagDTO } from '@abc-budget/engine';
 import './s3c.css';
 
 export type OpsSegment = 'all' | 'uncat';
@@ -38,17 +41,13 @@ export interface OpsPanelProps {
   onAddCondition: (field: string, operator: string) => void;
   onCellClick: (rowIndex: number) => void;
   lang: 'uk' | 'en';
+  /** 4.9c — rowIndex → typicality flag; an atypical row gets the gold overlay. */
+  typicality?: Map<number, TypicalityFlagDTO>;
+  /** 4.9c — when true, re-sort the displayed window flagged-first (atypicality DESC). */
+  atypFirst?: boolean;
 }
 
 const PAGE_SIZE = 12;
-const CURRENCY_SYMBOL: Record<string, string> = { UAH: '₴', USD: '$', EUR: '€', GBP: '£' };
-
-function fmtAmount(amount: number, currency: string): string {
-  const v = Math.abs(amount)
-    .toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    .replace(/ /g, ' ');
-  return `${amount < 0 ? '−' : ''}${v} ${CURRENCY_SYMBOL[currency] ?? currency}`;
-}
 
 function colHeaderKey(
   field: string,
@@ -111,14 +110,26 @@ export function OpsPanel({
   onAddCondition,
   onCellClick,
   lang,
+  typicality,
+  atypFirst = false,
 }: OpsPanelProps) {
   const t = useT();
   const [openFunnel, setOpenFunnel] = useState<string | null>(null);
   const activeFields = new Set(draft.map((c) => c.field));
 
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  // When atypFirst, re-order the LOADED window flagged-first by atypicality DESC
+  // (a UI-side reorder; cross-window surfacing is out of scope per the design).
+  const displayRows =
+    atypFirst && typicality
+      ? [...rows].sort(
+          (a, b) =>
+            (typicality.get(b.rowIndex)?.atypicality ?? -1) - (typicality.get(a.rowIndex)?.atypicality ?? -1),
+        )
+      : rows;
+
+  const pages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE));
   const pg = Math.min(page, pages - 1);
-  const pageRows = rows.slice(pg * PAGE_SIZE, pg * PAGE_SIZE + PAGE_SIZE);
+  const pageRows = displayRows.slice(pg * PAGE_SIZE, pg * PAGE_SIZE + PAGE_SIZE);
 
   return (
     <Panel className="opspanel">
@@ -203,8 +214,10 @@ export function OpsPanel({
               pageRows.map((row) => {
                 const category = row.categoryId != null ? categories.get(row.categoryId) : undefined;
                 const previous = row.previousCategoryId != null ? categories.get(row.previousCategoryId) : undefined;
+                const flag = typicality?.get(row.rowIndex);
+                const atypical = !!flag;
                 return (
-                  <tr key={row.rowIndex} className={category ? '' : 'op-uncat'}>
+                  <tr key={row.rowIndex} className={category ? (atypical ? 'op-atyp' : '') : 'op-uncat'}>
                     {fields.map((f) => (
                       <td
                         key={f.field}
@@ -219,6 +232,13 @@ export function OpsPanel({
                         {f.field === 'description' ? (
                           <span className="desc-wrap">
                             <span className="desc-val">{cellValue(row, f.field, lang)}</span>
+                            {atypical && (
+                              <span className="atyp-mk">
+                                <Ring />
+                                <span className="atyp-tag f-mono">{t('s3cScTag')}</span>
+                              </span>
+                            )}
+                            {atypical && <AtypReasons reasons={flag!.reasons} lang={lang} />}
                           </span>
                         ) : (
                           cellValue(row, f.field, lang)
@@ -230,6 +250,7 @@ export function OpsPanel({
                         category={category}
                         previous={previous}
                         isManual={row.isManual === 1}
+                        atypical={atypical}
                         onClick={() => onCellClick(row.rowIndex)}
                         lang={lang}
                       />

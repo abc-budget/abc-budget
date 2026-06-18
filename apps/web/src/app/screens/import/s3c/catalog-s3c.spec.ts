@@ -44,6 +44,21 @@ describe('S3c catalog keys', () => {
     expect(uk.s3cSbCount(5)).toContain('операцій змінять');
   });
 
+  it('4.9c completion + self-check keys present + uk/en parity', () => {
+    const keys = ['s3cGateOpenTag','s3cGateBlockedTag','s3cGateOpen','s3cAutoOther','s3cAoTitle','s3cAoSumLab',
+      's3cAoApproxNote','s3cAoRatePending','s3cAoPick','s3cAoTransient','s3cScEye','s3cScSort','s3cScMicro','s3cScHide','s3cScTag',
+      's3cRsnMccTitle','s3cRsnCat','s3cRsnAmt','s3cRsnTxt'];
+    for (const k of keys) {
+      expect(CATALOG_UK[k as keyof typeof CATALOG_UK], `uk ${k}`).toBeTruthy();
+      expect(CATALOG_EN[k as keyof typeof CATALOG_EN], `en ${k}`).toBeTruthy();
+    }
+    // pluralizing function keys:
+    expect(typeof CATALOG_UK.s3cGateBlocked).toBe('function');
+    expect(CATALOG_UK.s3cGateBlocked(3)).toContain('3');
+    expect(typeof CATALOG_UK.s3cAoOf).toBe('function');
+    expect(typeof CATALOG_UK.s3cScBody).toBe('function');
+  });
+
   it('parameterized keys interpolate {n}/{m}/{q}', () => {
     expect(t('uk', 's3cOpsTotal', { n: 12 })).toBe('12 оп.');
     expect(t('en', 's3cOpsTotal', { n: 12 })).toBe('12 ops');

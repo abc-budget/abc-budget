@@ -47,7 +47,7 @@ export interface WorkerScopeLike {
 
 // ── Method allowlist ──────────────────────────────────────────────────────────
 
-/** The exact contract-v5 method set — anything else is rejected loudly. */
+/** The exact contract-v6 method set — anything else is rejected loudly. */
 const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'ping',
   'getVersion',
@@ -80,6 +80,10 @@ const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'sandboxState',
   'sandboxApply',
   'sandboxCancel',
+  // v6 (4.9c completion + typicality): Auto-Other remainder + self-check.
+  'importRemainderMagnitude',
+  'importAssignRemainder',
+  'importTypicality',
 ]);
 
 // ── attachEngineHost ──────────────────────────────────────────────────────────

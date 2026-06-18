@@ -66,6 +66,8 @@ import type {
   RuleSummaryDTO,
   EditActionDTO,
   SandboxStateDTO,
+  RemainderMagnitudeDTO,
+  TypicalityResultDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -517,6 +519,16 @@ export function createWorkerEngineClient(
 
     sandboxCancel: (sessionId: string) =>
       call('sandboxCancel', [sessionId]) as Promise<void>,
+
+    // v6 (4.9c): Auto-Other remainder + typicality.
+    importRemainderMagnitude: (sessionId: string) =>
+      call('importRemainderMagnitude', [sessionId]) as Promise<RemainderMagnitudeDTO>,
+
+    importAssignRemainder: (sessionId: string, categoryId: string | null) =>
+      call('importAssignRemainder', [sessionId, categoryId]) as Promise<void>,
+
+    importTypicality: (sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }) =>
+      call('importTypicality', [sessionId, opts]) as Promise<TypicalityResultDTO>,
 
     onEvent(cb: (event: EngineEventPayload) => void): () => void {
       listeners.add(cb);
