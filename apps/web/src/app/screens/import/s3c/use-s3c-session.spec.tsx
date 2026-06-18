@@ -5,12 +5,14 @@ import type {
   CategoryDTO,
   ConditionDTO,
   EngineClient,
+  RemainderMagnitudeDTO,
   RuleSummaryDTO,
   SandboxStateDTO,
+  TypicalityResultDTO,
   WhyTreeDTO,
 } from '@abc-budget/engine';
 import { useS3cSession } from './use-s3c-session';
-import { cat, FIELDS, row, rule, RULES_MULTI, whyTree } from './fixtures';
+import { cat, FIELDS, magnitude, row, rule, RULES_MULTI, TYPICALITY_MULTI, whyTree } from './fixtures';
 
 /**
  * use-s3c-session — Task 4 hook spec (TDD, mock v4 EngineClient).
@@ -22,7 +24,13 @@ import { cat, FIELDS, row, rule, RULES_MULTI, whyTree } from './fixtures';
  */
 
 function win(over: Partial<CategorizedWindowDTO> = {}): CategorizedWindowDTO {
-  return { rows: [row({ rowIndex: 0 }), row({ rowIndex: 1, categoryId: null })], total: 2, matchCount: 2, ...over };
+  return {
+    rows: [row({ rowIndex: 0 }), row({ rowIndex: 1, categoryId: null })],
+    total: 2,
+    matchCount: 2,
+    remainderCount: 0,
+    ...over,
+  };
 }
 
 const CATS: CategoryDTO[] = [cat(), cat({ id: 'dining', name: 'Кафе', icon: 'dining' })];
@@ -55,6 +63,10 @@ function makeClient(over?: Partial<EngineClient>): EngineClient {
     sandboxState: vi.fn(async (): Promise<SandboxStateDTO> => ({ engaged: false, count: 0 })),
     sandboxApply: vi.fn(async (): Promise<void> => undefined),
     sandboxCancel: vi.fn(async (): Promise<void> => undefined),
+    // ── v6 (4.9c) auto-other + typicality seam ──
+    importRemainderMagnitude: vi.fn(async (): Promise<RemainderMagnitudeDTO> => magnitude()),
+    importAssignRemainder: vi.fn(async (): Promise<void> => undefined),
+    importTypicality: vi.fn(async (): Promise<TypicalityResultDTO> => ({ flags: [] })),
     onEvent: vi.fn(() => () => {}),
     ...over,
   } as unknown as EngineClient;
@@ -418,5 +430,84 @@ describe('useS3cSession', () => {
     act(() => result.current.toggleChangedOnly());
     expect(result.current.changedOnly).toBe(true);
     await waitFor(() => expect(importCategorizedRows.mock.calls.at(-1)?.[1].changedOnly).toBe(true));
+  });
+
+  // ── 4.9c auto-other completion + typicality ──
+
+  it('mount loads the window remainderCount + the committed typicality', async () => {
+    const client = makeClient({
+      importCategorizedRows: vi.fn(async () => win({ remainderCount: 4 })),
+      importTypicality: vi.fn(async () => ({ flags: TYPICALITY_MULTI })),
+    });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.remainderCount).toBe(4));
+    await waitFor(() => expect(result.current.typicalityMap.size).toBe(TYPICALITY_MULTI.length));
+    expect(result.current.typicalityMap.get(1)?.reasons[0].kind).toBe('categorical-minority');
+    // committed: no draft, not virtual
+    expect(client.importTypicality).toHaveBeenCalledWith('sess-c', undefined);
+  });
+
+  it('openAutoOther fetches the magnitude; assignRemainder calls the engine + reloads + closes', async () => {
+    const importAssignRemainder = vi.fn(async () => undefined);
+    const client = makeClient({ importRemainderMagnitude: vi.fn(async () => magnitude()), importAssignRemainder });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    await act(async () => {
+      await result.current.openAutoOther();
+    });
+    expect(result.current.autoOtherOpen).toBe(true);
+    expect(result.current.magnitude?.opCount).toBe(3);
+    await act(async () => {
+      await result.current.assignRemainder('other');
+    });
+    expect(importAssignRemainder).toHaveBeenCalledWith('sess-c', 'other');
+    expect(result.current.autoOtherOpen).toBe(false);
+  });
+
+  it('closeAutoOther clears the open flag', async () => {
+    const client = makeClient();
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    await act(async () => {
+      await result.current.openAutoOther();
+    });
+    expect(result.current.autoOtherOpen).toBe(true);
+    act(() => result.current.closeAutoOther());
+    expect(result.current.autoOtherOpen).toBe(false);
+  });
+
+  it('toggleAtypFirst flips the flag; hideSelfCheck hides the banner', async () => {
+    const client = makeClient();
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    expect(result.current.atypFirst).toBe(false);
+    act(() => result.current.toggleAtypFirst());
+    expect(result.current.atypFirst).toBe(true);
+    expect(result.current.selfCheckHidden).toBe(false);
+    act(() => result.current.hideSelfCheck());
+    expect(result.current.selfCheckHidden).toBe(true);
+  });
+
+  it('loadTypicality({ draft }) passes the draft conditions through to the engine', async () => {
+    const importTypicality = vi.fn(async () => ({ flags: TYPICALITY_MULTI }));
+    const client = makeClient({ importTypicality });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    const draft: ConditionDTO[] = [{ field: 'description', operator: 'contains', value: 'CASINO' }];
+    await act(async () => {
+      await result.current.loadTypicality({ draft });
+    });
+    expect(importTypicality).toHaveBeenCalledWith('sess-c', { draft });
+  });
+
+  it('loadTypicality({ virtual: true }) passes the engaged flag through', async () => {
+    const importTypicality = vi.fn(async () => ({ flags: TYPICALITY_MULTI }));
+    const client = makeClient({ importTypicality });
+    const { result } = renderHook(() => useS3cSession(client, 'sess-c'));
+    await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
+    await act(async () => {
+      await result.current.loadTypicality({ virtual: true });
+    });
+    expect(importTypicality).toHaveBeenCalledWith('sess-c', { virtual: true });
   });
 });
