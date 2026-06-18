@@ -154,7 +154,7 @@ describe('useS3cSession', () => {
     await waitFor(() => expect(result.current.fields.length).toBeGreaterThan(0));
 
     // a hand-set draft carrying a currency on an amount condition
-    const draft: ConditionDTO[] = [{ field: 'amount', operator: 'lt', value: -100, currency: 'UAH' }];
+    const draft: ConditionDTO[] = [{ field: 'amount', operator: 'lessThan', value: -100, currency: 'UAH' }];
     act(() => result.current.setDraft(draft));
     await waitFor(() => expect(result.current.draft).toHaveLength(1));
     act(() => result.current.pickCategory('groceries'));
@@ -224,9 +224,9 @@ describe('useS3cSession', () => {
     expect(result.current.createCat).toEqual({ initialName: 'Нова', fromPicker: true });
 
     await act(async () => {
-      await result.current.createCategory({ name: 'Нова', icon: 'other', currency: 'BASE' });
+      await result.current.createCategory({ name: 'Нова', icon: 'other', currency: 'base' });
     });
-    expect(categoriesCreate).toHaveBeenCalledWith({ name: 'Нова', icon: 'other', currency: 'BASE' });
+    expect(categoriesCreate).toHaveBeenCalledWith({ name: 'Нова', icon: 'other', currency: 'base' });
     await waitFor(() => expect(result.current.categories).toHaveLength(3));
     expect(result.current.createCat).toBeNull();
     // launched from the picker → the new category is auto-selected as the draft target

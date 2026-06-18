@@ -73,6 +73,8 @@
   border:1px dashed rgba(138,134,116,.55); border-radius:var(--r-pill); padding:3px 10px 3px 8px; white-space:nowrap; }
 .nocat-pill.lost{ color:var(--orange-deep); border-color:rgba(204,85,0,.5);
   background:repeating-linear-gradient(135deg,rgba(204,85,0,.08) 0 5px,transparent 5px 10px); }
+.nocat-dot{ width:7px; height:7px; border-radius:50%; border:1.5px solid var(--gray-warm); flex:none; }
+.nocat-pill.lost .nocat-dot{ border-color:var(--orange-deep); }
 
 /* 4.9c seam — atypicality marker (gold hollow ring) */
 .atyp-ring { flex: none; }

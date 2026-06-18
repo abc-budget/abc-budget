@@ -4,7 +4,7 @@
  * over the DTO types + the typed ChromeKey catalog (NO engine import).
  */
 import type { ChromeKey } from '../../../i18n/i18n';
-import type { ConditionDTO } from '@abc-budget/engine';
+import type { ConditionDTO, RuleOperatorId } from '@abc-budget/engine';
 
 type Translate = (key: ChromeKey, params?: Record<string, string | number>) => string;
 
@@ -23,21 +23,47 @@ const FIELD_KEY: Record<string, ChromeKey> = {
   counterparty: 's3cFieldCounterparty',
 };
 
-const OP_KEY: Record<string, ChromeKey> = {
-  eq: 's3cOpEq',
-  neq: 's3cOpNeq',
-  contains: 's3cOpContains',
-  ncontains: 's3cOpNcontains',
-  starts: 's3cOpStarts',
-  ends: 's3cOpEnds',
-  matches: 's3cOpMatches',
-  gt: 's3cOpGt',
-  lt: 's3cOpLt',
-  gte: 's3cOpGte',
-  lte: 's3cOpLte',
+/**
+ * operator wire id → its ChromeKey.  Typed `Record<RuleOperatorId, …>` so it
+ * MUST cover every operator the engine grammar can emit (operations.ts) — adding
+ * or renaming an operator there fails `tsc` here until a label is supplied. This
+ * is the compile-time half of the operator-id class-killer (operator-coverage.spec).
+ */
+const OP_KEY: Record<RuleOperatorId, ChromeKey> = {
+  // NumberOperation
+  equals: 's3cOpEq',
+  notEquals: 's3cOpNeq',
+  greaterThan: 's3cOpGt',
+  lessThan: 's3cOpLt',
+  greaterThanOrEqual: 's3cOpGte',
+  lessThanOrEqual: 's3cOpLte',
   between: 's3cOpBetween',
-  oneof: 's3cOpOneof',
+  // StringOperation
+  contains: 's3cOpContains',
+  notContains: 's3cOpNcontains',
+  startsWith: 's3cOpStarts',
+  endsWith: 's3cOpEnds',
+  matches: 's3cOpMatches',
+  // StringMatchOperation
+  oneOf: 's3cOpOneof',
+  // BooleanOperation
+  isTrue: 's3cOpIsTrue',
+  isFalse: 's3cOpIsFalse',
+  // DateOperation
+  specificDay: 's3cOpSpecificDay',
+  dayRange: 's3cOpDayRange',
+  firstDayOfMonth: 's3cOpFirstDayOfMonth',
+  firstMondayOfMonth: 's3cOpFirstMondayOfMonth',
+  firstSaturdayOfMonth: 's3cOpFirstSaturdayOfMonth',
+  firstSundayOfMonth: 's3cOpFirstSundayOfMonth',
+  lastDayOfMonth: 's3cOpLastDayOfMonth',
+  lastMondayOfMonth: 's3cOpLastMondayOfMonth',
+  lastSaturdayOfMonth: 's3cOpLastSaturdayOfMonth',
+  lastSundayOfMonth: 's3cOpLastSundayOfMonth',
 };
+
+/** Every operator id the UI labels — the wire union, single-sourced from OP_KEY. */
+export const OPERATOR_IDS = Object.keys(OP_KEY) as RuleOperatorId[];
 
 /**
  * Formats a CategorizedRowDTO ISO date (full-ISO, e.g. `2023-09-30T00:00:00.000Z`)
@@ -61,7 +87,9 @@ export function fieldLabel(field: string, t: Translate): string {
 }
 
 export function operatorLabel(operator: string, t: Translate): string {
-  const key = OP_KEY[operator];
+  // `operator` is the wire string; a known one resolves via OP_KEY, an unknown
+  // one falls back to the raw id (the cast just lets us probe the typed map).
+  const key = OP_KEY[operator as RuleOperatorId] as ChromeKey | undefined;
   return key ? t(key) : operator;
 }
 

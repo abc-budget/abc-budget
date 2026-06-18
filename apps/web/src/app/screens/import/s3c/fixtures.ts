@@ -137,7 +137,7 @@ export function whyTree(over: Partial<WhyTreeDTO> = {}): WhyTreeDTO {
         ruleId: 3,
         status: 'neutral',
         categoryId: 'other',
-        conditions: [{ field: 'amount', operator: 'gt', value: 100, met: null }],
+        conditions: [{ field: 'amount', operator: 'greaterThan', value: 100, met: null }],
       },
     ],
     ...over,

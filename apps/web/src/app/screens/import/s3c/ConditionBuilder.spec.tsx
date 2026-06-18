@@ -27,7 +27,7 @@ describe('ConditionBuilder', () => {
   });
 
   it('amount condition surfaces the currency input AND the pairing note', () => {
-    const { container } = renderBuilder([cond({ field: 'amount', operator: 'gt', value: 100, currency: 'UAH' })]);
+    const { container } = renderBuilder([cond({ field: 'amount', operator: 'greaterThan', value: 100, currency: 'UAH' })]);
     expect(screen.getByTestId('amount-currency-row')).toBeTruthy();
     expect(container.querySelector('.cb-cur select')).toBeTruthy();
     expect(screen.getByTestId('currency-pair-note')).toBeTruthy();
@@ -41,13 +41,13 @@ describe('ConditionBuilder', () => {
 
   it('changing the amount currency emits the updated ConditionDTO.currency', () => {
     const onChange = vi.fn();
-    renderBuilder([cond({ field: 'amount', operator: 'gt', value: 100, currency: 'UAH' })], onChange);
+    renderBuilder([cond({ field: 'amount', operator: 'greaterThan', value: 100, currency: 'UAH' })], onChange);
     fireEvent.change(screen.getByLabelText(/валюта/i), { target: { value: 'USD' } });
     expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ field: 'amount', currency: 'USD' })]);
   });
 
   it('renders an AND divider between multiple conditions', () => {
-    const { container } = renderBuilder([cond(), cond({ field: 'amount', operator: 'gt', value: 50 })]);
+    const { container } = renderBuilder([cond(), cond({ field: 'amount', operator: 'greaterThan', value: 50 })]);
     expect(container.querySelector('.cond-and')).toBeTruthy();
   });
 });

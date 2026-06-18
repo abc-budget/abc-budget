@@ -59,6 +59,7 @@ export type {
   // runtime symbol — boundary.spec.ts still asserts exactly 3 runtime keys.
   CategoryDTO,
   ConditionDTO,
+  RuleOperatorId,
   ConditionFieldDTO,
   CategorizedRowDTO,
   CategorizedWindowDTO,

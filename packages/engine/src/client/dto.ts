@@ -25,6 +25,7 @@ import type {
   TransactionRow,
 } from '../internal/importStatement/stage3/types';
 import type { CollisionDescriptor } from '../internal/importStatement/recall/recall';
+import type { RuleOperation } from '../internal/rules/operations';
 
 // ── Serialized message shape ──────────────────────────────────────────────────
 
@@ -344,6 +345,15 @@ export interface ConditionDTO {
   readonly value: unknown;
   readonly currency?: string;
 }
+
+/**
+ * The complete set of operator ids the rule grammar can emit on a
+ * `ConditionDTO.operator` — the discriminant of every `RuleOperation`
+ * (operations.ts). Exported TYPE-ONLY so the UI keys its operator-label map off
+ * the SINGLE wire source: a `Record<RuleOperatorId, …>` fails `tsc` the moment
+ * the engine adds or renames an operator, killing UI↔wire id drift.
+ */
+export type RuleOperatorId = RuleOperation['type'];
 
 /**
  * Describes a condition field the UI can build a rule against: the value kind

@@ -41,6 +41,23 @@ describe('CategoryCell', () => {
     expect(container.querySelector('.catcell.changed')).toBeTruthy();
   });
 
+  it('uncategorize diff (new=null): keeps the OLD chip + shows «uncategorized», not a bare assign', () => {
+    // A sandbox edit that strips a row's category: previous set, category undefined.
+    const { container } = render(
+      <LangProvider initialLang="uk">
+        <CategoryCell category={undefined} previous={CAT_GROCERIES} onClick={() => {}} lang="uk" />
+      </LangProvider>,
+    );
+    // the old chip must still render (FINDING-3: it was being dropped)
+    expect(screen.getByText('Продукти')).toBeTruthy();
+    expect(container.querySelector('.catcell-diff')).toBeTruthy();
+    expect(container.querySelector('.catcell-arrow')).toBeTruthy();
+    // the new side is the «uncategorized» lost-pill, not the plain assign affordance
+    expect(container.querySelector('.nocat-pill.lost')).toBeTruthy();
+    expect(container.querySelector('.catcell.changed')).toBeTruthy();
+    expect(container.querySelector('.catcell-assign')).toBeNull();
+  });
+
   it('does NOT add .changed when previous is not set', () => {
     const { container } = render(
       <LangProvider initialLang="uk">

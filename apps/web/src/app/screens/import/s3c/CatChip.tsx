@@ -34,14 +34,23 @@ export function CatChip({ category, isManual = false, previous, lang: _lang }: C
   const manualTag = t('s3cOverrideOn');
 
   if (previous) {
-    // 4.9b old→new diff (dead in 4.9a — `previous` is never passed).
+    // 4.9b old→new diff. When the NEW side is null (a sandbox edit that strips the
+    // row's category), render the «uncategorized» lost-pill — never drop the old
+    // chip to a bare «—» (FINDING-3).
     return (
       <span className="catcell-diff">
         <Chip category={previous} manualTag={manualTag} />
         <span className="catcell-arrow" aria-hidden="true">
           →
         </span>
-        <Chip category={category} isManual={isManual} manualTag={manualTag} />
+        {category ? (
+          <Chip category={category} isManual={isManual} manualTag={manualTag} />
+        ) : (
+          <span className="nocat-pill lost f-mono">
+            <span className="nocat-dot" aria-hidden="true" />
+            {t('s3cSegUncat')}
+          </span>
+        )}
       </span>
     );
   }

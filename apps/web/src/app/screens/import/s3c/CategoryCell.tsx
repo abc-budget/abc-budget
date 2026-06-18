@@ -36,7 +36,9 @@ export function CategoryCell({ category, isManual = false, atypical = false, pre
       title={t('s3cWhyTitle')}
     >
       {atypical && <Ring />}
-      {has ? (
+      {has || previous ? (
+        // categorized, OR a sandbox diff (incl. uncategorize: previous set, category null →
+        // CatChip renders «old → uncategorized», never dropping the old chip — FINDING-3).
         <CatChip category={category} previous={previous} isManual={isManual} lang={lang} />
       ) : (
         <span className="catcell-assign">
