@@ -1,8 +1,12 @@
+import { useEffect } from 'react';
 import { useLang } from '../../../i18n/LangProvider';
 import { OpsPanel } from './OpsPanel';
 import { RulePanel } from './RulePanel';
 import { WhyPanel } from './WhyPanel';
 import { SandboxBar } from './SandboxBar';
+import { S3cGateBar } from './S3cGateBar';
+import { SelfCheckBanner } from './SelfCheckBanner';
+import { AutoOtherModal } from './AutoOtherModal';
 import { CreateCategoryDialog } from './CreateCategoryDialog';
 import type { S3cSession } from './use-s3c-session';
 import './s3c.css';
@@ -56,6 +60,27 @@ export function S3cCategorize({ session }: S3cCategorizeProps) {
   // Engaged = a held sandbox: light the hazard frame + mount the SandboxBar slot.
   const engaged = session.sandbox?.engaged ?? false;
 
+  // ── RULING 3 — the three typicality moments (screen-side wiring) ─────────────
+  // The hook auto-fires the COMMITTED moment (mount + saveRule / applySandbox /
+  // assignRemainder).  The other two are SCREEN-driven and wired here:
+  //
+  //   • DRAFT moment — while a draft rule is being previewed, re-score the draft
+  //     bucket (the create-preview self-check).  Keyed on the draft conditions.
+  const { loadTypicality } = session;
+  const draftKey = JSON.stringify(draft);
+  useEffect(() => {
+    if (draft.length === 0) return;
+    void loadTypicality({ draft });
+    // draftKey is the structural identity of `draft` (re-fires on a real change).
+  }, [draft, draftKey, loadTypicality]);
+
+  //   • VIRTUAL moment — while a sandbox is engaged, re-score against the virtual
+  //     (held) tree.  Keyed on the engaged flag (fires when a sandbox engages).
+  useEffect(() => {
+    if (!engaged) return;
+    void loadTypicality({ virtual: true });
+  }, [engaged, loadTypicality]);
+
   return (
     <div className={'s3c-split' + (engaged ? ' sandbox-on' : '')} data-testid="s3c-categorize">
       {engaged && (
@@ -71,6 +96,30 @@ export function S3cCategorize({ session }: S3cCategorizeProps) {
         </div>
       )}
 
+      {/* Typicality self-check banner (4.9c) — auto-shows when the committed /
+          draft / virtual scan flags ≥1 atypical op, until the user dismisses it. */}
+      {session.typicalityMap.size > 0 && !session.selfCheckHidden && (
+        <div className="s3c-fullspan-slot">
+          <SelfCheckBanner
+            count={session.typicalityMap.size}
+            atypFirst={session.atypFirst}
+            onToggleSort={session.toggleAtypFirst}
+            onHide={session.hideSelfCheck}
+            lang={lang}
+          />
+        </div>
+      )}
+
+      {/* Completion gate (4.9c) — green when remainderCount===0, else the loud
+          orange block + the «Призначити решту» Auto-Other escape. */}
+      <div className="s3c-fullspan-slot">
+        <S3cGateBar
+          remainderCount={session.remainderCount}
+          onAutoOther={() => void session.openAutoOther()}
+          lang={lang}
+        />
+      </div>
+
       <OpsPanel
         rows={win.rows}
         fields={fields}
@@ -84,6 +133,8 @@ export function S3cCategorize({ session }: S3cCategorizeProps) {
         draft={draft}
         onAddCondition={session.addCondition}
         onCellClick={(rowIndex) => void session.openWhy(rowIndex)}
+        typicality={session.typicalityMap}
+        atypFirst={session.atypFirst}
         lang={lang}
       />
 
@@ -120,6 +171,17 @@ export function S3cCategorize({ session }: S3cCategorizeProps) {
           />
         )}
       </div>
+
+      {session.autoOtherOpen && session.magnitude && (
+        <AutoOtherModal
+          magnitude={session.magnitude}
+          categories={session.categories}
+          onConfirm={(id) => void session.assignRemainder(id)}
+          onCancel={session.closeAutoOther}
+          onCreateCategory={(name) => session.openCreateCategory(name, false)}
+          lang={lang}
+        />
+      )}
 
       {createCat && (
         <CreateCategoryDialog

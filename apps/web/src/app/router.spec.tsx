@@ -47,7 +47,8 @@ vi.mock('../engine', () => ({
     setBaseCurrency: async () => undefined,
     // v4 categorization surface — the router walk reaches S3c, which mounts its
     // session hook and loads these on step entry.
-    importCategorizedRows: async () => ({ rows: [], total: 0, matchCount: 0 }),
+    // v6 (4.9c): the empty walk window has zero remainder → the S3c gate opens.
+    importCategorizedRows: async () => ({ rows: [], total: 0, matchCount: 0, remainderCount: 0 }),
     importConditionFields: async () => [],
     importWhy: async () => ({ manual: null, rules: [], winnerRuleId: null }),
     importRulesList: async () => [],
@@ -60,6 +61,13 @@ vi.mock('../engine', () => ({
     sandboxState: async () => ({ engaged: false, count: 0 }),
     sandboxApply: async () => undefined,
     sandboxCancel: async () => undefined,
+    // v6 auto-other + typicality surface — S3c's hook runs the committed scan on
+    // mount (RULING 3); the walk has no flags + no remainder.
+    importRemainderMagnitude: async () => ({
+      opCount: 0, totalOpCount: 0, baseCurrency: 'UAH', baseTotal: 0, pending: [], approx: false, lastRemainderCategoryId: null,
+    }),
+    importAssignRemainder: async () => undefined,
+    importTypicality: async () => ({ flags: [] }),
   },
   engineReady: Promise.resolve({ state: 'ready' }),
 }));

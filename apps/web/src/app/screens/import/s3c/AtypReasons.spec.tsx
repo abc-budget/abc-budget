@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import type { TypicalityReasonDTO } from '@abc-budget/engine';
 import { LangProvider } from '../../../i18n/LangProvider';
 import { AtypReasons } from './AtypReasons';
 afterEach(cleanup);
-const r = (reasons: any) => render(<LangProvider initialLang="uk"><AtypReasons reasons={reasons} lang="uk" /></LangProvider>);
+const r = (reasons: TypicalityReasonDTO[]) =>
+  render(<LangProvider initialLang="uk"><AtypReasons reasons={reasons} lang="uk" /></LangProvider>);
 
 describe('AtypReasons', () => {
   it('mcc categorical → «MCC ≠ НАБІР · ‹title›» (via mccTitle, not the raw code)', () => {

@@ -8,6 +8,9 @@ export default tseslint.config(
       '**/.tsbuild/**',
       '**/node_modules/**',
       'functions/lib/**',
+      // Playwright e2e specs reference @playwright/test, which is NOT a repo
+      // dependency (the controller measures via the Playwright MCP).
+      '**/*.e2e.ts',
     ],
   },
   ...tseslint.configs.recommended,

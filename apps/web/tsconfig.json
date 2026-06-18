@@ -8,5 +8,6 @@
     "types": ["vite/client", "vite-plugin-pwa/client"]
   },
   "include": ["src", "src/**/*.json"],
+  "exclude": ["src/**/*.e2e.ts"],
   "references": [{ "path": "../../packages/engine" }]
 }
