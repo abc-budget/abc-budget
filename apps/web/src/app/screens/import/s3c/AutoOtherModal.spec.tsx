@@ -41,7 +41,7 @@ describe('AutoOtherModal', () => {
         />
       </LangProvider>,
     );
-    fireEvent.click(screen.getByText(/Призначити решту/));
+    fireEvent.click(screen.getByRole('button', { name: /Призначити решту/ }));
     expect(onConfirm).toHaveBeenCalledWith('other'); // default picker = lastRemainderCategoryId
   });
 });

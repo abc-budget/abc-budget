@@ -43,7 +43,7 @@ export function AutoOtherModal({
         <span className="screw" aria-hidden="true" style={{ top: 12, right: 12 }} />
         <div className="modal-h">
           <Lamp tone="gold" />
-          <span className="f-disp modal-title">{t('s3cAoPick')}</span>
+          <span className="f-disp modal-title">{t('s3cAoTitle')}</span>
         </div>
         <div className="ao-magnitude">
           <div className="ao-count">
@@ -58,8 +58,8 @@ export function AutoOtherModal({
             </div>
             {magnitude.pending.length > 0 && (
               <div className="ao-pending">
-                {magnitude.pending.map((p, i) => (
-                  <span className="ao-pend f-mono" key={i}>
+                {magnitude.pending.map((p) => (
+                  <span className="ao-pend f-mono" key={p.currency}>
                     + {fmtAmount(p.amount, p.currency)}{' '}
                     <span className="ao-pend-note">({p.currency} · {t('s3cAoRatePending')})</span>
                   </span>
