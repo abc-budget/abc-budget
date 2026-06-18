@@ -17,6 +17,7 @@ import { condText, formatOpDate } from './labels';
 import { Panel, PanelHeader } from '../../../../ui/altus/components/Panel';
 import { useT } from '../../../i18n/LangProvider';
 import { mccTitle } from '../../../mcc/mcc-lookup';
+import { fmtAmount } from './money';
 import type { CategorizedRowDTO, CategoryDTO, ConditionDTO, ConditionFieldDTO } from '@abc-budget/engine';
 import './s3c.css';
 
@@ -41,14 +42,6 @@ export interface OpsPanelProps {
 }
 
 const PAGE_SIZE = 12;
-const CURRENCY_SYMBOL: Record<string, string> = { UAH: '₴', USD: '$', EUR: '€', GBP: '£' };
-
-function fmtAmount(amount: number, currency: string): string {
-  const v = Math.abs(amount)
-    .toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    .replace(/ /g, ' ');
-  return `${amount < 0 ? '−' : ''}${v} ${CURRENCY_SYMBOL[currency] ?? currency}`;
-}
 
 function colHeaderKey(
   field: string,
