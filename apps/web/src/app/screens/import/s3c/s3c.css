@@ -82,6 +82,10 @@
 .atyp-tag { font-size: 8px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold-deep); }
 tr.op-atyp { background: rgba(225, 173, 1, .07); }
 
+.atyp-reasons{ display:inline-flex; flex-wrap:wrap; gap:6px; }
+.atyp-rsn{ font-size:9px; letter-spacing:.02em; background:#0E2630; color:var(--cream); padding:3px 8px; border-radius:var(--r-xs); }
+.atyp-rsn .k{ color:#F2C637; }
+
 /* ── ops toolbar · segmented · pager ─────────────────────────────────────── */
 .ops-toolbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px dashed rgba(5, 12, 22, .18);
   background: linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(0, 0, 0, .02)); }
