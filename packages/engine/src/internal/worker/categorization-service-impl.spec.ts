@@ -95,6 +95,8 @@ describe('CategorizationServiceImpl', () => {
       footprintDao,
       categoriesService,
       rulePersistence,
+      userSettings: settingsDao,
+      ratesProvider: async () => null,
     });
   });
 

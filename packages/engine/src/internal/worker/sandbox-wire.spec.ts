@@ -96,6 +96,8 @@ describe('sandbox-wire (the 5 v5 methods + sandbox-aware window)', () => {
       footprintDao,
       categoriesService,
       rulePersistence,
+      userSettings: settingsDao,
+      ratesProvider: async () => null,
     });
 
     // ── the multi-rule, multi-currency seed ────────────────────────────────────
