@@ -332,6 +332,30 @@ export const CATALOG_UK = {
   s3cDragHint: 'Перетягніть, щоб змінити порядок',
   s3cMoveUp: 'Вгору',
   s3cMoveDown: 'Вниз',
+  // ── S3c — 4.9c completion gate + Auto-Other + self-check ──
+  s3cGateOpenTag: '▸ УСІ КАТЕГОРИЗОВАНІ',
+  s3cGateBlockedTag: '▸ НЕ ВСІ КАТЕГОРИЗОВАНІ',
+  s3cGateOpen: 'Усі операції мають категорію. Можна переходити до огляду.',
+  s3cGateBlocked: (n: number): string => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'операція' : 'операцій'} ще без категорії.`,
+  s3cAutoOther: 'Призначити решту…',
+  s3cAoTitle: 'Призначити решту операцій',
+  s3cAoOf: (n: number): string => `з ${n} операцій без категорії`,
+  s3cAoSumLab: 'Сума решти · базова валюта',
+  s3cAoApproxNote: 'приблизно · курси можуть уточнитись при збереженні',
+  s3cAoRatePending: 'курс очікується',
+  s3cAoPick: 'Категорія для решти',
+  s3cAoTransient: 'Лише для цього імпорту · не правило, не стійке призначення',
+  s3cScEye: '▸ САМОПЕРЕВІРКА НАБОРУ',
+  s3cScBody: (n: number): string =>
+    `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'операція найменш схожа' : 'операцій найменш схожі'} на решту набору — варто глянути.`,
+  s3cScSort: 'Нетипові — згори',
+  s3cScMicro: '// підказка, не вирок — вирішуєте ви',
+  s3cScHide: 'Сховати підказку',
+  s3cScTag: 'нетипове',
+  s3cRsnMccTitle: 'MCC ≠ НАБІР',
+  s3cRsnCat: '≠ НАБІР',
+  s3cRsnAmt: 'СУМА — ВИКИД',
+  s3cRsnTxt: 'РІДКІСНІ СЛОВА',
 } as const;
 
 export type ChromeKey = keyof typeof CATALOG_UK;
