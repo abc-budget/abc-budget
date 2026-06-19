@@ -21,7 +21,7 @@
  */
 
 import type { ExchangeRateApi } from '../exchange-rate/api';
-import { setRemoteRatesApi, getRatesService } from '../exchange-rate/rates-holder';
+import { setRemoteRatesApi, getRatesService, bulkWarmRates } from '../exchange-rate/rates-holder';
 import { WorkerHttpRatesApi } from '../exchange-rate/worker-http-rates-api';
 import { initEnginePersistence, openEngineDb } from '../persistence/engine-db';
 import type { PersistenceInitResult } from '../persistence/engine-db';
@@ -161,14 +161,12 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
     userSettings: settingsDao,
     ratesProvider: getRatesService,
     ratesDao: exchangeRateDao,
-    // Best-effort distinct-date rate prefetch (5.1). RESOLVED FORK: the rates
-    // holder's getRatesService() returns the convert-only ExchangeRateService —
-    // it exposes NO warmRates (that lives on WorkerHttpRatesApi, held privately in
-    // rates-holder and not reachable on the composed graph). So this is a guarded
-    // no-op: the prefetch is best-effort and SWALLOWED by commitFootprints, and
-    // the cache-only convert is the single loud gate the commit relies on. Wiring
-    // remains a one-line swap if a warmRates seam is later exposed on the graph.
-    warmRates: async () => {},
+    // 5.2: the bulk warm is now reachable on the graph — the commit's best-effort
+    // prefetch is REAL (and the S3b→S3c importNext trigger uses the same path).
+    // bulkWarmRates de-dups + chunks ≤366 + write-throughs the IDB cache and is
+    // best-effort (swallows all errors); the commit's cache-only convert remains
+    // the single loud gate. (Supersedes the 5.1 no-op now that Task 3 exposed the seam.)
+    warmRates: (dates) => bulkWarmRates(dates),
   });
 
   return {

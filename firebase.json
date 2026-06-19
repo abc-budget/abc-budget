@@ -5,6 +5,7 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       { "source": "/api/rates", "function": { "functionId": "getUSDRates", "region": "europe-west1" } },
+      { "source": "/api/rates/bulk", "function": { "functionId": "getUSDRatesBulk", "region": "europe-west1" } },
       { "source": "**", "destination": "/index.html" }
     ],
     "headers": [
