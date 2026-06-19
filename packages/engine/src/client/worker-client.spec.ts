@@ -202,14 +202,14 @@ describe('WorkerTransport — handshake gate', () => {
     expect(err.theirs).toBe(99);
   });
 
-  it('PIN (Story 5.1): client at contract 7 vs worker helloAck contract 6 → ContractMismatchError (loud)', async () => {
-    expect(CONTRACT_VERSION).toBe(7);
+  it('PIN (Story 5.3): client at contract 8 vs worker helloAck contract 7 → ContractMismatchError (loud)', async () => {
+    expect(CONTRACT_VERSION).toBe(8);
     const { worker, client } = makeWorkerAndClient();
     const pingPromise = client.ping('test');
-    ackHandshake(worker, 6);
+    ackHandshake(worker, 7);
     await expect(pingPromise).rejects.toBeInstanceOf(ContractMismatchError);
     const err = (await pingPromise.catch((e) => e)) as ContractMismatchError;
-    expect(err.ours).toBe(7); expect(err.theirs).toBe(6);
+    expect(err.ours).toBe(8); expect(err.theirs).toBe(7);
   });
 
   it('ack with wrong contract → ALL queued calls reject ContractMismatchError', async () => {

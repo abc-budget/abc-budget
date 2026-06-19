@@ -81,6 +81,12 @@ export type {
   // ── Commit result DTO (contract v7 — Story 5.1, EP-5) ─────────────────────
   // TYPE-ONLY — adds no runtime symbol; boundary.spec.ts still asserts exactly 3.
   CommitResultDTO,
+  // ── Review union DTOs (contract v8 — Story 5.3, EP-5 S3d) ─────────────────
+  // TYPE-ONLY — adds no runtime symbol; boundary.spec.ts still asserts exactly 3.
+  ReviewRowState,
+  ReviewRowDTO,
+  ReviewSummaryDTO,
+  ReviewWindowDTO,
 } from './client/dto';
 
 // ── Decode result types (2.1 surface — now via EngineClient.decode) ──────────

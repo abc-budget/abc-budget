@@ -12,8 +12,8 @@ describe('EngineClient contract (direct transport)', () => {
     const client = createDirectEngineClient();
     const version = await client.getVersion();
     expect(typeof version.engine).toBe('string');
-    // DECLARED UPDATE (5.1): contract 6 → 7 (EP-5 importCommit wire)
-    expect(version.contract).toBe(7);
+    // DECLARED UPDATE (5.3): contract 7 → 8 (EP-5 S3d importReview wire)
+    expect(version.contract).toBe(8);
   });
 });
 

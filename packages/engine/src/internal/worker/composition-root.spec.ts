@@ -54,8 +54,8 @@ describe('composeEngine — contract is untouched by rates wiring', () => {
   it('CONTRACT_VERSION is not driven by the rates self-derivation (no init rates param)', () => {
     // The worker self-derives /api/rates internally — nothing about rates crosses the
     // wire in init, so composeEngine's rates wiring NEVER bumps the contract.
-    // The version sits at 7 because of the 5.1 importCommit wire surface (a
+    // The version sits at 8 because of the 5.3 importReview wire surface (a
     // separate, declared bump) — NOT because of anything composeEngine does here.
-    expect(CONTRACT_VERSION).toBe(7);
+    expect(CONTRACT_VERSION).toBe(8);
   });
 });

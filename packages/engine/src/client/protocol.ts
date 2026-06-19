@@ -39,10 +39,12 @@
  *   v7 — Story 5.1 (EP-5 commit pipeline): EngineMethod += importCommit.
  *        New DTO: CommitResultDTO. Session freed only on success (retry-able
  *        loud gate: RatesUnavailableError propagates before any free).
+ *   v8 — Story 5.3 (EP-5 S3d review): EngineMethod += importReview.
+ *        New DTOs: ReviewRowState, ReviewRowDTO, ReviewSummaryDTO, ReviewWindowDTO.
  */
 
 /** The current contract version. Increment per the bump rule above. */
-export const CONTRACT_VERSION = 7;
+export const CONTRACT_VERSION = 8;
 
 // ── Handshake ─────────────────────────────────────────────────────────────────
 
@@ -106,7 +108,9 @@ export type EngineMethod =
   | 'importAssignRemainder'
   | 'importTypicality'
   // v7 (5.1 EP-5 commit): footprint commit + session free.
-  | 'importCommit';
+  | 'importCommit'
+  // v8 (5.3 S3d review): full-union review with dup detection.
+  | 'importReview';
 
 /** A client → worker RPC call. */
 export interface EngineRequest {

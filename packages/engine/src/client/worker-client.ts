@@ -69,6 +69,7 @@ import type {
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
   CommitResultDTO,
+  ReviewWindowDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -534,6 +535,10 @@ export function createWorkerEngineClient(
     // v7 (5.1 EP-5 commit): footprint commit + session free.
     importCommit: (sessionId: string) =>
       call('importCommit', [sessionId]) as Promise<CommitResultDTO>,
+
+    // v8 (5.3 S3d review): full-union review with dup detection.
+    importReview: (sessionId: string, opts: { offset: number; count: number }) =>
+      call('importReview', [sessionId, opts]) as Promise<ReviewWindowDTO>,
 
     onEvent(cb: (event: EngineEventPayload) => void): () => void {
       listeners.add(cb);
