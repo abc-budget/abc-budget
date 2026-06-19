@@ -28,6 +28,7 @@ import { deriveFootprint } from '../footprint/derive-footprint';
 import { CategoriesService } from '../categories/categories-service';
 import { CategoriesDAO } from '../categories/categories-dao';
 import { ComplexRuleDAO } from '../rules/complex-rules-dao';
+import { IDBExchangeRateDAO } from '../exchange-rate/dao';
 import { RulePersistenceService } from '../rules/rule-persistence-service';
 import { UserSettingsIDBDAO } from '../settings/user-settings-idb';
 import { setBaseCurrency } from '../settings/base-currency';
@@ -97,6 +98,8 @@ describe('CategorizationServiceImpl', () => {
       rulePersistence,
       userSettings: settingsDao,
       ratesProvider: async () => null,
+      ratesDao: new IDBExchangeRateDAO(provider),
+      warmRates: async () => {},
     });
   });
 

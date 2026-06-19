@@ -15,7 +15,7 @@
  */
 import 'fake-indexeddb/auto';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FootprintDao } from './footprint-dao';
 import { commitFootprints } from './commit-footprints';
 import { toAmountUSD } from './footprint-usd';
@@ -201,5 +201,90 @@ describe('commitFootprints (two-phase, fail-loud, all-or-nothing)', () => {
     const run2 = (await footprintDao.getAll()).sort((a, b) => a.hash.localeCompare(b.hash));
 
     expect(run2).toEqual(run1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story 5.1 — Task 2: perf-map M-reads + categoryOf tests
+// ---------------------------------------------------------------------------
+
+describe('commitFootprints 5.1 — perf-map + categoryOf', () => {
+  let dbName: string;
+  let db: IDBDatabase;
+  let footprintDao: FootprintDao;
+  let ratesDao: ExchangeRateDAO;
+
+  /** Builds a minimal UAH TransactionRow for the 5.1 perf-map tests. */
+  function opRow(dateStr: string, amount: number, hash?: string): TransactionRow {
+    return rowWith({
+      hash: hash ?? `h-${dateStr}-${amount}`,
+      date: new Date(`${dateStr}T00:00:00.000Z`),
+      amount,
+      currency: 'UAH',
+    });
+  }
+
+  beforeEach(async () => {
+    dbName = `test-commit-fp-51-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    db = await openTestDb(dbName);
+    footprintDao = new FootprintDao(() => db);
+    ratesDao = new IDBExchangeRateDAO(() => db);
+    // Seed only 2023-09-30; 2023-10-01 is intentionally absent (see two-phase test).
+    await ratesDao.create({ base: 'USD', date: '2023-09-30', ...USD_BASE_MAP });
+  });
+
+  afterEach(async () => {
+    if (db) db.close();
+    await new Promise<void>((resolve) => {
+      const del = indexedDB.deleteDatabase(dbName);
+      del.onsuccess = () => resolve();
+      del.onerror = () => resolve();
+    });
+  });
+
+  it('PERF-MAP: distinct-date rates read ONCE (M reads, not N)', async () => {
+    // 4 rows over 2 distinct dates; seed both so the commit succeeds.
+    await ratesDao.create({ base: 'USD', date: '2023-10-01', ...USD_BASE_MAP });
+    const rows = [
+      opRow('2023-09-30', -10),
+      opRow('2023-09-30', -20),
+      opRow('2023-10-01', -30),
+      opRow('2023-09-30', -40),
+    ];
+    const spy = vi.spyOn(ratesDao, 'findByBaseCurrencyAndDate');
+    await commitFootprints(rows, { footprintDao, ratesDao, warm: noopWarm() });
+    // preload reads each DISTINCT date once (2), NOT once per row (4).
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect((await footprintDao.getAll()).length).toBe(4);
+  });
+
+  it('convert-from-map matches per-op toAmountUSD', async () => {
+    const rows = [opRow('2023-09-30', -100)];
+    await commitFootprints(rows, { footprintDao, ratesDao, warm: noopWarm() });
+    const direct = await toAmountUSD(-100, 'UAH', new Date('2023-09-30T00:00:00.000Z'), ratesDao);
+    expect((await footprintDao.getAll())[0].amountUSD).toBe(direct);
+  });
+
+  it('categoryOf threads categoryId/isManual into each footprint', async () => {
+    const rows = [opRow('2023-09-30', -10, 'h1'), opRow('2023-09-30', -20, 'h2')];
+    await commitFootprints(rows, {
+      footprintDao,
+      ratesDao,
+      warm: noopWarm(),
+      categoryOf: (r) =>
+        r.hash === 'h1' ? { categoryId: 'groceries', isManual: 1 } : { categoryId: null, isManual: 0 },
+    });
+    const all = await footprintDao.getAll();
+    expect(all.find((f) => f.hash === 'h1')).toMatchObject({ categoryId: 'groceries', isManual: 1 });
+    expect(all.find((f) => f.hash === 'h2')).toMatchObject({ categoryId: null, isManual: 0 });
+  });
+
+  it('two-phase ATOMIC: one uncached date among N → ZERO writes + RatesUnavailableError', async () => {
+    // 2023-09-30 is seeded; 2023-10-01 is NOT seeded in this suite's beforeEach.
+    const rows = [opRow('2023-09-30', -10), opRow('2023-10-01', -20)];
+    await expect(
+      commitFootprints(rows, { footprintDao, ratesDao, warm: noopWarm() })
+    ).rejects.toBeInstanceOf(RatesUnavailableError);
+    expect((await footprintDao.getAll()).length).toBe(0); // not partial
   });
 });

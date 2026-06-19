@@ -552,3 +552,11 @@ export interface TypicalityFlagDTO {
 export interface TypicalityResultDTO {
   readonly flags: TypicalityFlagDTO[];
 }
+
+// ── Commit result (contract v7 — Story 5.1, EP-5 commit pipeline) ─────────────
+
+/** The result of a successful footprint commit (Story 5.1). */
+export interface CommitResultDTO {
+  readonly sessionId: string;
+  readonly rowsCommitted: number;
+}

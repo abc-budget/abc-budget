@@ -42,9 +42,19 @@ export function footprintYearMonth(date: Date): { year: number; month: number } 
 }
 
 /**
+ * EXTENDS the single shared y/m derivation (4.4.1) — same UTC source, never
+ * re-derived. Adds the UTC day-of-month so a row and its footprint compute the
+ * SAME `(year,month,day)` by construction.
+ */
+export function footprintYearMonthDay(date: Date): { year: number; month: number; day: number } {
+  // EXTENDS the single shared y/m derivation (4.4.1) — same UTC source, never re-derived.
+  return { ...footprintYearMonth(date), day: date.getUTCDate() };
+}
+
+/**
  * Derives the persisted footprint record for a transaction row.
  *
- * The calendar split delegates to {@link footprintYearMonth} (the single UTC
+ * The calendar split delegates to {@link footprintYearMonthDay} (the single UTC
  * period derivation) — behavior is identical to the prior inline accessors.
  */
 export function deriveFootprint(
@@ -53,10 +63,11 @@ export function deriveFootprint(
   categoryId: string | null = null,
   isManual: 0 | 1 = 0
 ): FootprintRecord {
-  const { year, month } = footprintYearMonth(row.date);
+  const { year, month, day } = footprintYearMonthDay(row.date);
   return {
     year,
     month,
+    day,
     amountUSD, // kept separate so derive stays rate-free and synchronous
     categoryId, // RESOLVED id; defaults null until a categorized commit supplies one
     hash: row.hash, // already the 3.2 dup-wrapped final hash — do NOT re-hash

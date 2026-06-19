@@ -19,9 +19,11 @@
 
 import { toAmountUSD } from './footprint-usd';
 import { deriveFootprint } from './derive-footprint';
+import { PreloadedRatesDao } from './preloaded-rates-dao';
 import type { FootprintDao } from './footprint-dao';
 import type { FootprintRecord } from './types';
 import type { ExchangeRateDAO } from '../exchange-rate/dao';
+import type { ExchangeRateEntity } from '../exchange-rate/types';
 import type { TransactionRow } from '../importStatement/stage3/types';
 
 /**
@@ -34,6 +36,11 @@ export interface CommitFootprintsDeps {
   ratesDao: ExchangeRateDAO;
   /** Best-effort rate warm for the distinct operation dates. May reject (swallowed). */
   warm: (dates: Date[]) => Promise<void>;
+  /**
+   * 5.1: per-row categorization. Defaults to derived (null/0) — the EP-3 raw behavior,
+   * so all existing specs remain green with no change.
+   */
+  categoryOf?: (row: TransactionRow) => { categoryId: string | null; isManual: 0 | 1 };
 }
 
 /**
@@ -84,22 +91,38 @@ export async function commitFootprints(
   rows: readonly TransactionRow[],
   deps: CommitFootprintsDeps
 ): Promise<CommitResult> {
+  const distinct = distinctOpDates(rows);
+
   // 1. WARM — best-effort. A network/HTTP rejection is swallowed; the cache-only
   //    convert below is the single canonical loud gate.
   try {
-    await deps.warm(distinctOpDates(rows));
+    await deps.warm(distinct);
   } catch {
     // Swallowed by design — warm is best-effort. If a rate is truly missing the
     // pre-flight convert (step 2) fails loud, not here.
   }
 
-  // 2. PRE-FLIGHT — PURE. Convert + derive EVERY row before any write. A cache
-  //    miss throws RatesUnavailableError here and propagates; no row has been
-  //    persisted yet, so the store stays untouched (the two-phase guarantee).
+  // PERF-MAP: preload the distinct-date USD rate tables ONCE (M reads, not N).
+  // An absent date stores null, which makes CacheOnlyRatesApi throw
+  // RatesUnavailableError in the pre-flight below — before any putBatch write.
+  const byDate = new Map<string, ExchangeRateEntity | null>();
+  for (const date of distinct) {
+    const key = date.toISOString().split('T')[0];
+    if (!byDate.has(key)) byDate.set(key, await deps.ratesDao.findByBaseCurrencyAndDate('USD', key));
+  }
+  const ratesReader = new PreloadedRatesDao(byDate);
+
+  // 2. PRE-FLIGHT — PURE (reads memory via ratesReader — ZERO per-row IDB reads).
+  //    Convert + derive EVERY row before any write. A cache miss throws
+  //    RatesUnavailableError here and propagates; no row has been persisted yet,
+  //    so the store stays untouched (the two-phase guarantee).
   const records: FootprintRecord[] = [];
   for (const row of rows) {
-    const amountUSD = await toAmountUSD(row.amount, row.currency, row.date, deps.ratesDao);
-    records.push(deriveFootprint(row, amountUSD));
+    const amountUSD = await toAmountUSD(row.amount, row.currency, row.date, ratesReader);
+    const cat = deps.categoryOf
+      ? deps.categoryOf(row)
+      : { categoryId: null as string | null, isManual: 0 as const };
+    records.push(deriveFootprint(row, amountUSD, cat.categoryId, cat.isManual));
   }
 
   // 3. WRITE — one atomic transaction. Reached only when every convert succeeded.

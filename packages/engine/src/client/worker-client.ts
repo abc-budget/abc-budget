@@ -68,6 +68,7 @@ import type {
   SandboxStateDTO,
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
+  CommitResultDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -529,6 +530,10 @@ export function createWorkerEngineClient(
 
     importTypicality: (sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }) =>
       call('importTypicality', [sessionId, opts]) as Promise<TypicalityResultDTO>,
+
+    // v7 (5.1 EP-5 commit): footprint commit + session free.
+    importCommit: (sessionId: string) =>
+      call('importCommit', [sessionId]) as Promise<CommitResultDTO>,
 
     onEvent(cb: (event: EngineEventPayload) => void): () => void {
       listeners.add(cb);

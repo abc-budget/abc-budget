@@ -4,7 +4,7 @@
  * @internal
  *
  * Story 3.3 (EP-3): the ONLY shape a footprint row is ever stored as. Data
- * minimization is the contract — this record holds EXACTLY these 6 fields and
+ * minimization is the contract — this record holds EXACTLY these 7 fields and
  * NOTHING else.
  *
  * Raw identifying text (description / counterparty / amount / currency) lives
@@ -21,10 +21,11 @@
  * minimization.
  */
 
-/** A persisted footprint row — exactly 6 fields, nothing more (ENT-001). */
+/** A persisted footprint row — exactly 7 fields, nothing more (ENT-001). */
 export interface FootprintRecord {
   readonly year: number; // operation-date year (UTC)
   readonly month: number; // operation-date month 1–12
+  readonly day: number; // operation-date day of month 1–31 (UTC); plain DATA, NOT in the key/index
   readonly amountUSD: number; // ENT-020 reserve bridge — INTERNAL only, never read by UI
   readonly categoryId: string | null; // resolved category id; null until a categorized commit
   readonly hash: string; // dup-wrapped final hash from stage 3 (row.hash)

@@ -44,6 +44,8 @@ import type {
 import type { CategorizationService } from './categorization-service';
 import type { CategoriesService } from '../categories/categories-service';
 import type { FootprintDao } from '../footprint/footprint-dao';
+import { commitFootprints } from '../footprint/commit-footprints';
+import type { ExchangeRateDAO } from '../exchange-rate/dao';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
 import { autoCategorize, distinctPeriods } from '../rules/auto-categorize';
 import { loadOverrideMap, overrideKeyForRow } from '../rules/categorize-with-overrides';
@@ -117,6 +119,18 @@ export interface CategorizationServiceDeps {
    * rates api is wired (fail-soft: the magnitude degrades, never throws).
    */
   readonly ratesProvider: () => Promise<ExchangeRateService | null>;
+  /**
+   * The exchange-rate cache DAO (5.1) — the cache-only USD-convert source the
+   * commit reads through. A commit-time cache miss is the loud gate
+   * (RatesUnavailableError, before any write).
+   */
+  readonly ratesDao: ExchangeRateDAO;
+  /**
+   * Best-effort distinct-date rate prefetch (5.1) — invoked before the commit's
+   * cache-only convert. A network/HTTP rejection is SWALLOWED by
+   * {@link commitFootprints}; the convert is the single loud gate.
+   */
+  readonly warmRates: (dates: Date[]) => Promise<void>;
 }
 
 /**
@@ -290,6 +304,8 @@ export class CategorizationServiceImpl implements CategorizationService {
   private readonly rulePersistence: RulePersistenceService;
   private readonly userSettings: UserSettingsDAO;
   private readonly ratesProvider: () => Promise<ExchangeRateService | null>;
+  private readonly ratesDao: ExchangeRateDAO;
+  private readonly warmRates: (dates: Date[]) => Promise<void>;
 
   /**
    * The transient session dumps, keyed by import session id → the L4 dump
@@ -316,6 +332,8 @@ export class CategorizationServiceImpl implements CategorizationService {
     this.rulePersistence = deps.rulePersistence;
     this.userSettings = deps.userSettings;
     this.ratesProvider = deps.ratesProvider;
+    this.ratesDao = deps.ratesDao;
+    this.warmRates = deps.warmRates;
   }
 
   // ── conditionsToRules (the field→factory dispatch) ─────────────────────────
@@ -863,6 +881,52 @@ export class CategorizationServiceImpl implements CategorizationService {
   /** Drops any session dump (importAbort teardown) — sync, idempotent. */
   dropDump(sessionId: string): void {
     this.dumps.delete(sessionId);
+  }
+
+  // ── v7 (5.1 — the EP-5 commit) ─────────────────────────────────────────────
+
+  /**
+   * Categorizes the session's rows (the SAME dump-aware L1→L4 ladder the window
+   * uses) and commits their 7-field footprints via the two-phase
+   * {@link commitFootprints}.
+   *
+   * The categorization is threaded through `categoryOf`: each row's
+   * `{categoryId, isManual}` is indexed by the row's stable `hash` (the footprint
+   * key root) and looked up at commit time. A dump'd remainder row commits with
+   * `isManual=0` (DERIVED) — so it does NOT survive re-import (4.6 transient).
+   *
+   * The commit is ALL-OR-NOTHING and fail-loud: an uncached op-date rate aborts
+   * the WHOLE batch with ZERO writes (a `RatesUnavailableError` from the
+   * pre-flight convert propagates before any `putBatch`). The warm is best-effort
+   * (swallowed by commitFootprints); the cache-only convert is the loud gate.
+   *
+   * @param sessionId - The import session whose rows to commit.
+   * @returns The number of footprint rows written.
+   * @throws {import('../exchange-rate/cache-only-rates-api').RatesUnavailableError}
+   *   If any row's rate is uncached — the whole commit aborts with ZERO writes.
+   */
+  async commitSession(sessionId: string): Promise<{ rowsCommitted: number }> {
+    const rows = await this.getSessionRows(sessionId);
+    const tree = await this.rulePersistence.reload();
+    const dumpCategoryId = this.dumps.get(sessionId) ?? null;
+    const categorized = await autoCategorize(rows, {
+      tree,
+      footprintDao: this.footprintDao,
+      categoriesService: this.categoriesService,
+      dumpCategoryId,
+    });
+    // Index the per-row {categoryId, isManual} by the row's stable hash (the
+    // footprint key root) — the categoryOf seam commitFootprints threads per row.
+    const catByHash = new Map(
+      categorized.map((c) => [c.row.hash, { categoryId: c.categoryId, isManual: c.isManual }]),
+    );
+    const result = await commitFootprints(rows, {
+      footprintDao: this.footprintDao,
+      ratesDao: this.ratesDao,
+      warm: this.warmRates,
+      categoryOf: (row) => catByHash.get(row.hash) ?? { categoryId: null, isManual: 0 },
+    });
+    return { rowsCommitted: result.written };
   }
 
   // ── sandbox helpers ──────────────────────────────────────────────────────────

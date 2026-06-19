@@ -24,6 +24,7 @@ import type {
   SandboxStateDTO,
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
+  CommitResultDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -314,6 +315,15 @@ export interface EngineClient {
    * Throws SessionUnknownError if sessionId is not found.
    */
   importTypicality(sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }): Promise<TypicalityResultDTO>;
+
+  // ── Commit (contract v7 — Story 5.1, EP-5) ────────────────────────────────
+  /**
+   * Categorize the session's rows, write their 7-field footprints in one atomic
+   * two-phase batch, and FREE the session (raw not retained). A missing cached
+   * rate throws RatesUnavailableError BEFORE any write (zero rows) and does NOT
+   * free the session (retry-able). Throws SessionUnknownError if not found.
+   */
+  importCommit(sessionId: string): Promise<CommitResultDTO>;
 
   // ── Out-of-band events ─────────────────────────────────────────────────────
 

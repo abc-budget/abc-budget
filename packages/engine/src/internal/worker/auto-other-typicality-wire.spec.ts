@@ -35,6 +35,7 @@ import { FootprintDao } from '../footprint/footprint-dao';
 import { CategoriesService } from '../categories/categories-service';
 import { CategoriesDAO } from '../categories/categories-dao';
 import { ComplexRuleDAO } from '../rules/complex-rules-dao';
+import { IDBExchangeRateDAO } from '../exchange-rate/dao';
 import { RulePersistenceService } from '../rules/rule-persistence-service';
 import { UserSettingsIDBDAO } from '../settings/user-settings-idb';
 import { setBaseCurrency } from '../settings/base-currency';
@@ -120,6 +121,8 @@ describe('auto-other + typicality wire (the 3 v6 methods + dump-aware window)', 
       rulePersistence,
       userSettings: settingsDao,
       ratesProvider: async () => cacheMissRates,
+      ratesDao: new IDBExchangeRateDAO(provider),
+      warmRates: async () => {},
     });
 
     // ── the multi-rule, multi-currency seed ────────────────────────────────────

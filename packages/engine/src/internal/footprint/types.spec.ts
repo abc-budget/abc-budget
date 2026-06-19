@@ -25,7 +25,7 @@ type KeysEqual<A, B> = [keyof A] extends [keyof B]
   : false;
 
 /** The exact key set the footprint is allowed to have — no more, no less. */
-type ExactShape = { year: 0; month: 0; amountUSD: 0; categoryId: 0; hash: 0; isManual: 0 };
+type ExactShape = { year: 0; month: 0; day: 0; amountUSD: 0; categoryId: 0; hash: 0; isManual: 0 };
 
 // COMPILE-TIME exact-key guard: flips to `false` (build error) if FootprintRecord
 // gains or loses a key relative to ExactShape. Adding a 7th field fails here.
@@ -33,16 +33,17 @@ const _exact: KeysEqual<FootprintRecord, ExactShape> = true;
 void _exact;
 
 describe('FootprintRecord — minimization contract (ENT-001)', () => {
-  it('has EXACTLY the 6 allowed keys at the type level', () => {
+  it('has EXACTLY the 7 allowed keys at the type level', () => {
     expectTypeOf<keyof FootprintRecord>().toEqualTypeOf<
-      'year' | 'month' | 'amountUSD' | 'categoryId' | 'hash' | 'isManual'
+      'year' | 'month' | 'day' | 'amountUSD' | 'categoryId' | 'hash' | 'isManual'
     >();
   });
 
-  it('a valid record literal has exactly 6 keys at runtime', () => {
+  it('a valid record literal has exactly 7 keys at runtime', () => {
     const rec: FootprintRecord = {
       year: 2026,
       month: 6,
+      day: 19,
       amountUSD: 12.34,
       categoryId: null,
       hash: 'a1b2c3',
@@ -51,6 +52,7 @@ describe('FootprintRecord — minimization contract (ENT-001)', () => {
     expect(Object.keys(rec).sort()).toEqual([
       'amountUSD',
       'categoryId',
+      'day',
       'hash',
       'isManual',
       'month',
