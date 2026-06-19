@@ -34,6 +34,7 @@ import type {
   SandboxStateDTO,
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
+  ReviewWindowDTO,
 } from '../../client/dto';
 
 /**
@@ -86,4 +87,13 @@ export interface CategorizationService {
    * (RatesUnavailableError on an uncached op-date rate) yields ZERO writes.
    */
   commitSession(sessionId: string): Promise<{ rowsCommitted: number }>;
+
+  // v8 (5.3 — S3d import review union): ok + error + skipped union with dup detection.
+
+  /**
+   * Returns the S3d review union for a session: ok rows (live-categorized, dup-detected)
+   * + error rows (echoed cells + reasons) + skipped rows (echoed cells + reason).
+   * Full-set summary, windowed rows.
+   */
+  importReview(sessionId: string, opts: { offset: number; count: number }): Promise<ReviewWindowDTO>;
 }

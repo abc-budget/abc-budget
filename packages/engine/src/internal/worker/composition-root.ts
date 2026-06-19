@@ -40,8 +40,9 @@ import { RulePersistenceService } from '../rules/rule-persistence-service';
 import {
   CategorizationServiceImpl,
   type SessionRowsAccessor,
+  type SessionReviewAccessor,
+  type SessionReviewData,
 } from './categorization-service-impl';
-import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,14 @@ export interface ComposedEngine {
    * here. A no-op when categorization is null (the no-IDB baseline).
    */
   setSessionRowsAccessor(accessor: SessionRowsAccessor): void;
+  /**
+   * Late-binds the session-review accessor onto the composed categorization
+   * service (Story 5.3 S3d, Task 3). The accessor serves the full S3d review
+   * data (ok stage3 rows + rowErrors + skipped + stage2 rows + columns) from
+   * the SessionRegistry. The transport calls this after the registry is built.
+   * A no-op when categorization is null (the no-IDB baseline).
+   */
+  setSessionReviewAccessor(accessor: SessionReviewAccessor): void;
   /** Result of initEnginePersistence (opened flag + durability). */
   readonly persistence: PersistenceInitResult;
 }
@@ -110,13 +119,14 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
   if (!persistence.opened) {
     // No persistence — compose with nulls, no throw. Categorization needs the
     // engine DB (footprint + categories + rules stores), so it stays null here;
-    // setSessionRowsAccessor is a no-op (nothing to bind onto).
+    // setSessionRowsAccessor and setSessionReviewAccessor are no-ops (nothing to bind onto).
     return {
       service: new ImportStatementServiceImpl(),
       settingsDao: null,
       recallPool: null,
       categorization: null,
       setSessionRowsAccessor: () => {},
+      setSessionReviewAccessor: () => {},
       persistence,
     };
   }
@@ -145,16 +155,24 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
   const categoriesService = new CategoriesService(new CategoriesDAO(dbProvider), settingsDao);
   const rulePersistence = new RulePersistenceService(new ComplexRuleDAO(dbProvider), categoriesService);
 
-  let sessionRowsAccessor: SessionRowsAccessor = (sessionId: string): Promise<ImportStatementStage3Row[]> => {
+  let sessionRowsAccessor: SessionRowsAccessor = (sessionId: string) => {
     throw new Error(
       `[abc-engine] Session-rows accessor is not wired (session '${sessionId}'). ` +
         'The transport must call composeEngine().setSessionRowsAccessor() after the SessionRegistry is built.',
     );
   };
 
+  let sessionReviewAccessor: SessionReviewAccessor = (sessionId: string): Promise<SessionReviewData> => {
+    throw new Error(
+      `[abc-engine] Session-review accessor is not wired (session '${sessionId}'). ` +
+        'The transport must call composeEngine().setSessionReviewAccessor() after the SessionRegistry is built.',
+    );
+  };
+
   const categorization = new CategorizationServiceImpl({
     // Indirect so a late bind is seen by an already-constructed service.
     getSessionRows: (sessionId) => sessionRowsAccessor(sessionId),
+    getSessionReview: (sessionId) => sessionReviewAccessor(sessionId),
     footprintDao,
     categoriesService,
     rulePersistence,
@@ -176,6 +194,9 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
     categorization,
     setSessionRowsAccessor: (accessor: SessionRowsAccessor) => {
       sessionRowsAccessor = accessor;
+    },
+    setSessionReviewAccessor: (accessor: SessionReviewAccessor) => {
+      sessionReviewAccessor = accessor;
     },
     persistence,
   };

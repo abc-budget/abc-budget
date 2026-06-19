@@ -123,6 +123,7 @@ describe('auto-other + typicality wire (the 3 v6 methods + dump-aware window)', 
       ratesProvider: async () => cacheMissRates,
       ratesDao: new IDBExchangeRateDAO(provider),
       warmRates: async () => {},
+      getSessionReview: async () => ({ rows: [], rowErrors: [], skipped: [], stage2Rows: [], columns: [] }),
     });
 
     // ── the multi-rule, multi-currency seed ────────────────────────────────────

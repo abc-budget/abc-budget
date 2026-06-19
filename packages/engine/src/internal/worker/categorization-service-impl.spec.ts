@@ -22,9 +22,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CategorizationServiceImpl,
   type SessionRowsAccessor,
+  type SessionReviewAccessor,
+  type SessionReviewData,
 } from './categorization-service-impl';
 import { FootprintDao } from '../footprint/footprint-dao';
 import { deriveFootprint } from '../footprint/derive-footprint';
+import { footprintYearMonth } from '../footprint/derive-footprint';
 import { CategoriesService } from '../categories/categories-service';
 import { CategoriesDAO } from '../categories/categories-dao';
 import { ComplexRuleDAO } from '../rules/complex-rules-dao';
@@ -37,6 +40,7 @@ import type { ConditionDTO } from '../../client/dto';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
 import { ENGINE_MIGRATIONS } from '../persistence/engine-db';
 import { openDatabase } from '../store/migrations/open-with-migrations';
+import { NativeMessage } from '../utils/messages/message';
 
 /** Opens a test DB through the REAL engine migration lineage. */
 function openTestDb(name: string): Promise<IDBDatabase> {
@@ -74,6 +78,42 @@ describe('CategorizationServiceImpl', () => {
   let svc: CategorizationServiceImpl;
   let sessionRows: ImportStatementStage3Row[];
 
+  // ── importReview fixture ─────────────────────────────────────────────────────
+  // OK row: desc ATB (will be categorized by a rule), rowIndex 3
+  const OK_DATE = new Date(Date.UTC(2026, 5, 15)); // 2026-06-15
+  const okRow: ImportStatementStage3Row = {
+    rowIndex: 3,
+    hash: 'ok-hash-atb',
+    date: OK_DATE,
+    amount: 10000,
+    currency: 'UAH',
+    description: 'ATB',
+    counterparty: null,
+    account: null,
+    bankCategory: null,
+    mcc: null,
+    isBankCommission: false,
+    isCashback: false,
+    category: null,
+    isManuallySetCategory: false,
+  };
+  // Income row: skipped, rowIndex 7
+  const incomeReason = new NativeMessage('income row');
+
+  const reviewDataFor = (rows: ImportStatementStage3Row[]): SessionReviewData => ({
+    rows,
+    rowErrors: [{ rowIndex: 5, errors: [new NativeMessage('bad column')] }],
+    skipped: [{ rowIndex: 7, reason: incomeReason }],
+    stage2Rows: [], // echoFor will return null fields (no stage2 rows seeded)
+    columns: [],
+  });
+
+  let reviewData: SessionReviewData;
+  const reviewAccessor: SessionReviewAccessor = async (id) => {
+    if (id !== SESSION) throw new Error(`unknown session ${id}`);
+    return reviewData;
+  };
+
   beforeEach(async () => {
     dbName = `test-cat-svc-db-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
     db = await openTestDb(dbName);
@@ -91,6 +131,9 @@ describe('CategorizationServiceImpl', () => {
       return sessionRows;
     };
 
+    // default reviewData for importReview tests: 1 ok + 1 error + 1 skipped
+    reviewData = reviewDataFor([okRow]);
+
     svc = new CategorizationServiceImpl({
       getSessionRows: accessor,
       footprintDao,
@@ -100,6 +143,7 @@ describe('CategorizationServiceImpl', () => {
       ratesProvider: async () => null,
       ratesDao: new IDBExchangeRateDAO(provider),
       warmRates: async () => {},
+      getSessionReview: reviewAccessor,
     });
   });
 
@@ -390,6 +434,58 @@ describe('CategorizationServiceImpl', () => {
 
       const list = await svc.categoriesList();
       expect(list.find((c) => c.id === created.id)!.currency).toBe('USD');
+    });
+  });
+
+  // ── importReview (S3d union) ─────────────────────────────────────────────────
+
+  describe('importReview (S3d union)', () => {
+    it('unions ok + error + skipped, each with its state + reason, income → skipped', async () => {
+      // Seed a Groceries category + rule so okRow (desc ATB) gets categorized.
+      const groceries = await makeCategory('Groceries');
+      await svc.rulesCreate(
+        [{ field: 'description', operator: 'equals', value: 'ATB' }],
+        groceries.id!,
+      );
+      // reviewData: 1 ok (desc ATB), 1 error (rowIndex 5), 1 skipped income (rowIndex 7)
+      reviewData = reviewDataFor([okRow]);
+
+      const win = await svc.importReview(SESSION, { offset: 0, count: 50 });
+      expect(win.summary).toEqual({ total: 3, ok: 1, error: 1, skipped: 1, dup: 0, newCount: 1 });
+      const byState = Object.fromEntries(win.rows.map((r) => [r.state, r]));
+      expect(byState.ok.categoryId).toBeDefined();
+      expect(byState.error.reasons?.length).toBeGreaterThan(0);
+      expect(byState.skipped.reasons?.length).toBe(1); // income reason surfaced, not re-detected
+      // skipped income: amount echoed from stage2 (null here since no stage2Rows seeded)
+      // — the brief says amount: raw income echo; here the echo returns null (no stage2)
+    });
+
+    it('dup: re-import of a committed row → dup:true via ONE getByPeriods (not findByHash)', async () => {
+      // Seed the ok row as an already-committed footprint so the dup check fires.
+      const { year, month } = footprintYearMonth(okRow.date);
+      await footprintDao.put({ hash: okRow.hash, year, month, day: 15, amountUSD: 100, categoryId: null, isManual: 0 });
+
+      const getByPeriods = vi.spyOn(footprintDao, 'getByPeriods');
+      const findByHash = vi.spyOn(footprintDao, 'findByHash');
+
+      const win = await svc.importReview(SESSION, { offset: 0, count: 50 });
+      const ok = win.rows.find((r) => r.state === 'ok')!;
+      expect(ok.dup).toBe(true);
+      expect(win.summary.dup).toBe(1);
+      expect(win.summary.newCount).toBe(0); // ok(1) - dup(1)
+      expect(getByPeriods).toHaveBeenCalledTimes(1); // period-scoped, ONE read
+      expect(findByHash).not.toHaveBeenCalled(); // NOT per-op
+    });
+
+    it('first import → all dup:false', async () => {
+      const win = await svc.importReview(SESSION, { offset: 0, count: 50 });
+      expect(win.rows.filter((r) => r.state === 'ok').every((r) => r.dup === false)).toBe(true);
+    });
+
+    it('summary is FULL-set; only rows are windowed', async () => {
+      const win = await svc.importReview(SESSION, { offset: 1, count: 1 });
+      expect(win.summary.total).toBe(3); // full
+      expect(win.rows).toHaveLength(1); // window slice
     });
   });
 

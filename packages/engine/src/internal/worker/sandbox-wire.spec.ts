@@ -101,6 +101,7 @@ describe('sandbox-wire (the 5 v5 methods + sandbox-aware window)', () => {
       ratesProvider: async () => null,
       ratesDao: new IDBExchangeRateDAO(provider),
       warmRates: async () => {},
+      getSessionReview: async () => ({ rows: [], rowErrors: [], skipped: [], stage2Rows: [], columns: [] }),
     });
 
     // ── the multi-rule, multi-currency seed ────────────────────────────────────
