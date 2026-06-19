@@ -62,6 +62,7 @@ import {
 import { SessionUnknownError } from './errors';
 import { ColumnTransformRejection } from '../internal/importStatement/stage2/errors';
 import type { ExchangeRateApi } from '../internal/exchange-rate/api';
+import { bulkWarmRates } from '../internal/exchange-rate/rates-holder';
 import { createPingEngine } from '../internal/ping-engine';
 import { composeEngine } from '../internal/worker/composition-root';
 import type { ComposedEngine } from '../internal/worker/composition-root';
@@ -383,6 +384,12 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       const result = await generateForSession(entry, (done, total) =>
         emitProgress(jobId, 'generate', done, total),
       );
+
+      // 5.2 S3b→S3c warm: best-effort, FIRE-AND-FORGET — never blocks S3c entry. The
+      // warm has the whole S3c categorization time to finish before the commit; an
+      // uncached gap is caught by the commit's cache-only loud gate. Rejection
+      // SWALLOWED (no unhandled-promise-rejection); offline → silently skips.
+      void bulkWarmRates(result.rows.map((r) => r.date)).catch(() => {});
 
       // DECLARED CHANGE (2.8 decision #4 + PM clarification 2026-06-13): importNext
       // NO LONGER frees the session — S3c reuses the live session for categorize/

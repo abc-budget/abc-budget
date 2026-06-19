@@ -16,6 +16,7 @@ describe('ExchangeRateServiceImpl.convert', () => {
   beforeEach(() => {
     apiMock = {
       getExchangeRate: vi.fn(),
+      bulkGetExchangeRates: vi.fn(),
     };
     service = new ExchangeRateServiceImpl(apiMock);
   });

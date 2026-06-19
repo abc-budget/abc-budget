@@ -96,6 +96,71 @@ function buildCachedApi(): Promise<CachedExchangeRateApi> {
   return _cachedApiPromise;
 }
 
+/** Formats a Date to "yyyy-MM-dd" — same derivation as WorkerHttpRatesApi + CachedExchangeRateApi. */
+function toDateString(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Mirror the CF MAX_BULK_DATES cap (Story 5.2) — chunk so a single bulk request
+ * never exceeds it. A typical import = ONE call; a multi-year span = a handful.
+ */
+const BULK_WARM_CHUNK = 366;
+
+/**
+ * Bulk-warms the IDB rate cache for the import's op-dates (Story 5.2). De-dups by
+ * yyyy-MM-dd, chunks into ≤BULK_WARM_CHUNK-date bulk CF calls (a typical import =
+ * ONE call; multi-year = a handful — never drops), and write-throughs every
+ * returned table to the SAME cache the convert-time read consults (write-key ===
+ * read-key — the DAO over the live engine DB). BEST-EFFORT: swallows all errors
+ * (the commit's cache-only convert is the loud gate). No-op when no remote api /
+ * no `bulkGetExchangeRates` method / no IDB.
+ *
+ * @param dates - Operation dates whose USD rates should be warmed.
+ * @param base - Base currency to warm (defaults to 'USD' — the reserve bridge).
+ */
+export async function bulkWarmRates(dates: Date[], base = 'USD'): Promise<void> {
+  try {
+    if (
+      !_remoteApi ||
+      typeof (_remoteApi as { bulkGetExchangeRates?: unknown })
+        .bulkGetExchangeRates !== 'function'
+    ) {
+      return;
+    }
+    const cachedApi = await getCachedRatesApi();
+    if (!cachedApi) {
+      return;
+    }
+    const db = await openEngineDb();
+    const dao = new IDBExchangeRateDAO(() => db);
+
+    // De-dup → one distinct Date per yyyy-MM-dd, keeping the first instance.
+    const distinct = new Map<string, Date>();
+    for (const d of dates) {
+      const key = toDateString(d);
+      if (!distinct.has(key)) {
+        distinct.set(key, d);
+      }
+    }
+    const all = [...distinct.values()];
+
+    // Chunk ≤BULK_WARM_CHUNK → ONE bulk call per chunk → write-through each table.
+    for (let i = 0; i < all.length; i += BULK_WARM_CHUNK) {
+      const chunk = all.slice(i, i + BULK_WARM_CHUNK);
+      const tables = await (_remoteApi as ExchangeRateApi).bulkGetExchangeRates(
+        base,
+        chunk
+      );
+      for (const [date, rates] of Object.entries(tables)) {
+        await dao.upsert({ base, date, ...rates });
+      }
+    }
+  } catch {
+    /* best-effort — the commit loud-gate is the guarantee */
+  }
+}
+
 /** Test seam — resets the holder state. Not exported from the package barrel. */
 export function resetRatesHolderForTests(): void {
   _remoteApi = undefined;

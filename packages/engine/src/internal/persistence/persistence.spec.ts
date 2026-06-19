@@ -623,6 +623,7 @@ describe('clear-on-reject — getRatesService', () => {
     // Inject a mock remote api so getRatesService won't short-circuit to null
     const mockApi: ExchangeRateApi = {
       getExchangeRate: vi.fn().mockResolvedValue({ EUR: 0.9 }),
+      bulkGetExchangeRates: vi.fn().mockResolvedValue({}),
     };
     setRemoteRatesApi(mockApi);
 

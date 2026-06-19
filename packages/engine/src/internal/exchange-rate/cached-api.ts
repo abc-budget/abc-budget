@@ -76,4 +76,24 @@ export class CachedExchangeRateApi implements ExchangeRateApi {
 
     return rates;
   }
+
+  /**
+   * Bulk variant (Story 5.2). Delegates to the target API's bulk endpoint (ONE
+   * request) and write-throughs every returned table to the cache so later
+   * single-date reads hit. Returns the merged date → rate-map for the AVAILABLE
+   * dates (the target omits cap-cut/failed dates).
+   */
+  async bulkGetExchangeRates(
+    baseCurrency: string,
+    dates: Date[]
+  ): Promise<Record<string, Record<string, number>>> {
+    const tables = await this.targetApi.bulkGetExchangeRates(
+      baseCurrency,
+      dates
+    );
+    for (const [date, rates] of Object.entries(tables)) {
+      await this.exchangeRateDAO.upsert({ base: baseCurrency, date, ...rates });
+    }
+    return tables;
+  }
 }

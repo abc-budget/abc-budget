@@ -18,4 +18,17 @@ export interface ExchangeRateApi {
     baseCurrency: string,
     date: Date
   ): Promise<Record<string, number>>;
+
+  /**
+   * Fetch the USD daily tables for a LIST of dates in ONE bulk request (Story 5.2).
+   * Returns date(yyyy-MM-dd) → rate map for the AVAILABLE dates (cap-cut/failed omitted).
+   *
+   * @param baseCurrency - The base currency code (e.g. "USD").
+   * @param dates - The dates whose rate tables are requested.
+   * @returns A promise resolving to a map of yyyy-MM-dd → currency-rate record.
+   */
+  bulkGetExchangeRates(
+    baseCurrency: string,
+    dates: Date[]
+  ): Promise<Record<string, Record<string, number>>>;
 }

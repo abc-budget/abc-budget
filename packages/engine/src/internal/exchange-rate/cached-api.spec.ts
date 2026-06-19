@@ -75,6 +75,20 @@ class MockExchangeRateApi implements ExchangeRateApi {
     // Return default mock data
     return this.mockRates;
   }
+
+  async bulkGetExchangeRates(
+    baseCurrency: string,
+    dates: Date[]
+  ): Promise<Record<string, Record<string, number>>> {
+    const out: Record<string, Record<string, number>> = {};
+    for (const date of dates) {
+      out[date.toISOString().split('T')[0]] = await this.getExchangeRate(
+        baseCurrency,
+        date
+      );
+    }
+    return out;
+  }
 }
 
 describe('CachedExchangeRateApi', () => {
