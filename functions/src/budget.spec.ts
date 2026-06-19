@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { monthKey, checkAndIncrementMonthlyCap } from "./budget.js";
+import { monthKey, checkAndIncrementMonthlyCap, checkAndIncrementByK } from "./budget.js";
 
 describe("monthKey", () => {
     it("formats a date in yyyy-MM", () => {
@@ -78,5 +78,25 @@ describe("checkAndIncrementMonthlyCap", () => {
         const result = checkAndIncrementMonthlyCap({ [KEY]: 100 }, KEY, CAP);
         expect(result.allowed).toBe(true);
         expect(result.next[KEY]).toBe(101);
+    });
+});
+
+describe("checkAndIncrementByK", () => {
+    const KEY = '2026-06', CAP = 1000;
+
+    it('grants the full want when budget remains', () => {
+        expect(checkAndIncrementByK({ [KEY]: 100 }, KEY, CAP, 5)).toEqual({ allowed: 5, next: { [KEY]: 105 } });
+    });
+    it('over-cap → allowed = remaining (fetch those, omit the rest)', () => {
+        expect(checkAndIncrementByK({ [KEY]: 998 }, KEY, CAP, 5)).toEqual({ allowed: 2, next: { [KEY]: 1000 } });
+    });
+    it('at cap → allowed 0, next unchanged', () => {
+        expect(checkAndIncrementByK({ [KEY]: 1000 }, KEY, CAP, 5)).toEqual({ allowed: 0, next: { [KEY]: 1000 } });
+    });
+    it('want 0 → allowed 0, next unchanged (no increment)', () => {
+        expect(checkAndIncrementByK({ [KEY]: 10 }, KEY, CAP, 0)).toEqual({ allowed: 0, next: { [KEY]: 10 } });
+    });
+    it('preserves other months (rollover safety)', () => {
+        expect(checkAndIncrementByK({ '2026-05': 7, [KEY]: 1 }, KEY, CAP, 3).next).toEqual({ '2026-05': 7, [KEY]: 4 });
     });
 });

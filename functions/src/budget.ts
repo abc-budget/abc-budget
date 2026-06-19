@@ -31,3 +31,19 @@ export function checkAndIncrementMonthlyCap(
         next: { ...docData, [key]: current + 1 },
     };
 }
+
+/**
+ * Pure budget-cap-by-K logic (no I/O). Grant up to `want` OER fetches this month,
+ * capped to the remaining budget. Over-cap → allowed = remaining (maybe 0). When
+ * allowed is 0 the doc is unchanged. Other month keys are preserved (rollover).
+ */
+export function checkAndIncrementByK(
+    docData: Record<string, number>,
+    key: string,
+    cap: number,
+    want: number,
+): { allowed: number; next: Record<string, number> } {
+    const current = docData[key] ?? 0;
+    const allowed = Math.max(0, Math.min(want, cap - current));
+    return { allowed, next: allowed > 0 ? { ...docData, [key]: current + allowed } : { ...docData } };
+}
