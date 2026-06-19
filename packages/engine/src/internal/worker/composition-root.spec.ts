@@ -40,6 +40,7 @@ describe('composeEngine — rates remote wiring (Task 7)', () => {
   it('preserves an explicit exchangeRateApi override', async () => {
     const override: ExchangeRateApi = {
       getExchangeRate: vi.fn().mockResolvedValue({}),
+      bulkGetExchangeRates: vi.fn().mockResolvedValue({}),
     };
 
     await composeEngine({ exchangeRateApi: override });

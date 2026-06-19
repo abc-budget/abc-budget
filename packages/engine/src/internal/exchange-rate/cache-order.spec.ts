@@ -39,6 +39,7 @@ describe('CachedExchangeRateApi — cache-order DoD', () => {
     mockGetExchangeRate = vi.fn().mockResolvedValue({ EUR: 0.92, GBP: 0.79 });
     const mockApi: ExchangeRateApi = {
       getExchangeRate: mockGetExchangeRate,
+      bulkGetExchangeRates: vi.fn().mockResolvedValue({}),
     };
 
     const dao = new IDBExchangeRateDAO(() => db);
@@ -111,6 +112,7 @@ describe('CachedExchangeRateApi — cache-order TEETH CHECK', () => {
 
     const mockApi: ExchangeRateApi = {
       getExchangeRate: vi.fn().mockResolvedValue({ EUR: 0.92 }),
+      bulkGetExchangeRates: vi.fn().mockResolvedValue({}),
     };
     const apiUnderTest = new CachedExchangeRateApi(wrongStoreDao, mockApi);
 

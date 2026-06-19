@@ -81,4 +81,41 @@ export class CacheOnlyRatesApi implements ExchangeRateApi {
 
     return result;
   }
+
+  /**
+   * Bulk variant (Story 5.2). Serves EXCLUSIVELY from the local cache — NEVER
+   * fetches. Returns the date → rate-map only for the dates that ARE cached
+   * (misses are simply omitted, matching the bulk contract of "available dates"),
+   * preserving this api's offline-safe, no-network guarantee.
+   */
+  async bulkGetExchangeRates(
+    baseCurrency: string,
+    dates: Date[]
+  ): Promise<Record<string, Record<string, number>>> {
+    const out: Record<string, Record<string, number>> = {};
+    const seen = new Set<string>();
+    for (const date of dates) {
+      const formattedDate = date.toISOString().split('T')[0];
+      if (seen.has(formattedDate)) {
+        continue;
+      }
+      seen.add(formattedDate);
+      const cachedRate = await this.dao.findByBaseCurrencyAndDate(
+        baseCurrency,
+        formattedDate
+      );
+      if (!cachedRate) {
+        continue;
+      }
+      const result: Record<string, number> = {};
+      Object.entries(cachedRate).forEach(([key, value]) => {
+        if (key !== 'base' && key !== 'date') {
+          result[key] =
+            typeof value === 'string' ? parseFloat(value) : (value as number);
+        }
+      });
+      out[formattedDate] = result;
+    }
+    return out;
+  }
 }

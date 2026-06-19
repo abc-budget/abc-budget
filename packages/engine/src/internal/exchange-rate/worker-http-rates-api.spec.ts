@@ -139,3 +139,25 @@ describe('WorkerHttpRatesApi — warmRates (distinct-date prefetch + idempotency
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('WorkerHttpRatesApi — bulkGetExchangeRates (Story 5.2: ONE bulk CF call)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('bulkGetExchangeRates POSTs { dates } and returns the merged rates map', async () => {
+    const body = { rates: { '2024-01-01': { USD: 1, EUR: 0.8 }, '2024-01-02': { USD: 1, EUR: 0.9 } } };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    const api = new WorkerHttpRatesApi();
+    const out = await api.bulkGetExchangeRates('USD', [new Date('2024-01-01T00:00:00Z'), new Date('2024-01-02T00:00:00Z')]);
+    expect(out).toEqual(body.rates);
+    const sent = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
+    expect(sent.dates.sort()).toEqual(['2024-01-01', '2024-01-02']);
+  });
+
+  it('THROWS on a non-OK bulk response (fail-loud)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 500 }));
+    const api = new WorkerHttpRatesApi();
+    await expect(api.bulkGetExchangeRates('USD', [new Date('2024-01-01T00:00:00Z')])).rejects.toThrow(/500/);
+  });
+});

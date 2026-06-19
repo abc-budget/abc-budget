@@ -28,6 +28,18 @@ function ratesUrl(): string {
   return env?.['VITE_RATES_URL'] ?? '/api/rates';
 }
 
+/**
+ * Resolves the BULK rates endpoint (the deployed `getUSDRatesBulk` CF, Story 5.2),
+ * mirroring {@link ratesUrl}: honours a `VITE_RATES_BULK_URL` override and otherwise
+ * derives the sibling `/bulk` path of the single-date `ratesUrl()` (e.g. `/api/rates`
+ * → `/api/rates/bulk`). Read `import.meta.env` defensively so the file typechecks
+ * without the Vite client types.
+ */
+function bulkRatesUrl(): string {
+  const env = (import.meta as { env?: Record<string, string | undefined> }).env;
+  return env?.['VITE_RATES_BULK_URL'] ?? `${ratesUrl()}/bulk`;
+}
+
 /** Formats a Date to "yyyy-MM-dd" — same derivation as the app impl + CachedExchangeRateApi. */
 function toDateString(date: Date): string {
   return date.toISOString().split('T')[0];
@@ -60,6 +72,32 @@ export class WorkerHttpRatesApi implements ExchangeRateApi {
     }
 
     const payload = (await response.json()) as { rates: Record<string, number> };
+    return payload.rates;
+  }
+
+  /**
+   * Fetches the USD daily tables for a LIST of dates in ONE bulk request (Story 5.2)
+   * against the deployed `getUSDRatesBulk` CF. De-duplicates the dates by yyyy-MM-dd,
+   * POSTs `{ dates }` to {@link bulkRatesUrl}, and returns the merged `{ rates }` map
+   * (date → currency-rate record) for the AVAILABLE dates. FAILS LOUD on a non-OK
+   * response (EP-3 carry-forward) — `bulkWarmRates` is the layer that swallows.
+   */
+  async bulkGetExchangeRates(
+    _base: string,
+    dates: Date[]
+  ): Promise<Record<string, Record<string, number>>> {
+    const dateStrs = [...new Set(dates.map(toDateString))];
+    const response = await fetch(bulkRatesUrl(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dates: dateStrs }),
+    });
+    if (!response.ok) {
+      throw new Error(`bulk rates request failed: HTTP ${response.status}`);
+    }
+    const payload = (await response.json()) as {
+      rates: Record<string, Record<string, number>>;
+    };
     return payload.rates;
   }
 
