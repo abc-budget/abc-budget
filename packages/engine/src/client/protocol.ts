@@ -36,10 +36,13 @@
  *        importRemainderMagnitude | importAssignRemainder | importTypicality.
  *        New DTOs: RemainderMagnitudeDTO, TypicalityReasonDTO, TypicalityFlagDTO,
  *        TypicalityResultDTO. CategorizedWindowDTO gains remainderCount.
+ *   v7 — Story 5.1 (EP-5 commit pipeline): EngineMethod += importCommit.
+ *        New DTO: CommitResultDTO. Session freed only on success (retry-able
+ *        loud gate: RatesUnavailableError propagates before any free).
  */
 
 /** The current contract version. Increment per the bump rule above. */
-export const CONTRACT_VERSION = 6;
+export const CONTRACT_VERSION = 7;
 
 // ── Handshake ─────────────────────────────────────────────────────────────────
 
@@ -101,7 +104,9 @@ export type EngineMethod =
   // v6 (4.9c completion + typicality): Auto-Other remainder + self-check.
   | 'importRemainderMagnitude'
   | 'importAssignRemainder'
-  | 'importTypicality';
+  | 'importTypicality'
+  // v7 (5.1 EP-5 commit): footprint commit + session free.
+  | 'importCommit';
 
 /** A client → worker RPC call. */
 export interface EngineRequest {

@@ -50,6 +50,7 @@ import type {
   SandboxStateDTO,
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
+  CommitResultDTO,
 } from './dto';
 import {
   serializeStage2Snapshot,
@@ -520,6 +521,18 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
     async importTypicality(sessionId: string, opts?: { virtual?: boolean; draft?: ConditionDTO[] }): Promise<TypicalityResultDTO> {
       const svc = await resolveCategorization();
       return svc.importTypicality(sessionId, opts);
+    },
+
+    // ── Commit (contract v7 — Story 5.1, EP-5) ───────────────────────────────
+
+    async importCommit(sessionId: string): Promise<CommitResultDTO> {
+      const svc = await resolveCategorization();
+      const { rowsCommitted } = await svc.commitSession(sessionId); // throws (RatesUnavailableError) BEFORE freeing → retry-able
+      // SUCCESS → free the session (raw not retained); drop any sandbox/dump (same teardown as importAbort).
+      registry.free(sessionId);
+      svc.dropSandbox(sessionId);
+      svc.dropDump(sessionId);
+      return { sessionId, rowsCommitted };
     },
 
     // ── Out-of-band events ────────────────────────────────────────────────────

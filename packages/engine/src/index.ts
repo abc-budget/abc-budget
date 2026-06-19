@@ -78,6 +78,9 @@ export type {
   TypicalityResultDTO,
   TypicalityField,
   TypicalityReasonKind,
+  // ── Commit result DTO (contract v7 — Story 5.1, EP-5) ─────────────────────
+  // TYPE-ONLY — adds no runtime symbol; boundary.spec.ts still asserts exactly 3.
+  CommitResultDTO,
 } from './client/dto';
 
 // ── Decode result types (2.1 surface — now via EngineClient.decode) ──────────
