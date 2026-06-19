@@ -3,10 +3,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
-import { monthKey, checkAndIncrementMonthlyCap } from "./budget.js";
+import { monthKey, checkAndIncrementMonthlyCap, checkAndIncrementByK } from "./budget.js";
 import { RateLimiter } from "./rate-limit.js";
 import { checkOrigin } from "./origin.js";
 import { handleRatesRequest, type HandlerDeps } from "./handler.js";
+import { handleBulkRatesRequest, type BulkHandlerDeps } from "./bulk-handler.js";
 
 const firebaseDBName = "exchange-rates-eur3";
 if (getApps().length === 0) initializeApp();
@@ -139,5 +140,59 @@ export const getUSDRates = onRequest(
         };
 
         await handleRatesRequest(req, res, deps);
+    }
+);
+
+// noinspection JSUnusedGlobalSymbols
+export const getUSDRatesBulk = onRequest(
+    {
+        secrets: [openExchangeRatesAppId],
+        region: "europe-west1",
+        maxInstances: 2,
+    },
+    async (req, res) => {
+        const deps: BulkHandlerDeps = {
+            now: () => new Date(),
+            checkOrigin,
+            rateLimiterTake: (key, now) => rateLimiter.take(key, now),
+            getCached: async (dates) => {
+                const refs = dates.map((d) => db.collection("usd").doc(d));
+                const snaps = await db.getAll(...refs); // ONE round-trip
+                const hits = new Map<string, Record<string, number>>();
+                snaps.forEach((s, i) => {
+                    if (s.exists) hits.set(dates[i], s.data() as Record<string, number>);
+                });
+                return hits;
+            },
+            runBulkBudget: async (now, want) => {
+                const ref = db.collection("meta").doc("oer-budget");
+                let allowed = 0;
+                await db.runTransaction(async (tx) => {
+                    const snap = await tx.get(ref);
+                    const r = checkAndIncrementByK(
+                        (snap.data() ?? {}) as Record<string, number>,
+                        monthKey(now),
+                        OER_MONTHLY_CAP,
+                        want
+                    );
+                    if (r.allowed > 0) tx.set(ref, r.next);
+                    allowed = r.allowed;
+                });
+                return allowed;
+            },
+            fetchOER: fetchFromOpenExchangeRates, // reuse the per-date OER fetcher
+            saveBatch: async (entries) => {
+                for (let i = 0; i < entries.length; i += 500) {
+                    // ≤500 ops/batch
+                    const batch = db.batch();
+                    for (const { date, rates } of entries.slice(i, i + 500)) {
+                        batch.set(db.collection("usd").doc(date), rates);
+                    }
+                    await batch.commit();
+                }
+            },
+        };
+
+        await handleBulkRatesRequest(req, res, deps);
     }
 );
