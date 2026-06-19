@@ -76,4 +76,14 @@ export interface CategorizationService {
 
   /** Drop the session's dump (fire-and-forget from importAbort). */
   dropDump(sessionId: string): void;
+
+  // v7 (5.1 — the EP-5 commit): categorize the session rows + commit footprints.
+
+  /**
+   * Categorizes the session's rows (dump-aware L1→L4) and commits their 7-field
+   * footprints via the two-phase commit (perf-map + per-row categoryOf by hash).
+   * Dump'd rows commit isManual=0 (transient). The loud gate
+   * (RatesUnavailableError on an uncached op-date rate) yields ZERO writes.
+   */
+  commitSession(sessionId: string): Promise<{ rowsCommitted: number }>;
 }

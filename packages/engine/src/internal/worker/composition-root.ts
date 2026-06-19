@@ -34,6 +34,7 @@ import type { CategorizationService } from './categorization-service';
 import { CategoriesDAO } from '../categories/categories-dao';
 import { CategoriesService } from '../categories/categories-service';
 import { FootprintDao } from '../footprint/footprint-dao';
+import { IDBExchangeRateDAO } from '../exchange-rate/dao';
 import { ComplexRuleDAO } from '../rules/complex-rules-dao';
 import { RulePersistenceService } from '../rules/rule-persistence-service';
 import {
@@ -138,6 +139,9 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
   // defaults to a loud throw so a call before the bind never looks like an empty
   // success (HC-7).
   const footprintDao = new FootprintDao(dbProvider);
+  // The exchange-rate cache DAO (5.1) — the cache-only USD-convert source the
+  // commit reads through (the loud gate is a commit-time cache miss).
+  const exchangeRateDao = new IDBExchangeRateDAO(dbProvider);
   const categoriesService = new CategoriesService(new CategoriesDAO(dbProvider), settingsDao);
   const rulePersistence = new RulePersistenceService(new ComplexRuleDAO(dbProvider), categoriesService);
 
@@ -156,6 +160,15 @@ export async function composeEngine(options?: ComposeEngineOptions): Promise<Com
     rulePersistence,
     userSettings: settingsDao,
     ratesProvider: getRatesService,
+    ratesDao: exchangeRateDao,
+    // Best-effort distinct-date rate prefetch (5.1). RESOLVED FORK: the rates
+    // holder's getRatesService() returns the convert-only ExchangeRateService —
+    // it exposes NO warmRates (that lives on WorkerHttpRatesApi, held privately in
+    // rates-holder and not reachable on the composed graph). So this is a guarded
+    // no-op: the prefetch is best-effort and SWALLOWED by commitFootprints, and
+    // the cache-only convert is the single loud gate the commit relies on. Wiring
+    // remains a one-line swap if a warmRates seam is later exposed on the graph.
+    warmRates: async () => {},
   });
 
   return {
