@@ -38,6 +38,8 @@ import { setBaseCurrency } from '../settings/base-currency';
 import type { Category } from '../categories/types';
 import type { ConditionDTO } from '../../client/dto';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
+import type { ImportStatementRowData } from '../importStatement/stage2/types';
+import { ColumnDefinition } from '../importStatement/types';
 import { ENGINE_MIGRATIONS } from '../persistence/engine-db';
 import { openDatabase } from '../store/migrations/open-with-migrations';
 import { NativeMessage } from '../utils/messages/message';
@@ -100,12 +102,44 @@ describe('CategorizationServiceImpl', () => {
   // Income row: skipped, rowIndex 7
   const incomeReason = new NativeMessage('income row');
 
+  // Helpers for building fake stage2 rows (mirrors import-review-echo.spec.ts pattern).
+  function fakeStage2Row(
+    rowIndex: number,
+    cells: Record<string, { value: unknown }>,
+  ): ImportStatementRowData {
+    return {
+      rowIndex,
+      get: (id: string) => cells[id] ?? { value: undefined },
+    } as unknown as ImportStatementRowData;
+  }
+  // Shared columns for the echo test: DATE (id 'd'), AMOUNT (id 'a'),
+  // CURRENCY (id 'c'), DESCRIPTION (id 's').
+  const echoColumns = [
+    { id: 'd', definition: ColumnDefinition.DATE, params: null },
+    { id: 'a', definition: ColumnDefinition.AMOUNT, params: null },
+    { id: 'c', definition: ColumnDefinition.CURRENCY, params: null },
+    { id: 's', definition: ColumnDefinition.DESCRIPTION, params: null },
+  ];
+  // Stage2 row for the ERROR row (rowIndex 5): decodable cells for CURRENCY + DESCRIPTION.
+  const stage2ErrorRow = fakeStage2Row(5, {
+    c: { value: 'EUR' },
+    s: { value: 'SOME ERROR ROW DESC' },
+  });
+  // Stage2 row for the SKIPPED income row (rowIndex 7): signed positive amount (income).
+  const INCOME_DATE = new Date(Date.UTC(2026, 5, 10)); // 2026-06-10
+  const stage2SkippedRow = fakeStage2Row(7, {
+    d: { value: INCOME_DATE },
+    a: { value: 50000 },
+    c: { value: 'UAH' },
+    s: { value: 'Salary' },
+  });
+
   const reviewDataFor = (rows: ImportStatementStage3Row[]): SessionReviewData => ({
     rows,
     rowErrors: [{ rowIndex: 5, errors: [new NativeMessage('bad column')] }],
     skipped: [{ rowIndex: 7, reason: incomeReason }],
-    stage2Rows: [], // echoFor will return null fields (no stage2 rows seeded)
-    columns: [],
+    stage2Rows: [stage2ErrorRow, stage2SkippedRow],
+    columns: echoColumns,
   });
 
   let reviewData: SessionReviewData;
@@ -456,8 +490,15 @@ describe('CategorizationServiceImpl', () => {
       expect(byState.ok.categoryId).toBeDefined();
       expect(byState.error.reasons?.length).toBeGreaterThan(0);
       expect(byState.skipped.reasons?.length).toBe(1); // income reason surfaced, not re-detected
-      // skipped income: amount echoed from stage2 (null here since no stage2Rows seeded)
-      // — the brief says amount: raw income echo; here the echo returns null (no stage2)
+
+      // Skipped income row: raw signed amount echoed (50000, no abs), plus date + description.
+      expect(byState.skipped.amount).toBe(50000);
+      expect(byState.skipped.date).toBe(INCOME_DATE.toISOString());
+      expect(byState.skipped.description).toBe('Salary');
+
+      // Error row: at least currency + description decoded and surfaced.
+      expect(byState.error.currency).toBe('EUR');
+      expect(byState.error.description).toBe('SOME ERROR ROW DESC');
     });
 
     it('dup: re-import of a committed row → dup:true via ONE getByPeriods (not findByHash)', async () => {
