@@ -143,6 +143,52 @@ export class FootprintDao extends IDBDao<FootprintKey, FootprintRecord> {
   }
 
   /**
+   * Loads ALL footprints (isManual 0 AND 1) for a set of periods via the
+   * `year_month_isManual` compound index, range-querying both isManual values
+   * (`IDBKeyRange.bound([year,month,0],[year,month,1])`). This is the dup-detection
+   * read: a committed row's footprint may be derived (isManual=0), so the
+   * manual-only `getManualByPeriods` would MISS auto-categorized dups. Period-scoped
+   * (one point-range per distinct period), never a per-op or full-store scan.
+   * Periods are de-duped; empty `periods` resolves to `[]` without a tx.
+   */
+  async getByPeriods(
+    periods: ReadonlyArray<{ year: number; month: number }>
+  ): Promise<FootprintRecord[]> {
+    if (periods.length === 0) {
+      return [];
+    }
+    const distinct = new Map<string, { year: number; month: number }>();
+    for (const { year, month } of periods) {
+      distinct.set(`${year}-${month}`, { year, month });
+    }
+    const perPeriod = await Promise.all(
+      [...distinct.values()].map(({ year, month }) => this.getForPeriod(year, month))
+    );
+    return perPeriod.flat();
+  }
+
+  /**
+   * Single-period all-isManual load: opens `year_month_isManual` readonly and
+   * range-queries [year,month,0]..[year,month,1] (both isManual values). Mirrors
+   * getManualForPeriod but with a bound range instead of only([y,m,1]).
+   */
+  private getForPeriod(year: number, month: number): Promise<FootprintRecord[]> {
+    const db = this.getDatabase();
+    return new Promise<FootprintRecord[]>((resolve, reject) => {
+      const transaction = db.transaction(this.storeName, 'readonly');
+      const store = transaction.objectStore(this.storeName);
+      const index = store.index('year_month_isManual');
+      const request = index.getAll(IDBKeyRange.bound([year, month, 0], [year, month, 1]));
+      request.onerror = () => {
+        reject(new Error(`Failed to load footprints for ${year}-${month}: ${request.error?.message}`));
+      };
+      request.onsuccess = () => {
+        resolve(request.result as FootprintRecord[]);
+      };
+    });
+  }
+
+  /**
    * Writes every record in ONE readwrite transaction (ATOMIC: a mid-batch
    * failure aborts the whole tx → zero writes). Uses native [hash,year,month]
    * upsert, so a repeated triple overwrites in place (last write wins). An empty
