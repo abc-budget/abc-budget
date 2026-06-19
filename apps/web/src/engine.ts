@@ -18,10 +18,9 @@
  * is the dedicated readiness probe that converts it into a plain status object
  * for the chrome (EngineStatusBanner wires it to the SW update mechanism).
  *
- * Carry-forward: the app-side HTTP rates api (createHttpRatesApi) cannot cross
- * the wire as a function — remote-rates injection into the worker composition
- * root is re-surfaced with the EP-3 rates UX (the worker composes IDB-cached
- * rates without a remote fallback until then).
+ * Remote rates live WORKER-side (WorkerHttpRatesApi): an app-side rates api
+ * cannot cross the wire as a function, so the worker owns the fetch + the
+ * IDB-cached/remote-fallback composition (Story 5.2 added the bulk warm path).
  */
 import { createWorkerEngineClient, type EngineClient, type WorkerLike } from '@abc-budget/engine';
 
