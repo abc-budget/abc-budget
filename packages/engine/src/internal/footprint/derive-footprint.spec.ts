@@ -11,8 +11,29 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { deriveFootprint } from './derive-footprint';
+import { deriveFootprint, footprintYearMonth, footprintYearMonthDay } from './derive-footprint';
 import type { TransactionRow } from '../importStatement/stage3/types';
+
+it('footprintYearMonthDay EXTENDS footprintYearMonth (shares y/m) + adds UTC day', () => {
+  const d = new Date('2023-09-30T14:55:43.000Z');
+  expect(footprintYearMonthDay(d)).toEqual({ ...footprintYearMonth(d), day: 30 });
+});
+
+it('a UTC-boundary date: row + its footprint agree on y/m/d (single-derivation)', () => {
+  // 23:30Z on the 30th is still the 30th in UTC — never TZ-shifts to the 1st.
+  const d = new Date('2023-09-30T23:30:00.000Z');
+  const fp = deriveFootprint({ date: d, amount: -10, currency: 'UAH', hash: 'h' } as never, -0.27, null, 0);
+  const ymd = footprintYearMonthDay(d);
+  expect({ year: fp.year, month: fp.month, day: fp.day }).toEqual(ymd);
+  expect(fp.day).toBe(30);
+});
+
+it('deriveFootprint yields exactly the 7 fields incl. day', () => {
+  const fp = deriveFootprint({ date: new Date('2024-02-29T00:00:00.000Z'), amount: 5, currency: 'USD', hash: 'x' } as never, 5, 'cat', 1);
+  expect(Object.keys(fp).sort()).toEqual(['amountUSD', 'categoryId', 'day', 'hash', 'isManual', 'month', 'year']);
+  expect(fp.day).toBe(29);
+  expect(fp.isManual).toBe(1);
+});
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +61,7 @@ function makeRow(overrides: Partial<TransactionRow> = {}): TransactionRow {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('deriveFootprint — pure operation-date split (UTC)', () => {
-  it('derives UTC year + 1-based month, null category, isManual=0 default, hash passthrough, amountUSD passthrough, exact 6-field shape', () => {
+  it('derives UTC year + 1-based month + UTC day, null category, isManual=0 default, hash passthrough, amountUSD passthrough, exact 7-field shape', () => {
     const row = makeRow({ hash: 'wrapped-hash', date: new Date('2024-06-15T12:00:00.000Z') });
     const result = deriveFootprint(row, 42.5);
 
@@ -51,10 +72,11 @@ describe('deriveFootprint — pure operation-date split (UTC)', () => {
     expect(result.hash).toBe('wrapped-hash');
     expect(result.amountUSD).toBe(42.5);
 
-    // EXACTLY 6 fields — no 7th field leaks through (ENT-001 minimization).
+    // EXACTLY 7 fields — no 8th field leaks through (ENT-001 minimization).
     expect(Object.keys(result).sort()).toEqual([
       'amountUSD',
       'categoryId',
+      'day',
       'hash',
       'isManual',
       'month',
@@ -62,7 +84,7 @@ describe('deriveFootprint — pure operation-date split (UTC)', () => {
     ]);
   });
 
-  it('a call with a resolved categoryId + isManual=1 emits those values in the 6-field record', () => {
+  it('a call with a resolved categoryId + isManual=1 emits those values in the 7-field record', () => {
     const row = makeRow({ hash: 'cat-hash', date: new Date('2024-06-15T12:00:00.000Z') });
     const result = deriveFootprint(row, 9.99, 'cat-groceries', 1);
 
@@ -75,10 +97,11 @@ describe('deriveFootprint — pure operation-date split (UTC)', () => {
     expect(result.hash).toBe('cat-hash');
     expect(result.amountUSD).toBe(9.99);
 
-    // Still EXACTLY 6 fields — the categorized path adds no extra key.
+    // Still EXACTLY 7 fields — the categorized path adds no extra key.
     expect(Object.keys(result).sort()).toEqual([
       'amountUSD',
       'categoryId',
+      'day',
       'hash',
       'isManual',
       'month',
