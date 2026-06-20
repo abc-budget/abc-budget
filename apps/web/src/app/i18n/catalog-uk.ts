@@ -356,6 +356,58 @@ export const CATALOG_UK = {
   s3cRsnCat: '≠ НАБІР',
   s3cRsnAmt: 'СУМА — ВИКИД',
   s3cRsnTxt: 'РІДКІСНІ СЛОВА',
+
+  // ── S3d — Import → Review & save (5.4; ported from design-reference/s3d-i18n.jsx `D.uk`) ──
+  s3dEyebrow: '▸ ІМПОРТ · ОГЛЯД',
+  s3dStepOf: 'КРОК 4 / 4',
+  s3dTitle: 'Огляд і збереження',
+  s3dLead: 'Перевірте розібраний і категоризований результат, тоді збережіть. Нічого не зникає мовчки — кожен пропущений чи помилковий рядок пояснено.',
+  // validation summary
+  s3dSumTitle: 'ЗВЕДЕННЯ',
+  s3dSumOk: 'готові',
+  s3dSumError: 'помилки',
+  s3dSumSkipped: 'пропущені',
+  s3dSumDup: 'дублікати',
+  s3dSumNew: 'нових до збереження',
+  s3dOkTag: 'Усе чисто — помилок немає',
+  s3dErrTag: 'Є помилки — перегляньте перед збереженням',
+  // dedup
+  s3dDedupTitle: 'ДЕ-ДУБЛІКАЦІЯ',
+  s3dDedupNew: 'нові',
+  s3dDedupDup: 'вже імпортовано',
+  s3dDedupNote: 'Дублікати визначено за відбитком операції та пропущено — повторний імпорт не рахується двічі.',
+  s3dNoDedup: 'Перетинів з попередніми імпортами не виявлено.',
+  // show-rows filter
+  s3dShowRows: 'ПОКАЗАТИ РЯДКИ',
+  s3dFAll: 'Усі',
+  s3dFError: 'Лише помилки',
+  s3dFSkip: 'Лише пропущені',
+  s3dFBoth: 'Помилки та пропущені',
+  s3dShowing: 'показано {n} з {m}',
+  // table
+  s3dColState: 'СТАН',
+  s3dColDate: 'Дата',
+  s3dColDesc: 'Опис операції',
+  s3dColAmount: 'Сума',
+  s3dColCat: 'Категорія',
+  s3dStOk: 'ок',
+  s3dStError: 'помилка',
+  s3dStSkipped: 'пропущено',
+  s3dCatNone: '—',
+  // fail-loud / privacy
+  s3dReasonLab: '// ПРИЧИНА',
+  s3dPrivacyNote: '▸ ЗБЕРІГАЄТЬСЯ МІНІМІЗОВАНИЙ ВІДБИТОК (ПОВНА ДАТА · без часу доби · СУМА В USD · КАТЕГОРІЯ · SHA256 ОРИГІНАЛУ) + ПРАВИЛА · СИРІ ДАНІ ВИПИСКИ НЕ ПЕРСИСТЯТЬСЯ',
+  // footer / save
+  s3dSave: 'Зберегти імпорт',
+  s3dSaveCount: 'Зберегти {n} операцій',
+  s3dAckErrors: 'Підтвердити помилки',
+  s3dErrBlock: '{n} помилкових рядків не збережуться',
+  s3dSaving: 'Збереження…',
+  s3dSavedTitle: 'Імпорт збережено',
+  s3dSavedBody: '{n} операцій додано до бюджету. Сирі дані виписки відкинуто — лишились тільки відбитки й правила.',
+  s3dSavedGoto: 'До бюджету ▸',
+  s3dSavedAnother: 'Імпортувати ще',
+  s3dAddressErrors: 'Спершу перегляньте помилкові рядки (фільтр «Лише помилки»). Їх буде пропущено при збереженні — підтвердьте, що це очікувано.',
 } as const;
 
 export type ChromeKey = keyof typeof CATALOG_UK;

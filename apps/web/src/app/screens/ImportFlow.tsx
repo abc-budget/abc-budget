@@ -13,9 +13,12 @@ import { S3bMapping } from './import/s3b/S3bMapping';
 import { useS3bSession } from './import/s3b/use-s3b-session';
 import { S3cCategorize } from './import/s3c/S3cCategorize';
 import { useS3cSession } from './import/s3c/use-s3c-session';
+import { S3dReview } from './import/s3d/S3dReview';
+import { useS3dSession } from './import/s3d/use-s3d-session';
 import './import/s3a/s3a.css';
 import './import/s3b/s3b.css';
 import './import/s3c/s3c.css';
+import './import/s3d/s3d.css';
 
 /**
  * A placeholder snapshot for the S3b hook BEFORE S3a establishes a session.
@@ -101,6 +104,13 @@ export function ImportFlow() {
   const s3c = useS3cSession(client, session.sessionId ?? '', stepIndex === 2);
 
   /**
+   * S3d session (Story 5.4) — the review & save surface.  Active on step 3
+   * (stepIndex === 3); re-fetches on every active-true transition so upstream
+   * S3c edits are reflected in the review window.
+   */
+  const s3d = useS3dSession(client, session.sessionId ?? '', stepIndex === 3);
+
+  /**
    * S3b gate state (Option A): «Далі» is always active at step 2; the press
    * resolves to a BLOCK overlay (≥1 unmapped) or the WORKER takeover (advance).
    */
@@ -127,8 +137,12 @@ export function ImportFlow() {
   };
   const nextEnabled = canAdvance();
 
-  /** Exit-protection: blocker is active iff a worker-side session exists. */
-  const blocker = useBlocker(session.sessionId !== null);
+  /**
+   * Exit-protection: blocker is active iff a worker-side session exists AND the
+   * S3d commit hasn't landed yet.  After importCommit the worker-side session is
+   * freed — navigating away is safe and must not be intercepted.
+   */
+  const blocker = useBlocker(session.sessionId !== null && s3d.phase !== 'saved');
 
   /**
    * ImportSessionContext carries the LIVE snapshot: at step 0 it's S3a's; once a
@@ -229,6 +243,15 @@ export function ImportFlow() {
               </div>
               <S3cCategorize session={s3c} />
             </>
+          ) : step.id === 's3d' && session.sessionId !== null ? (
+            <>
+              <div className="s3-head">
+                <div className="f-mono ob-eyebrow">{t('s3dEyebrow')}<span className="ob-step-m"> · {t('s3dStepOf')}</span></div>
+                <h1 className="f-disp s3-title">{t('s3dTitle')}</h1>
+                <p className="body-p s3-lead">{t('s3dLead')}</p>
+              </div>
+              <S3dReview session={s3d} />
+            </>
           ) : (
             <Panel screws>
               <PanelHeader logchip={step.logchip} title={step.title} />
@@ -239,31 +262,52 @@ export function ImportFlow() {
           )}
         </ImportSessionContext.Provider>
         <div className="flow-footer">
-          <Key variant="beige" sm onClick={goBack}>
-            {t('keyBack')}
-          </Key>
-          {!isLast ? (
-            step.id === 's3b' ? (
-              // Option A: «Далі» is ALWAYS active at step 2; the press resolves
-              // to the loud block (unmapped) or the worker takeover + advance.
-              <Key variant="gold" onClick={() => void onS3bNext()}>
-                {t('keyNext')}
-              </Key>
+          {isLast ? (
+            s3d.phase === 'saved' ? (
+              <div style={{ display: 'flex', gap: 'var(--sp-m)' }}>
+                <Key variant="beige" onClick={() => setStepIndex(0)}>{t('keyImportMore')}</Key>
+                <Key variant="gold" onClick={() => navigate('/dashboard')}>{t('keyToBudget')}</Key>
+              </div>
             ) : (
-              <Key
-                variant="gold"
-                disabled={!nextEnabled}
-                aria-disabled={!nextEnabled}
-                onClick={() => nextEnabled && setStepIndex(stepIndex + 1)}
-              >
-                {t('keyNext')}
-              </Key>
+              <>
+                <Key variant="beige" sm onClick={goBack}>{t('keyBack')}</Key>
+                {s3d.hasErrors && (
+                  <label className="ack-check f-mono">
+                    <input type="checkbox" checked={s3d.ack} onChange={(e) => s3d.setAck(e.target.checked)} />
+                    <span className="ack-box" />{t('s3dAckErrors')} <span className="ack-note">· {t('s3dErrBlock', { n: s3d.summary.error })}</span>
+                  </label>
+                )}
+                <Key
+                  variant="gold"
+                  sm
+                  disabled={!s3d.canSave || s3d.phase === 'saving'}
+                  aria-disabled={!s3d.canSave || s3d.phase === 'saving'}
+                  onClick={() => void s3d.commit()}
+                >
+                  {s3d.phase === 'saving' ? t('s3dSaving') : t('s3dSaveCount', { n: s3d.summary.newCount })}
+                </Key>
+              </>
             )
           ) : (
-            <div style={{ display: 'flex', gap: 'var(--sp-m)' }}>
-              <Key variant="beige" onClick={() => setStepIndex(0)}>{t('keyImportMore')}</Key>
-              <Key variant="gold" onClick={() => navigate('/dashboard')}>{t('keyToBudget')}</Key>
-            </div>
+            <>
+              <Key variant="beige" sm onClick={goBack}>{t('keyBack')}</Key>
+              {step.id === 's3b' ? (
+                // Option A: «Далі» is ALWAYS active at step 2; the press resolves
+                // to the loud block (unmapped) or the worker takeover + advance.
+                <Key variant="gold" onClick={() => void onS3bNext()}>
+                  {t('keyNext')}
+                </Key>
+              ) : (
+                <Key
+                  variant="gold"
+                  disabled={!nextEnabled}
+                  aria-disabled={!nextEnabled}
+                  onClick={() => nextEnabled && setStepIndex(stepIndex + 1)}
+                >
+                  {t('keyNext')}
+                </Key>
+              )}
+            </>
           )}
         </div>
       </main>
