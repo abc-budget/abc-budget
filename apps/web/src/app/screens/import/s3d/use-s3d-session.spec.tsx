@@ -51,4 +51,26 @@ describe('useS3dSession', () => {
     await act(async () => { await expect(result.current.commit()).rejects.toThrow('RatesUnavailableError'); });
     expect(result.current.phase).toBe('review');
   });
+
+  it('regression: new sessionId resets phase to review even when active=false (exit-protection re-engages)', async () => {
+    // Simulate: user completes first import (phase → 'saved'), then clicks «Імпортувати ще»
+    // which mints a new sessionId but keeps active=false (still on S3a/S3b/S3c).
+    // The seed effect is gated on active=true so without the sessionId-reset effect,
+    // phase would stay 'saved' and the blocker would silently stay OFF the whole 2nd import.
+    const client = makeClient({ importCommit: vi.fn(async () => ({ sessionId: 'sess-1', rowsCommitted: 3 })) });
+    const { result, rerender } = renderHook(
+      ({ sessionId, active }: { sessionId: string; active: boolean }) =>
+        useS3dSession(client, sessionId, active),
+      { initialProps: { sessionId: 'sess-1', active: true } },
+    );
+    await waitFor(() => expect(result.current.summary.total).toBe(1));
+    // Commit the first import → phase becomes 'saved'
+    await act(async () => { await result.current.commit(); });
+    expect(result.current.phase).toBe('saved');
+    // Now simulate «Імпортувати ще»: new sessionId arrives, but active is false
+    // (the ImportFlow stepped back to S3a, so s3d step is not active).
+    rerender({ sessionId: 'sess-2', active: false });
+    // Phase must reset to 'review' so the blocker evaluates phase !== 'saved' = true → ON
+    expect(result.current.phase).toBe('review');
+  });
 });

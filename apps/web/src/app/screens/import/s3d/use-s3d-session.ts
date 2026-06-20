@@ -39,6 +39,15 @@ export function useS3dSession(client: EngineClient, sessionId: string, active = 
   const [phase, setPhase] = useState<S3dPhase>('review');
   const [rowsCommitted, setRowsCommitted] = useState(0);
 
+  // A new session (e.g. «Імпортувати ще» → fresh importStart) ALWAYS starts in
+  // review, regardless of which step is active — so a stale 'saved' phase from a
+  // prior committed import can't disable ImportFlow's exit-protection blocker for
+  // a fresh uncommitted session.
+  useEffect(() => {
+    setPhase('review');
+    setAck(false);
+  }, [sessionId]);
+
   // Re-fetch on EVERY active-true transition (S3c upstream edits change the review).
   useEffect(() => {
     if (!active) return;
