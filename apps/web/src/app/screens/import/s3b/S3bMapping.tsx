@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react';
-import type { SerializedMessage, Stage2ColumnDTO } from '@abc-budget/engine';
+import type { Stage2ColumnDTO } from '@abc-budget/engine';
 import { useLang } from '../../../i18n/LangProvider';
-import type { ChromeKey } from '../../../i18n/i18n';
-import { t as translate } from '../../../i18n/i18n';
+import { resolveMessage } from '../../../i18n/resolve-message';
 import { RawMappingTable } from './RawMappingTable';
 import { StatusPanel } from './StatusPanel';
 import { ConfigWizard } from './ConfigWizard';
@@ -48,22 +47,6 @@ export interface S3bMappingProps {
    * gate below) and the affordance is a dead no-op (EP-2 FINDING-EP-1).
    */
   onReturnToMapping: () => void;
-}
-
-/**
- * Resolve a SerializedMessage to a display string.
- * Native (`{text}`) → text verbatim.  Localizable (`{key, params}`) → the chrome
- * catalog rendering when the key exists there, else the raw key (best-effort —
- * engine cell-error keys are not part of the web chrome catalog at 2.8).
- */
-function resolveMessage(msg: SerializedMessage, lang: 'uk' | 'en'): string {
-  if ('text' in msg) return msg.text;
-  try {
-    const rendered = translate(lang, msg.key as ChromeKey, msg.params as Record<string, string | number>);
-    return rendered ?? msg.key;
-  } catch {
-    return msg.key;
-  }
 }
 
 function adaptCell(
