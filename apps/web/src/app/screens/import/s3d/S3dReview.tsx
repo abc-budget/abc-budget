@@ -306,29 +306,6 @@ export function S3dReview({ session }: { session: S3dSession }) {
         </div>
         <SummaryAside session={session} />
       </div>
-      <footer className="s3d-foot">
-        {session.hasErrors && (
-          <label className="ack-check f-mono">
-            <input
-              type="checkbox"
-              checked={session.ack}
-              onChange={(e) => session.setAck(e.target.checked)}
-            />
-            <span className="ack-box" />
-            {t('s3dAckErrors')}
-            <span className="ack-note f-mono">
-              {' '}({t('s3dErrBlock', { n: session.summary.error })})
-            </span>
-          </label>
-        )}
-        <button
-          className="key green sm"
-          disabled={!session.canSave || session.phase === 'saving'}
-          onClick={() => { void session.commit(); }}
-        >
-          {session.phase === 'saving' ? t('s3dSaving') : t('s3dSaveCount', { n: session.summary.newCount })}
-        </button>
-      </footer>
       {session.hasErrors && !session.ack && (
         <div className="address-note f-mono">▸ {t('s3dAddressErrors')}</div>
       )}

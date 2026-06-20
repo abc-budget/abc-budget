@@ -30,23 +30,23 @@ describe('S3dReview', () => {
       rows: [reviewRow()],
       hasErrors: true,
     }));
-    expect(screen.getByTestId('stat-ok')).toHaveTextContent('5');
-    expect(screen.getByTestId('stat-error')).toHaveTextContent('2');
-    expect(screen.getByTestId('stat-dup')).toHaveTextContent('1');
-    expect(screen.getByTestId('sum-new')).toHaveTextContent('4'); // newCount, not rows.length
+    expect(screen.getByTestId('stat-ok').textContent).toContain('5');
+    expect(screen.getByTestId('stat-error').textContent).toContain('2');
+    expect(screen.getByTestId('stat-dup').textContent).toContain('1');
+    expect(screen.getByTestId('sum-new').textContent).toContain('4'); // newCount, not rows.length
   });
 
   it('renders the reason from row.reasons via resolveMessage (drift-trap 2 — no subcode switch)', () => {
     const errRow = reviewRow({ rowIndex: 3, state: 'error', categoryId: null, amount: null, currency: null,
       reasons: [{ text: 'Could not parse date "31/13/2026"' }] });
     renderS3d(fakeSession({ summary: summary({ total: 1, ok: 0, error: 1, newCount: 0 }), rows: [errRow], hasErrors: true }));
-    expect(screen.getByText('Could not parse date "31/13/2026"')).toBeInTheDocument();
+    expect(screen.getByText('Could not parse date "31/13/2026"')).toBeTruthy();
   });
 
   it('category resolves through categoryIndex; null → catNone (drift-trap 3)', () => {
     renderS3d(fakeSession({ rows: [reviewRow({ categoryId: 'groceries' }), reviewRow({ rowIndex: 1, categoryId: null })],
       summary: summary({ total: 2, ok: 2, newCount: 2 }) }));
-    expect(screen.getByText('Groceries')).toBeInTheDocument();
+    expect(screen.getByText('Groceries')).toBeTruthy();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0); // catNone cell
   });
 
@@ -54,7 +54,7 @@ describe('S3dReview', () => {
     const dupRow = reviewRow({ rowIndex: 2, description: 'NETFLIX', dup: true, state: 'ok' });
     const { container } = render(<LangProvider><S3dReview session={fakeSession({
       rows: [dupRow], summary: summary({ total: 1, ok: 1, dup: 1, newCount: 0 }) })} /></LangProvider>);
-    expect(screen.getByText('NETFLIX')).toBeInTheDocument();
+    expect(screen.getByText('NETFLIX')).toBeTruthy();
     expect(container.querySelector('.rev-row.is-dup')).toBeTruthy();
     expect(container.querySelector('.rev-row.st-skipped')).toBeNull(); // dup is NOT skipped
   });
@@ -63,13 +63,13 @@ describe('S3dReview', () => {
     renderS3d(fakeSession({ summary: summary({ total: 9, ok: 5, error: 2, skipped: 1, dup: 1, newCount: 4 }),
       rows: [reviewRow()], hasErrors: true }));
     // the "Only errors · 2" + "Only skipped · 1" chips read from summary
-    expect(screen.getByText(/· 2/)).toBeInTheDocument();
-    expect(screen.getByText(/· 1/)).toBeInTheDocument();
+    expect(screen.getByText(/· 2/)).toBeTruthy();
+    expect(screen.getByText(/· 1/)).toBeTruthy();
   });
 
   it('saved phase renders SavedPanel using rowsCommitted (drift-trap 6), NOT newCount', () => {
     renderS3d(fakeSession({ phase: 'saved', rowsCommitted: 7,
       summary: summary({ total: 10, ok: 8, dup: 2, newCount: 8 }) }));
-    expect(screen.getByText(/7/)).toBeInTheDocument(); // rowsCommitted in the saved body
+    expect(screen.getByText(/7/)).toBeTruthy(); // rowsCommitted in the saved body
   });
 });
