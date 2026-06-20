@@ -23,6 +23,9 @@ import {
   serializeGenerateResult,
   serializeUnmappedColumns,
   SNAPSHOT_CELLS_PER_COLUMN_MAX,
+  reviewOkRowDTO,
+  reviewErrorRowDTO,
+  reviewSkippedRowDTO,
 } from './dto';
 import type {
   Stage2SnapshotDTO,
@@ -386,5 +389,68 @@ describe('serializeUnmappedColumns', () => {
   it('is JSON-safe', () => {
     const dto = serializeUnmappedColumns([{ id: 'x', name: 'X' }]);
     expect(JSON.parse(JSON.stringify(dto))).toEqual(dto);
+  });
+});
+
+// ── reviewOkRowDTO / reviewErrorRowDTO / reviewSkippedRowDTO ──────────────────
+
+describe('review row serializers', () => {
+  const makeTransactionRow = (): import('../internal/importStatement/stage3/types').TransactionRow => ({
+    rowIndex: 7,
+    hash: 'abc123',
+    date: new Date('2026-06-14T00:00:00.000Z'),
+    amount: 1500,
+    currency: 'UAH',
+    description: 'ATB',
+    counterparty: null,
+    account: null,
+    bankCategory: null,
+    mcc: null,
+    isBankCommission: false,
+    isCashback: false,
+    category: null,
+    isManuallySetCategory: false,
+  });
+
+  const echo = { date: '2026-06-14T00:00:00.000Z', amount: 1500, currency: 'UAH', description: 'ATB' };
+
+  it('reviewOkRowDTO: state ok, carries categoryId/isManual/dup, amount passthrough', () => {
+    const dto = reviewOkRowDTO(makeTransactionRow(), 'cat-42', 0, false);
+    expect(dto.state).toBe('ok');
+    expect(dto.rowIndex).toBe(7);
+    expect(dto.date).toBe('2026-06-14T00:00:00.000Z');
+    expect(dto.amount).toBe(1500);
+    expect(dto.categoryId).toBe('cat-42');
+    expect(dto.isManual).toBe(0);
+    expect(dto.dup).toBe(false);
+    expect('reasons' in dto).toBe(false);
+  });
+
+  it('reviewErrorRowDTO: state error, reasons non-empty, NO categoryId/isManual/dup keys', () => {
+    const errDto = reviewErrorRowDTO(3, echo, [new NativeMessage('bad amount')]);
+    expect(errDto.state).toBe('error');
+    expect(errDto.rowIndex).toBe(3);
+    expect(errDto.reasons).toHaveLength(1);
+    expect(errDto.reasons![0]).toEqual({ text: 'bad amount' });
+    expect('categoryId' in errDto).toBe(false);
+    expect('isManual' in errDto).toBe(false);
+    expect('dup' in errDto).toBe(false);
+  });
+
+  it('reviewSkippedRowDTO: state skipped, reasons length 1', () => {
+    const skippedDto = reviewSkippedRowDTO(5, echo, new LocalizableMessage('engine.income-skipped', {}));
+    expect(skippedDto.state).toBe('skipped');
+    expect(skippedDto.rowIndex).toBe(5);
+    expect(skippedDto.reasons).toHaveLength(1);
+    expect(skippedDto.reasons![0]).toEqual({ key: 'engine.income-skipped', params: {} });
+  });
+
+  it('review DTOs are JSON-safe', () => {
+    const okDto = reviewOkRowDTO(makeTransactionRow(), null, 1, true);
+    const errDto = reviewErrorRowDTO(0, { date: null, amount: null, currency: null, description: null }, [new NativeMessage('err')]);
+    const skipDto = reviewSkippedRowDTO(0, echo, new NativeMessage('skip'));
+    expect(JSON.parse(JSON.stringify(okDto))).toEqual(okDto);
+    expect(JSON.parse(JSON.stringify(errDto))).toEqual(errDto);
+    expect(JSON.parse(JSON.stringify(skipDto))).toEqual(skipDto);
   });
 });

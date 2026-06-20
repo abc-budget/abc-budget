@@ -47,7 +47,7 @@ export interface WorkerScopeLike {
 
 // ── Method allowlist ──────────────────────────────────────────────────────────
 
-/** The exact contract-v7 method set — anything else is rejected loudly. */
+/** The exact contract-v8 method set — anything else is rejected loudly. */
 const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'ping',
   'getVersion',
@@ -86,6 +86,8 @@ const ENGINE_METHODS: ReadonlySet<EngineMethod> = new Set<EngineMethod>([
   'importTypicality',
   // v7 (5.1 EP-5 commit): footprint commit + session free.
   'importCommit',
+  // v8 (5.3 S3d review): full-union review with dup detection.
+  'importReview',
 ]);
 
 // ── attachEngineHost ──────────────────────────────────────────────────────────

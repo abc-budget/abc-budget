@@ -40,6 +40,14 @@ import type {
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
   TypicalityFlagDTO,
+  ReviewRowDTO,
+  ReviewSummaryDTO,
+  ReviewWindowDTO,
+} from '../../client/dto';
+import {
+  reviewOkRowDTO,
+  reviewErrorRowDTO,
+  reviewSkippedRowDTO,
 } from '../../client/dto';
 import type { CategorizationService } from './categorization-service';
 import type { CategoriesService } from '../categories/categories-service';
@@ -47,6 +55,11 @@ import type { FootprintDao } from '../footprint/footprint-dao';
 import { commitFootprints } from '../footprint/commit-footprints';
 import type { ExchangeRateDAO } from '../exchange-rate/dao';
 import type { ImportStatementStage3Row } from '../importStatement/stage3/types';
+import type { RowError, SkippedRow } from '../importStatement/stage3/types';
+import type { ImportStatementRowData } from '../importStatement/stage2/types';
+import type { ColumnInfo } from '../importStatement/stage3/row-generator';
+import { echoDecodedCells } from './import-review-echo';
+import { footprintYearMonth } from '../footprint/derive-footprint';
 import { autoCategorize, distinctPeriods } from '../rules/auto-categorize';
 import { loadOverrideMap, overrideKeyForRow } from '../rules/categorize-with-overrides';
 import type { OverrideContext } from '../rules/categorize-with-overrides';
@@ -102,10 +115,29 @@ export type SessionRowsAccessor = (
   sessionId: string,
 ) => Promise<ImportStatementStage3Row[]>;
 
+/**
+ * The full S3d review data for a session: the ok rows (stage3), the error
+ * entries, the skipped entries, the stage2 rows for echo, and the column
+ * definitions (for echoDecodedCells). Produced by the session-registry-backed
+ * accessor (wired by the transport after the SessionRegistry is built).
+ */
+export interface SessionReviewData {
+  readonly rows: ImportStatementStage3Row[];
+  readonly rowErrors: RowError[];
+  readonly skipped: SkippedRow[];
+  readonly stage2Rows: ImportStatementRowData[];
+  readonly columns: ColumnInfo[];
+}
+
+/** Late-bound accessor for the review data (the worker-side S3d seam). */
+export type SessionReviewAccessor = (sessionId: string) => Promise<SessionReviewData>;
+
 /** The deps the categorization service composes over (all from the EP-4 graph). */
 export interface CategorizationServiceDeps {
   /** The session-rows accessor (the worker-side stage3-row seam). */
   readonly getSessionRows: SessionRowsAccessor;
+  /** The session-review accessor (the worker-side S3d review seam). */
+  readonly getSessionReview: SessionReviewAccessor;
   /** The footprint DAO — the override-map source (4.4/4.4.1). */
   readonly footprintDao: FootprintDao;
   /** The categories service (4.3a) — list/create + «base» resolution. */
@@ -299,6 +331,7 @@ const OPTIONAL_FIELDS: ReadonlyArray<keyof ImportStatementStage3Row> = [
  */
 export class CategorizationServiceImpl implements CategorizationService {
   private readonly getSessionRows: SessionRowsAccessor;
+  private readonly getSessionReview: SessionReviewAccessor;
   private readonly footprintDao: FootprintDao;
   private readonly categoriesService: CategoriesService;
   private readonly rulePersistence: RulePersistenceService;
@@ -327,6 +360,7 @@ export class CategorizationServiceImpl implements CategorizationService {
 
   constructor(deps: CategorizationServiceDeps) {
     this.getSessionRows = deps.getSessionRows;
+    this.getSessionReview = deps.getSessionReview;
     this.footprintDao = deps.footprintDao;
     this.categoriesService = deps.categoriesService;
     this.rulePersistence = deps.rulePersistence;
@@ -510,6 +544,56 @@ export class CategorizationServiceImpl implements CategorizationService {
     }).length;
 
     return { rows: dtoRows, total, matchCount, remainderCount };
+  }
+
+  // ── importReview (S3d union — Story 5.3) ─────────────────────────────────────
+
+  async importReview(
+    sessionId: string,
+    opts: { offset: number; count: number },
+  ): Promise<ReviewWindowDTO> {
+    const { rows, rowErrors, skipped, stage2Rows, columns } = await this.getSessionReview(sessionId);
+
+    // Live categorization for OK rows (committed tree — NO sandbox overlay).
+    const tree = await this.rulePersistence.reload();
+    const dumpCategoryId = this.dumps.get(sessionId) ?? null;
+    const categorized = await autoCategorize(rows, {
+      tree, footprintDao: this.footprintDao, categoriesService: this.categoriesService, dumpCategoryId,
+    });
+
+    // dup: ONE period-scoped read over ALL footprints, keyed (hash,year,month).
+    const periods = distinctPeriods(rows);
+    const existing = await this.footprintDao.getByPeriods(periods);
+    const dupKeys = new Set(existing.map((r) => `${r.hash}|${r.year}|${r.month}`));
+
+    // Echo lookup for non-OK rows — stage2 rows keyed by SOURCE rowIndex.
+    const stage2ByIndex = new Map(stage2Rows.map((r) => [r.rowIndex, r]));
+    const echoFor = (sourceRowIndex: number) => {
+      const sr = stage2ByIndex.get(sourceRowIndex);
+      return sr ? echoDecodedCells(sr, columns) : { date: null, amount: null, currency: null, description: null };
+    };
+
+    // Build the union: ok (array order) ++ error ++ skipped.
+    let dup = 0;
+    const okDtos: ReviewRowDTO[] = rows.map((row, i) => {
+      const { year, month } = footprintYearMonth(row.date);
+      const isDup = dupKeys.has(`${row.hash}|${year}|${month}`);
+      if (isDup) dup++;
+      return reviewOkRowDTO(row, categorized[i].categoryId, categorized[i].isManual, isDup);
+    });
+    const errorDtos = rowErrors.map((e) => reviewErrorRowDTO(e.rowIndex, echoFor(e.rowIndex), e.errors));
+    const skippedDtos = skipped.map((s) => reviewSkippedRowDTO(s.rowIndex, echoFor(s.rowIndex), s.reason));
+
+    const all = [...okDtos, ...errorDtos, ...skippedDtos];
+    const summary: ReviewSummaryDTO = {
+      total: all.length,
+      ok: okDtos.length,
+      error: errorDtos.length,
+      skipped: skippedDtos.length,
+      dup,
+      newCount: okDtos.length - dup,
+    };
+    return { summary, rows: all.slice(opts.offset, opts.offset + opts.count) };
   }
 
   // ── importConditionFields ──────────────────────────────────────────────────

@@ -51,6 +51,7 @@ import type {
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
   CommitResultDTO,
+  ReviewWindowDTO,
 } from './dto';
 import {
   serializeStage2Snapshot,
@@ -129,6 +130,16 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       const entry = registry.get(sessionId); // throws SessionUnknownError if absent
       const { rows } = await generateForSession(entry);
       return rows;
+    });
+    composed.setSessionReviewAccessor(async (sessionId: string) => {
+      const entry = registry.get(sessionId); // throws SessionUnknownError if absent
+      const { rows, rowErrors, skipped } = await generateForSession(entry);
+      const stage2 = entry.stage2 as ImportStatementStage2Impl;
+      const impl = stage2 as unknown as Stage2Internal;
+      const cols = await firstValueFrom(impl.columns);
+      const stage2Rows = await firstValueFrom(stage2.currentData);
+      const columns: ColumnInfo[] = cols.map((c) => ({ id: c.id, definition: c.definition, params: c.params }));
+      return { rows, rowErrors, skipped, stage2Rows, columns };
     });
     return composed;
   });
@@ -540,6 +551,13 @@ export function createDirectEngineClient(options?: EngineInitOptions): EngineCli
       svc.dropSandbox(sessionId);
       svc.dropDump(sessionId);
       return { sessionId, rowsCommitted };
+    },
+
+    // ── Review (contract v8 — Story 5.3, EP-5 S3d) ───────────────────────────
+
+    async importReview(sessionId: string, opts: { offset: number; count: number }): Promise<ReviewWindowDTO> {
+      const svc = await resolveCategorization();
+      return svc.importReview(sessionId, opts);
     },
 
     // ── Out-of-band events ────────────────────────────────────────────────────

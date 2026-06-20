@@ -250,4 +250,32 @@ describe('FootprintDao', () => {
       expect(await dao.getManualByPeriods([{ year: 2026, month: 8 }])).toEqual([]);
     });
   });
+
+  // ── Story 5.3 (Task 1): getByPeriods over the year_month_isManual index ──────
+  describe('getByPeriods (all isManual — dup-detection read)', () => {
+    it('returns BOTH manual and derived footprints for the requested periods', async () => {
+      const dao = new FootprintDao(() => db);
+      await dao.put({ hash: 'm', year: 2026, month: 6, day: 1, amountUSD: 10, categoryId: 'c', isManual: 1 });
+      await dao.put({ hash: 'd', year: 2026, month: 6, day: 2, amountUSD: 20, categoryId: null, isManual: 0 });
+      await dao.put({ hash: 'x', year: 2026, month: 7, day: 1, amountUSD: 30, categoryId: null, isManual: 0 });
+
+      const got = await dao.getByPeriods([{ year: 2026, month: 6 }]);
+      const hashes = got.map((r) => r.hash).sort();
+      expect(hashes).toEqual(['d', 'm']);       // both isManual values, period 2026-06 only
+    });
+
+    it('de-dupes repeated periods and excludes other periods', async () => {
+      const dao = new FootprintDao(() => db);
+      await dao.put({ hash: 'a', year: 2026, month: 6, day: 1, amountUSD: 1, categoryId: null, isManual: 0 });
+      await dao.put({ hash: 'b', year: 2026, month: 7, day: 1, amountUSD: 1, categoryId: null, isManual: 0 });
+
+      const got = await dao.getByPeriods([{ year: 2026, month: 6 }, { year: 2026, month: 6 }]);
+      expect(got.map((r) => r.hash)).toEqual(['a']);
+    });
+
+    it('empty periods → [] (no transaction opened)', async () => {
+      const dao = new FootprintDao(() => db);
+      expect(await dao.getByPeriods([])).toEqual([]);
+    });
+  });
 });

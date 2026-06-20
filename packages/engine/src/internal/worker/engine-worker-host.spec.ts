@@ -258,9 +258,9 @@ describe('host unit (fake scope)', () => {
     attachEngineHost(scope);
     scope.onmessage!({ data: { kind: 'hello', contract: 999 } });
     expect(posted[0]).toEqual({ kind: 'helloAck', contract: CONTRACT_VERSION });
-    // DECLARED UPDATE (5.1): contract 6 → 7 (EP-5 commit pipeline —
-    // importCommit joins EngineMethod; CommitResultDTO added)
-    expect(CONTRACT_VERSION).toBe(7);
+    // DECLARED UPDATE (5.3): contract 7 → 8 (EP-5 S3d review —
+    // importReview joins EngineMethod; ReviewWindowDTO/ReviewRowDTO/ReviewSummaryDTO added)
+    expect(CONTRACT_VERSION).toBe(8);
   });
 
   it('rejects an unknown method loudly (name preserved over the codec)', async () => {
@@ -311,8 +311,8 @@ describe('real hop: handshake + baseline', () => {
     const client = makeClient();
     expect(await client.ping('over-the-hop')).toBe('over-the-hop');
     const version = await client.getVersion();
-    // DECLARED UPDATE (5.1): contract 6 → 7 (EP-5 importCommit wire)
-    expect(version.contract).toBe(7);
+    // DECLARED UPDATE (5.3): contract 7 → 8 (EP-5 S3d importReview wire)
+    expect(version.contract).toBe(8);
     expect(typeof version.engine).toBe('string');
   });
 });

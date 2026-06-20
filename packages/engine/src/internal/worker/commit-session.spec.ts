@@ -133,6 +133,7 @@ describe('commitSession (autoCategorize → commitFootprints, end-to-end)', () =
       ratesProvider: async (): Promise<ExchangeRateService | null> => null,
       ratesDao,
       warmRates: async () => {}, // best-effort no-op (the loud gate is the cache-only convert)
+      getSessionReview: async () => ({ rows: [], rowErrors: [], skipped: [], stage2Rows: [], columns: [] }),
     });
 
     // ── the multi-rule seed ─────────────────────────────────────────────────────

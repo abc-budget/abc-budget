@@ -25,6 +25,7 @@ import type {
   RemainderMagnitudeDTO,
   TypicalityResultDTO,
   CommitResultDTO,
+  ReviewWindowDTO,
 } from './dto';
 import type { DecodeResult } from '../internal/ingest/types';
 
@@ -324,6 +325,15 @@ export interface EngineClient {
    * free the session (retry-able). Throws SessionUnknownError if not found.
    */
   importCommit(sessionId: string): Promise<CommitResultDTO>;
+
+  // ── Review (contract v8 — Story 5.3, EP-5 S3d) ────────────────────────────
+  /**
+   * S3d review union — ALL rows (ok + error + skipped) with a full-set summary
+   * and per-OK-row dup flag. Windowed (offset/count); the summary is full-set.
+   *
+   * Throws SessionUnknownError if sessionId is not found.
+   */
+  importReview(sessionId: string, opts: { offset: number; count: number }): Promise<ReviewWindowDTO>;
 
   // ── Out-of-band events ─────────────────────────────────────────────────────
 

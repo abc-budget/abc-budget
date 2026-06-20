@@ -560,3 +560,85 @@ export interface CommitResultDTO {
   readonly sessionId: string;
   readonly rowsCommitted: number;
 }
+
+// ── S3d review union DTOs (contract v8 — Story 5.3, EP-5) ───────────────────
+// TYPE-ONLY at the barrel — adds NO runtime symbol (boundary.spec asserts 3).
+
+/** Discriminant for a review-union row. */
+export type ReviewRowState = 'ok' | 'error' | 'skipped';
+
+/** One S3d review row. See the plan's Interfaces section for per-state field rules. */
+export interface ReviewRowDTO {
+  readonly rowIndex: number;
+  readonly state: ReviewRowState;
+  readonly date: string | null;
+  readonly amount: number | null;
+  readonly currency: string | null;
+  readonly description: string | null;
+  readonly categoryId?: string | null;
+  readonly isManual?: 0 | 1;
+  readonly dup?: boolean;
+  readonly reasons?: readonly SerializedMessage[];
+}
+
+export interface ReviewSummaryDTO {
+  readonly total: number;
+  readonly ok: number;
+  readonly error: number;
+  readonly skipped: number;
+  readonly dup: number;
+  readonly newCount: number;
+}
+
+export interface ReviewWindowDTO {
+  readonly summary: ReviewSummaryDTO;
+  readonly rows: readonly ReviewRowDTO[];
+}
+
+/** OK-row serializer: full fields + live category + dup (amount already unsigned). */
+export function reviewOkRowDTO(
+  row: TransactionRow,
+  categoryId: string | null,
+  isManual: 0 | 1,
+  dup: boolean,
+): ReviewRowDTO {
+  return {
+    rowIndex: row.rowIndex,
+    state: 'ok',
+    date: row.date instanceof Date ? row.date.toISOString() : String(row.date),
+    amount: row.amount,
+    currency: row.currency,
+    description: row.description,
+    categoryId,
+    isManual,
+    dup,
+  };
+}
+
+/** Error-row serializer: echoed cells + ALL RowError messages. */
+export function reviewErrorRowDTO(
+  rowIndex: number,
+  echo: { date: string | null; amount: number | null; currency: string | null; description: string | null },
+  messages: readonly Message[],
+): ReviewRowDTO {
+  return {
+    rowIndex,
+    state: 'error',
+    date: echo.date, amount: echo.amount, currency: echo.currency, description: echo.description,
+    reasons: messages.map(serializeMessage),
+  };
+}
+
+/** Skipped-row serializer: echoed cells (income raw amount) + the single reason. */
+export function reviewSkippedRowDTO(
+  rowIndex: number,
+  echo: { date: string | null; amount: number | null; currency: string | null; description: string | null },
+  reason: Message,
+): ReviewRowDTO {
+  return {
+    rowIndex,
+    state: 'skipped',
+    date: echo.date, amount: echo.amount, currency: echo.currency, description: echo.description,
+    reasons: [serializeMessage(reason)],
+  };
+}
