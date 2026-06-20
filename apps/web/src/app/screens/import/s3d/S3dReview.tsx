@@ -281,10 +281,6 @@ function SavedPanel({ session }: { session: S3dSession }) {
         <div className="saved-lamp"><span className="lamp green" /></div>
         <h2 className="f-disp saved-title">{t('s3dSavedTitle')}</h2>
         <p className="body-p saved-body">{t('s3dSavedBody', { n: session.rowsCommitted })}</p>
-        <div className="saved-keys">
-          <button className="key beige sm">{t('s3dSavedAnother')}</button>
-          <button className="key green sm">{t('s3dSavedGoto')}</button>
-        </div>
       </div>
     </div>
   );

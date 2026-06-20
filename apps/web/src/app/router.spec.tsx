@@ -68,6 +68,12 @@ vi.mock('../engine', () => ({
     }),
     importAssignRemainder: async () => undefined,
     importTypicality: async () => ({ flags: [] }),
+    // v8 S3d review + commit surface
+    importReview: async () => ({
+      summary: { total: 1, ok: 1, error: 0, skipped: 0, dup: 0, newCount: 1 },
+      rows: [],
+    }),
+    importCommit: async () => ({ sessionId: 'sess-router', rowsCommitted: 1 }),
   },
   engineReady: Promise.resolve({ state: 'ready' }),
 }));
@@ -209,18 +215,23 @@ describe('wizard flow (single route, internal steps; REAL gate #1 since 2.7)', (
     fireEvent.click(screen.getByRole('button', { name: 'Перервати й вийти' }));
     await waitFor(() => expect(screen.getByTestId('screen-dashboard')).toBeTruthy());
   });
-  it('S3d: «До бюджету» → Dashboard (after leave-confirm); «Імпортувати ще» → reset to S3a', async () => {
+  it('S3d: save → saved phase → «Імпортувати ще» resets to S3a; «До бюджету» → Dashboard (no modal after commit)', async () => {
     renderAt('/import');
     await passS3aGate();
     await walkToS3d();
+    // In review phase: save button present; click to commit
+    const saveBtn = await screen.findByRole('button', { name: /Зберегти/ });
+    fireEvent.click(saveBtn);
+    // Saved phase: «Імпортувати ще» and «До бюджету» appear in the footer
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Імпортувати ще' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'Імпортувати ще' }));
     expect(screen.getByText('КРОК 1 / 4')).toBeTruthy();
-    // «Імпортувати ще» resets to step 0 but keeps the live S3a session (state
-    // still 'unknown' → gate #1 already passes), so we can walk straight again.
+    // Walk to S3d again and navigate to dashboard (no leave-confirm after commit)
     await walkToS3d();
+    const saveBtn2 = await screen.findByRole('button', { name: /Зберегти/ });
+    fireEvent.click(saveBtn2);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'До бюджету' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'До бюджету' }));
-    // the session is still live → exit-protection fires here too
-    fireEvent.click(screen.getByRole('button', { name: 'Перервати й вийти' }));
     await waitFor(() => expect(screen.getByTestId('screen-dashboard')).toBeTruthy());
   });
 });
